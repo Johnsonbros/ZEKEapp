@@ -16,6 +16,7 @@ interface SettingsRowProps {
   onToggle?: (value: boolean) => void;
   isDestructive?: boolean;
   showChevron?: boolean;
+  disabled?: boolean;
 }
 
 export function SettingsRow({
@@ -28,15 +29,16 @@ export function SettingsRow({
   onToggle,
   isDestructive = false,
   showChevron = true,
+  disabled = false,
 }: SettingsRowProps) {
   const { theme } = useTheme();
 
-  const iconColor = isDestructive ? Colors.dark.error : theme.textSecondary;
-  const textColor = isDestructive ? Colors.dark.error : theme.text;
+  const iconColor = isDestructive ? Colors.dark.error : disabled ? theme.textSecondary : theme.textSecondary;
+  const textColor = isDestructive ? Colors.dark.error : disabled ? theme.textSecondary : theme.text;
 
   if (isToggle) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.backgroundDefault }]}>
+      <View style={[styles.container, { backgroundColor: theme.backgroundDefault, opacity: disabled ? 0.5 : 1 }]}>
         <View style={styles.left}>
           <View style={[styles.iconContainer, { backgroundColor: theme.backgroundSecondary }]}>
             <Feather name={icon} size={18} color={iconColor} />
@@ -45,7 +47,8 @@ export function SettingsRow({
         </View>
         <Switch
           value={toggleValue}
-          onValueChange={onToggle}
+          onValueChange={disabled ? undefined : onToggle}
+          disabled={disabled}
           trackColor={{ false: theme.backgroundSecondary, true: Colors.dark.primary }}
           thumbColor="#FFFFFF"
         />

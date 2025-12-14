@@ -3,6 +3,8 @@ import { View, StyleSheet, Alert, Image, ScrollView, Pressable } from "react-nat
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
@@ -14,12 +16,14 @@ import { useTheme } from "@/hooks/useTheme";
 import { Spacing, Colors, BorderRadius, Gradients } from "@/constants/theme";
 import { mockDevices } from "@/lib/mockData";
 import { clearAllData } from "@/lib/storage";
+import { SettingsStackParamList } from "@/navigation/SettingsStackNavigator";
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
   const tabBarHeight = useBottomTabBarHeight();
   const { theme } = useTheme();
+  const navigation = useNavigation<NativeStackNavigationProp<SettingsStackParamList>>();
 
   const [devices] = useState<DeviceInfo[]>(mockDevices);
   const [autoSync, setAutoSync] = useState(true);
@@ -137,11 +141,9 @@ export default function SettingsScreen() {
           <SettingsRow
             icon="bell"
             label="Notifications"
-            isToggle
-            toggleValue={notifications}
-            onToggle={(value) => {
+            onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setNotifications(value);
+              navigation.navigate("NotificationSettings");
             }}
           />
           <View style={[styles.divider, { backgroundColor: theme.border }]} />

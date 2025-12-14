@@ -13,17 +13,51 @@ const STORAGE_KEYS = {
   LIMITLESS_API_KEY: "@zeke/limitless_api_key",
 };
 
+export interface NotificationSettings {
+  enabled: boolean;
+  pendantConnected: boolean;
+  pendantDisconnected: boolean;
+  lowBattery: boolean;
+  syncComplete: boolean;
+  newMemory: boolean;
+  aiResponses: boolean;
+  dailySummary: boolean;
+  quietHoursEnabled: boolean;
+  quietHoursStart: string;
+  quietHoursEnd: string;
+}
+
 export interface Settings {
   autoSync: boolean;
   notifications: boolean;
   dataRetentionDays: number;
+  notificationSettings: NotificationSettings;
 }
+
+const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
+  enabled: true,
+  pendantConnected: true,
+  pendantDisconnected: true,
+  lowBattery: true,
+  syncComplete: false,
+  newMemory: true,
+  aiResponses: true,
+  dailySummary: false,
+  quietHoursEnabled: false,
+  quietHoursStart: "22:00",
+  quietHoursEnd: "07:00",
+};
 
 const DEFAULT_SETTINGS: Settings = {
   autoSync: true,
   notifications: true,
   dataRetentionDays: 30,
+  notificationSettings: DEFAULT_NOTIFICATION_SETTINGS,
 };
+
+export function getDefaultNotificationSettings(): NotificationSettings {
+  return { ...DEFAULT_NOTIFICATION_SETTINGS };
+}
 
 export async function getDevices(): Promise<DeviceInfo[]> {
   try {
