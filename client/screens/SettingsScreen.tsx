@@ -40,11 +40,7 @@ export default function SettingsScreen() {
 
   const handleAddDevice = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    Alert.alert(
-      "Add Device",
-      "To add a new device, make sure Bluetooth is enabled and your device is in pairing mode.",
-      [{ text: "OK" }]
-    );
+    navigation.navigate("BluetoothConnection");
   };
 
   const handleClearData = () => {
@@ -160,6 +156,16 @@ export default function SettingsScreen() {
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               navigation.navigate("DataExport");
+            }}
+          />
+          <View style={[styles.divider, { backgroundColor: theme.border }]} />
+          <SettingsRow
+            icon="bar-chart-2"
+            label="Analytics"
+            value="View your stats"
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              navigation.navigate("Analytics");
             }}
           />
         </View>

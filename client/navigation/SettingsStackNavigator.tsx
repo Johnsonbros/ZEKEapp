@@ -3,12 +3,16 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import SettingsScreen from "@/screens/SettingsScreen";
 import NotificationSettingsScreen from "@/screens/NotificationSettingsScreen";
 import DataExportScreen from "@/screens/DataExportScreen";
+import AnalyticsScreen from "@/screens/AnalyticsScreen";
+import BluetoothConnectionScreen from "@/screens/BluetoothConnectionScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 
 export type SettingsStackParamList = {
   Settings: undefined;
   NotificationSettings: undefined;
   DataExport: undefined;
+  Analytics: undefined;
+  BluetoothConnection: undefined;
 };
 
 const Stack = createNativeStackNavigator<SettingsStackParamList>();
@@ -37,6 +41,20 @@ export default function SettingsStackNavigator() {
         component={DataExportScreen}
         options={{
           headerTitle: "Export Data",
+        }}
+      />
+      <Stack.Screen
+        name="Analytics"
+        component={AnalyticsScreen}
+        options={{
+          headerTitle: "Analytics",
+        }}
+      />
+      <Stack.Screen
+        name="BluetoothConnection"
+        component={BluetoothConnectionScreen}
+        options={{
+          headerTitle: "Pair Device",
         }}
       />
     </Stack.Navigator>

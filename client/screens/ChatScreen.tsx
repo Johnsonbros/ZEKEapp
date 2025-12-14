@@ -10,6 +10,7 @@ import Animated, { useAnimatedStyle } from "react-native-reanimated";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ChatBubble, Message, TypingIndicator } from "@/components/ChatBubble";
+import { VoiceInputButton } from "@/components/VoiceInputButton";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, Colors, BorderRadius, Gradients } from "@/constants/theme";
 import { mockMessages } from "@/lib/mockData";
@@ -148,20 +149,29 @@ export default function ChatScreen() {
             returnKeyType="default"
             blurOnSubmit={false}
           />
-          <Pressable
-            onPress={handleSend}
-            disabled={!inputText.trim()}
-            style={({ pressed }) => ({ opacity: pressed || !inputText.trim() ? 0.6 : 1 })}
-          >
-            <LinearGradient
-              colors={inputText.trim() ? Gradients.primary : [theme.textSecondary, theme.textSecondary]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.sendButton}
+          <View style={styles.inputButtons}>
+            <VoiceInputButton
+              onRecordingComplete={(audioUri, durationSeconds) => {
+                console.log("Voice recording captured:", audioUri, `(${durationSeconds}s)`);
+                setInputText(`Voice message (${durationSeconds}s) - tap send to transcribe`);
+              }}
+              disabled={isTyping}
+            />
+            <Pressable
+              onPress={handleSend}
+              disabled={!inputText.trim()}
+              style={({ pressed }) => ({ opacity: pressed || !inputText.trim() ? 0.6 : 1 })}
             >
-              <Feather name="send" size={18} color="#FFFFFF" />
-            </LinearGradient>
-          </Pressable>
+              <LinearGradient
+                colors={inputText.trim() ? Gradients.primary : [theme.textSecondary, theme.textSecondary]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.sendButton}
+              >
+                <Feather name="send" size={18} color="#FFFFFF" />
+              </LinearGradient>
+            </Pressable>
+          </View>
         </View>
       </Animated.View>
     </KeyboardAvoidingView>
@@ -195,6 +205,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     maxHeight: 100,
     paddingVertical: Platform.OS === "ios" ? Spacing.sm : 0,
+  },
+  inputButtons: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
   },
   sendButton: {
     width: 36,
