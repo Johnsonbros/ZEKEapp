@@ -125,15 +125,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/memories", async (req, res) => {
     try {
-      const parsed = insertMemorySchema.safeParse(req.body);
+      const { deviceId, transcript, duration, speakers } = req.body;
+      
+      if (!deviceId || !transcript || duration === undefined) {
+        return res.status(400).json({ 
+          error: "Missing required fields", 
+          details: "deviceId, transcript, and duration are required" 
+        });
+      }
+
+      const analysisPrompt = `Analyze the following conversation transcript and provide:
+1. A short, descriptive title (max 10 words)
+2. A summary (2-3 sentences)
+3. A list of action items extracted from the conversation (if any)
+
+Transcript:
+${transcript}
+
+Respond in JSON format:
+{
+  "title": "...",
+  "summary": "...",
+  "actionItems": ["action 1", "action 2", ...]
+}`;
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-5",
+        messages: [
+          { role: "system", content: "You are an AI assistant that analyzes conversation transcripts. Always respond with valid JSON." },
+          { role: "user", content: analysisPrompt }
+        ],
+        max_tokens: 500,
+        response_format: { type: "json_object" }
+      });
+
+      const responseContent = completion.choices[0]?.message?.content || '{}';
+      let analysis: { title?: string; summary?: string; actionItems?: string[] };
+      
+      try {
+        analysis = JSON.parse(responseContent);
+      } catch {
+        analysis = {
+          title: "Untitled Memory",
+          summary: transcript.substring(0, 200),
+          actionItems: []
+        };
+      }
+
+      const memoryData = {
+        deviceId,
+        transcript,
+        duration,
+        speakers: speakers || null,
+        title: analysis.title || "Untitled Memory",
+        summary: analysis.summary || null,
+        actionItems: analysis.actionItems || []
+      };
+
+      const parsed = insertMemorySchema.safeParse(memoryData);
       if (!parsed.success) {
         return res.status(400).json({ error: "Invalid memory data", details: parsed.error.errors });
       }
+      
       const memory = await storage.createMemory(parsed.data);
       res.status(201).json(memory);
     } catch (error) {
       console.error("Error creating memory:", error);
       res.status(500).json({ error: "Failed to create memory" });
+    }
+  });
+
+  app.post("/api/transcribe", async (req, res) => {
+    try {
+      const mockTranscription = "This is a placeholder transcription. The audio transcription service (Deepgram) is not yet configured. Once set up, this endpoint will accept audio data and return the actual transcribed text.";
+      
+      res.json({
+        text: mockTranscription,
+        duration: 0,
+        isMock: true
+      });
+    } catch (error) {
+      console.error("Error transcribing audio:", error);
+      res.status(500).json({ error: "Failed to transcribe audio" });
     }
   });
 
