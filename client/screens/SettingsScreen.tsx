@@ -153,6 +153,15 @@ export default function SettingsScreen() {
             value="30 days"
             onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
           />
+          <View style={[styles.divider, { backgroundColor: theme.border }]} />
+          <SettingsRow
+            icon="download"
+            label="Export Data"
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              navigation.navigate("DataExport");
+            }}
+          />
         </View>
       </SettingsSection>
 
