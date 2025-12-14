@@ -1,19 +1,73 @@
 import React, { useState, useCallback } from "react";
-import { View, FlatList, StyleSheet, RefreshControl, SectionList, Pressable } from "react-native";
+import { View, FlatList, StyleSheet, RefreshControl, Pressable, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { useQuery, useMutation } from "@tanstack/react-query";
 
 import { ThemedText } from "@/components/ThemedText";
 import { MemoryCard, Memory } from "@/components/MemoryCard";
 import { EmptyState } from "@/components/EmptyState";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, Colors, BorderRadius } from "@/constants/theme";
-import { mockMemories } from "@/lib/mockData";
+import { queryClient, apiRequest, getApiUrl } from "@/lib/query-client";
 
 type FilterType = "all" | "omi" | "limitless" | "starred";
+
+interface ApiDevice {
+  id: string;
+  name: string;
+  type: string;
+  isConnected: boolean;
+}
+
+interface ApiMemory {
+  id: string;
+  deviceId: string;
+  title: string;
+  summary: string | null;
+  transcript: string;
+  speakers: string[] | null;
+  actionItems: string[] | null;
+  duration: number;
+  isStarred: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function formatTimestamp(dateStr: string) {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const isToday = date.toDateString() === now.toDateString();
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const isYesterday = date.toDateString() === yesterday.toDateString();
+  
+  const timeStr = date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  if (isToday) return `Today, ${timeStr}`;
+  if (isYesterday) return `Yesterday, ${timeStr}`;
+  return date.toLocaleDateString([], { month: "short", day: "numeric" }) + `, ${timeStr}`;
+}
+
+function formatDuration(seconds: number) {
+  const mins = Math.floor(seconds / 60);
+  return `${mins} min`;
+}
+
+function mapApiMemoryToMemory(memory: ApiMemory, deviceType: "omi" | "limitless"): Memory {
+  return {
+    id: memory.id,
+    title: memory.title,
+    transcript: memory.transcript,
+    timestamp: formatTimestamp(memory.createdAt),
+    deviceType,
+    speakers: memory.speakers ?? undefined,
+    isStarred: memory.isStarred,
+    duration: formatDuration(memory.duration),
+  };
+}
 
 export default function MemoriesScreen() {
   const insets = useSafeAreaInsets();
@@ -21,15 +75,64 @@ export default function MemoriesScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const { theme } = useTheme();
 
-  const [memories, setMemories] = useState<Memory[]>(mockMemories);
-  const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<FilterType>("all");
 
+  const { data: devicesData } = useQuery<ApiDevice[]>({
+    queryKey: ['/api/devices'],
+  });
+
+  const buildQueryParams = () => {
+    const params = new URLSearchParams();
+    if (filter === "starred") {
+      params.set("isStarred", "true");
+    }
+    return params.toString();
+  };
+
+  const queryString = buildQueryParams();
+  const memoriesQueryKey = queryString 
+    ? ['/api/memories', queryString]
+    : ['/api/memories'];
+
+  const { data: memoriesData, isLoading, isError, isFetching } = useQuery<ApiMemory[]>({
+    queryKey: memoriesQueryKey,
+    queryFn: async () => {
+      const url = new URL(`/api/memories${queryString ? `?${queryString}` : ''}`, getApiUrl());
+      const res = await fetch(url.toString(), { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to fetch memories');
+      return res.json();
+    },
+  });
+
+  const starMutation = useMutation({
+    mutationFn: async (memoryId: string) => {
+      const res = await apiRequest('POST', `/api/memories/${memoryId}/star`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/memories'], exact: false });
+    },
+  });
+
+  const deviceTypeMap = new Map<string, "omi" | "limitless">();
+  (devicesData ?? []).forEach(d => {
+    const deviceType = (d.type === 'omi' || d.type === 'limitless') ? d.type : 'omi';
+    deviceTypeMap.set(d.id, deviceType);
+  });
+
+  const allMemories: Memory[] = (memoriesData ?? []).map(m => 
+    mapApiMemoryToMemory(m, deviceTypeMap.get(m.deviceId) ?? "omi")
+  );
+
+  const filteredMemories = allMemories.filter((m) => {
+    if (filter === "all") return true;
+    if (filter === "starred") return m.isStarred;
+    return m.deviceType === filter;
+  });
+
   const onRefresh = useCallback(async () => {
-    setRefreshing(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setRefreshing(false);
+    await queryClient.invalidateQueries({ queryKey: ['/api/memories'], exact: false });
   }, []);
 
   const handleMemoryPress = (memory: Memory) => {
@@ -38,16 +141,8 @@ export default function MemoriesScreen() {
 
   const handleStarMemory = (id: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setMemories((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, isStarred: !m.isStarred } : m))
-    );
+    starMutation.mutate(id);
   };
-
-  const filteredMemories = memories.filter((m) => {
-    if (filter === "all") return true;
-    if (filter === "starred") return m.isStarred;
-    return m.deviceType === filter;
-  });
 
   const filters: { key: FilterType; label: string }[] = [
     { key: "all", label: "All" },
@@ -95,13 +190,31 @@ export default function MemoriesScreen() {
     />
   );
 
-  const renderEmpty = () => (
-    <EmptyState
-      icon="inbox"
-      title="No memories yet"
-      description="Your conversations will appear here once your devices start recording."
-    />
-  );
+  const renderEmpty = () => {
+    if (isLoading) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator color={Colors.dark.primary} />
+        </View>
+      );
+    }
+    if (isError) {
+      return (
+        <EmptyState
+          icon="alert-circle"
+          title="Failed to load memories"
+          description="Please try again later."
+        />
+      );
+    }
+    return (
+      <EmptyState
+        icon="inbox"
+        title="No memories yet"
+        description="Your conversations will appear here once your devices start recording."
+      />
+    );
+  };
 
   return (
     <FlatList
@@ -121,7 +234,7 @@ export default function MemoriesScreen() {
       showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl
-          refreshing={refreshing}
+          refreshing={isFetching && !isLoading}
           onRefresh={onRefresh}
           tintColor={Colors.dark.primary}
         />
@@ -142,5 +255,11 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: Spacing["3xl"],
   },
 });

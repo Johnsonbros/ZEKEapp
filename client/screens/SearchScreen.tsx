@@ -1,10 +1,11 @@
 import React, { useState, useCallback } from "react";
-import { View, FlatList, StyleSheet, Pressable, ScrollView } from "react-native";
+import { View, FlatList, StyleSheet, Pressable, ScrollView, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { useQuery } from "@tanstack/react-query";
 
 import { ThemedText } from "@/components/ThemedText";
 import { SearchBar } from "@/components/SearchBar";
@@ -12,7 +13,59 @@ import { MemoryCard, Memory } from "@/components/MemoryCard";
 import { EmptyState } from "@/components/EmptyState";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, Colors, BorderRadius } from "@/constants/theme";
-import { mockMemories, recentSearches as initialSearches } from "@/lib/mockData";
+import { getApiUrl } from "@/lib/query-client";
+
+interface ApiDevice {
+  id: string;
+  name: string;
+  type: string;
+}
+
+interface ApiMemory {
+  id: string;
+  deviceId: string;
+  title: string;
+  summary: string | null;
+  transcript: string;
+  speakers: string[] | null;
+  actionItems: string[] | null;
+  duration: number;
+  isStarred: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function formatTimestamp(dateStr: string) {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const isToday = date.toDateString() === now.toDateString();
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const isYesterday = date.toDateString() === yesterday.toDateString();
+  
+  const timeStr = date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  if (isToday) return `Today, ${timeStr}`;
+  if (isYesterday) return `Yesterday, ${timeStr}`;
+  return date.toLocaleDateString([], { month: "short", day: "numeric" }) + `, ${timeStr}`;
+}
+
+function formatDuration(seconds: number) {
+  const mins = Math.floor(seconds / 60);
+  return `${mins} min`;
+}
+
+function mapApiMemoryToMemory(memory: ApiMemory, deviceType: "omi" | "limitless"): Memory {
+  return {
+    id: memory.id,
+    title: memory.title,
+    transcript: memory.transcript,
+    timestamp: formatTimestamp(memory.createdAt),
+    deviceType,
+    speakers: memory.speakers ?? undefined,
+    isStarred: memory.isStarred,
+    duration: formatDuration(memory.duration),
+  };
+}
 
 export default function SearchScreen() {
   const insets = useSafeAreaInsets();
@@ -21,49 +74,50 @@ export default function SearchScreen() {
   const { theme } = useTheme();
 
   const [query, setQuery] = useState("");
-  const [recentSearches, setRecentSearches] = useState<string[]>(initialSearches);
-  const [results, setResults] = useState<Memory[]>([]);
-  const [hasSearched, setHasSearched] = useState(false);
-  const [isSearching, setIsSearching] = useState(false);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [activeSearchQuery, setActiveSearchQuery] = useState<string | null>(null);
+
+  const { data: devicesData } = useQuery<ApiDevice[]>({
+    queryKey: ['/api/devices'],
+  });
+
+  const { data: searchResults, isLoading: isSearching, isError } = useQuery<ApiMemory[]>({
+    queryKey: ['/api/memories', 'search', activeSearchQuery],
+    queryFn: async () => {
+      if (!activeSearchQuery) return [];
+      const url = new URL('/api/memories', getApiUrl());
+      url.searchParams.set('search', activeSearchQuery);
+      const res = await fetch(url.toString(), { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to search memories');
+      return res.json();
+    },
+    enabled: !!activeSearchQuery,
+  });
+
+  const deviceTypeMap = new Map<string, "omi" | "limitless">();
+  (devicesData ?? []).forEach(d => {
+    deviceTypeMap.set(d.id, d.type as "omi" | "limitless");
+  });
+
+  const results: Memory[] = (searchResults ?? []).map(m => 
+    mapApiMemoryToMemory(m, deviceTypeMap.get(m.deviceId) ?? "omi")
+  );
 
   const handleSearch = useCallback(() => {
     if (!query.trim()) return;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setIsSearching(true);
-    setHasSearched(true);
+    setActiveSearchQuery(query.trim());
 
-    setTimeout(() => {
-      const searchResults = mockMemories.filter(
-        (m) =>
-          m.title.toLowerCase().includes(query.toLowerCase()) ||
-          m.transcript.toLowerCase().includes(query.toLowerCase())
-      );
-      setResults(searchResults);
-      setIsSearching(false);
-
-      if (!recentSearches.includes(query)) {
-        setRecentSearches((prev) => [query, ...prev].slice(0, 10));
-      }
-    }, 500);
+    if (!recentSearches.includes(query.trim())) {
+      setRecentSearches((prev) => [query.trim(), ...prev].slice(0, 10));
+    }
   }, [query, recentSearches]);
 
   const handleRecentSearch = (search: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setQuery(search);
-    setTimeout(() => {
-      setIsSearching(true);
-      setHasSearched(true);
-      setTimeout(() => {
-        const searchResults = mockMemories.filter(
-          (m) =>
-            m.title.toLowerCase().includes(search.toLowerCase()) ||
-            m.transcript.toLowerCase().includes(search.toLowerCase())
-        );
-        setResults(searchResults);
-        setIsSearching(false);
-      }, 500);
-    }, 100);
+    setActiveSearchQuery(search);
   };
 
   const handleClearRecent = () => {
@@ -91,27 +145,31 @@ export default function SearchScreen() {
           </Pressable>
         ) : null}
       </View>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.recentChips}
-      >
-        {recentSearches.map((search, index) => (
-          <Pressable
-            key={index}
-            onPress={() => handleRecentSearch(search)}
-            style={({ pressed }) => [
-              styles.recentChip,
-              { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 },
-            ]}
-          >
-            <Feather name="clock" size={14} color={theme.textSecondary} />
-            <ThemedText type="small" style={{ color: Colors.dark.primary, marginLeft: Spacing.xs }}>
-              {search}
-            </ThemedText>
-          </Pressable>
-        ))}
-      </ScrollView>
+      {recentSearches.length > 0 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.recentChips}
+        >
+          {recentSearches.map((search, index) => (
+            <Pressable
+              key={index}
+              onPress={() => handleRecentSearch(search)}
+              style={({ pressed }) => [
+                styles.recentChip,
+                { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 },
+              ]}
+            >
+              <Feather name="clock" size={14} color={theme.textSecondary} />
+              <ThemedText type="small" style={{ color: Colors.dark.primary, marginLeft: Spacing.xs }}>
+                {search}
+              </ThemedText>
+            </Pressable>
+          ))}
+        </ScrollView>
+      ) : (
+        <ThemedText type="body" secondary>No recent searches</ThemedText>
+      )}
 
       <View style={styles.suggestionsSection}>
         <ThemedText type="h4" style={{ marginBottom: Spacing.md }}>
@@ -128,10 +186,21 @@ export default function SearchScreen() {
     if (isSearching) {
       return (
         <View style={styles.loadingContainer}>
-          <ThemedText type="body" secondary>
+          <ActivityIndicator color={Colors.dark.primary} />
+          <ThemedText type="body" secondary style={{ marginTop: Spacing.md }}>
             Searching...
           </ThemedText>
         </View>
+      );
+    }
+
+    if (isError) {
+      return (
+        <EmptyState
+          icon="alert-circle"
+          title="Search failed"
+          description="Something went wrong. Please try again."
+        />
       );
     }
 
@@ -140,7 +209,7 @@ export default function SearchScreen() {
         <EmptyState
           icon="search"
           title="No results found"
-          description={`We couldn't find any memories matching "${query}". Try a different search term.`}
+          description={`We couldn't find any memories matching "${activeSearchQuery}". Try a different search term.`}
         />
       );
     }
@@ -155,7 +224,7 @@ export default function SearchScreen() {
             key={memory.id}
             memory={memory}
             onPress={() => handleMemoryPress(memory)}
-            highlightText={query}
+            highlightText={activeSearchQuery ?? undefined}
           />
         ))}
       </View>
@@ -183,7 +252,7 @@ export default function SearchScreen() {
         autoFocus={false}
       />
 
-      {hasSearched ? renderResults() : renderRecentSearches()}
+      {activeSearchQuery ? renderResults() : renderRecentSearches()}
     </ScrollView>
   );
 }

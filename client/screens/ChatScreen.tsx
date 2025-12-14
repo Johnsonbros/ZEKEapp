@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { View, StyleSheet, FlatList, TextInput, Pressable, Platform, KeyboardAvoidingView } from "react-native";
+import { View, StyleSheet, FlatList, TextInput, Pressable, Platform, KeyboardAvoidingView, ActivityIndicator, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { Feather } from "@expo/vector-icons";
@@ -7,14 +7,46 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { useReanimatedKeyboardAnimation } from "react-native-keyboard-controller";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ChatBubble, Message, TypingIndicator } from "@/components/ChatBubble";
 import { VoiceInputButton } from "@/components/VoiceInputButton";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, Colors, BorderRadius, Gradients } from "@/constants/theme";
-import { mockMessages } from "@/lib/mockData";
-import { saveChatMessages } from "@/lib/storage";
+import { queryClient, apiRequest, getApiUrl } from "@/lib/query-client";
+
+const CHAT_SESSION_KEY = "zeke_chat_session_id";
+
+interface ApiChatSession {
+  id: string;
+  title: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface ApiChatMessage {
+  id: string;
+  sessionId: string;
+  role: string;
+  content: string;
+  createdAt: string;
+}
+
+function formatTimestamp(dateStr: string) {
+  const date = new Date(dateStr);
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function mapApiMessageToMessage(msg: ApiChatMessage): Message {
+  return {
+    id: msg.id,
+    content: msg.content,
+    role: msg.role as "user" | "assistant",
+    timestamp: formatTimestamp(msg.createdAt),
+  };
+}
 
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
@@ -22,8 +54,10 @@ export default function ChatScreen() {
   const { theme } = useTheme();
   const flatListRef = useRef<FlatList>(null);
 
-  const [messages, setMessages] = useState<Message[]>(mockMessages);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [inputText, setInputText] = useState("");
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [optimisticMessages, setOptimisticMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
 
   const { height: keyboardHeight } = useReanimatedKeyboardAnimation();
@@ -33,6 +67,50 @@ export default function ChatScreen() {
       transform: [{ translateY: keyboardHeight.value }],
     };
   });
+
+  useEffect(() => {
+    initializeSession();
+  }, []);
+
+  const initializeSession = async () => {
+    try {
+      const storedSessionId = await AsyncStorage.getItem(CHAT_SESSION_KEY);
+      
+      if (storedSessionId) {
+        const url = new URL(`/api/chat/sessions/${storedSessionId}/messages`, getApiUrl());
+        const res = await fetch(url.toString(), { credentials: 'include' });
+        if (res.ok) {
+          setSessionId(storedSessionId);
+          setIsInitializing(false);
+          return;
+        }
+      }
+      
+      const createRes = await apiRequest('POST', '/api/chat/sessions', { title: 'Chat with ZEKE' });
+      const newSession: ApiChatSession = await createRes.json();
+      await AsyncStorage.setItem(CHAT_SESSION_KEY, newSession.id);
+      setSessionId(newSession.id);
+    } catch (error) {
+      console.error('Failed to initialize chat session:', error);
+    } finally {
+      setIsInitializing(false);
+    }
+  };
+
+  const { data: messagesData, isLoading: isLoadingMessages, isFetching } = useQuery<ApiChatMessage[]>({
+    queryKey: ['/api/chat/sessions', sessionId, 'messages'],
+    queryFn: async () => {
+      if (!sessionId) return [];
+      const url = new URL(`/api/chat/sessions/${sessionId}/messages`, getApiUrl());
+      const res = await fetch(url.toString(), { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to fetch messages');
+      return res.json();
+    },
+    enabled: !!sessionId,
+  });
+
+  const apiMessages: Message[] = (messagesData ?? []).map(mapApiMessageToMessage);
+  const messages: Message[] = [...apiMessages, ...optimisticMessages];
 
   useEffect(() => {
     scrollToBottom();
@@ -45,54 +123,36 @@ export default function ChatScreen() {
   };
 
   const handleSend = async () => {
-    if (!inputText.trim()) return;
+    if (!inputText.trim() || !sessionId) return;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    const userMessage: Message = {
-      id: `msg-${Date.now()}`,
-      content: inputText.trim(),
-      role: "user",
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    const messageContent = inputText.trim();
+    const tempId = `temp-${Date.now()}`;
+    const timestamp = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    
+    const optimisticUserMessage: Message = {
+      id: tempId,
+      content: messageContent,
+      role: 'user',
+      timestamp,
     };
-
-    setMessages((prev) => [...prev, userMessage]);
+    
     setInputText("");
+    setOptimisticMessages(prev => [...prev, optimisticUserMessage]);
     setIsTyping(true);
-
-    setTimeout(() => {
-      const assistantMessage: Message = {
-        id: `msg-${Date.now() + 1}`,
-        content: generateResponse(inputText.trim()),
-        role: "assistant",
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      };
-
-      setMessages((prev) => {
-        const updated = [...prev, assistantMessage];
-        saveChatMessages(updated);
-        return updated;
-      });
+    
+    try {
+      const res = await apiRequest('POST', `/api/chat/sessions/${sessionId}/messages`, { content: messageContent });
+      await res.json();
+      setOptimisticMessages([]);
+      await queryClient.invalidateQueries({ queryKey: ['/api/chat/sessions', sessionId, 'messages'] });
+    } catch (error) {
       setIsTyping(false);
-    }, 1500);
-  };
-
-  const generateResponse = (query: string): string => {
-    const lowerQuery = query.toLowerCase();
-
-    if (lowerQuery.includes("meeting") || lowerQuery.includes("meetings")) {
-      return "I found 3 meetings from today. Your morning standup discussed quarterly targets, and the afternoon product brainstorm covered new app features. Would you like detailed notes from any of these?";
+      setOptimisticMessages(prev => prev.filter(m => m.id !== tempId));
+      Alert.alert('Error', 'Failed to send message. Please try again.');
+    } finally {
+      setIsTyping(false);
     }
-
-    if (lowerQuery.includes("summarize") || lowerQuery.includes("summary")) {
-      return "Here's a quick summary of your recent recordings:\n\n- 5 memories captured today\n- Key topics: Sprint planning, product features, client feedback\n- Total recording time: ~2.5 hours\n\nWhat would you like to explore further?";
-    }
-
-    if (lowerQuery.includes("help") || lowerQuery.includes("what can you do")) {
-      return "I can help you with:\n\n- Summarizing your meetings and conversations\n- Searching through your memory logs\n- Finding action items and key decisions\n- Providing insights from your recordings\n\nJust ask me anything about your captured conversations!";
-    }
-
-    return "I've noted your question. Based on your recent recordings, I can help provide context and insights. Could you tell me more about what specific information you're looking for?";
   };
 
   const renderMessage = ({ item }: { item: Message }) => (
@@ -102,6 +162,27 @@ export default function ChatScreen() {
   const renderFooter = () => {
     if (!isTyping) return null;
     return <TypingIndicator />;
+  };
+
+  const renderEmpty = () => {
+    if (isInitializing || isLoadingMessages) {
+      return (
+        <View style={styles.emptyContainer}>
+          <ActivityIndicator color={Colors.dark.primary} />
+          <ThemedText type="body" secondary style={{ marginTop: Spacing.md }}>
+            Loading conversation...
+          </ThemedText>
+        </View>
+      );
+    }
+    return (
+      <View style={styles.emptyContainer}>
+        <ThemedText type="h3" style={{ marginBottom: Spacing.sm }}>Welcome to ZEKE</ThemedText>
+        <ThemedText type="body" secondary style={{ textAlign: "center" }}>
+          Ask me about your memories, meetings, or anything from your recordings.
+        </ThemedText>
+      </View>
+    );
   };
 
   return (
@@ -117,11 +198,13 @@ export default function ChatScreen() {
           paddingTop: headerHeight + Spacing.lg,
           paddingBottom: Spacing.lg + 80,
           paddingHorizontal: Spacing.lg,
+          flexGrow: 1,
         }}
         data={messages}
         renderItem={renderMessage}
         keyExtractor={(item) => item.id}
         ListFooterComponent={renderFooter}
+        ListEmptyComponent={renderEmpty}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
@@ -148,6 +231,7 @@ export default function ChatScreen() {
             maxLength={1000}
             returnKeyType="default"
             blurOnSubmit={false}
+            editable={!isInitializing && !!sessionId}
           />
           <View style={styles.inputButtons}>
             <VoiceInputButton
@@ -155,20 +239,24 @@ export default function ChatScreen() {
                 console.log("Voice recording captured:", audioUri, `(${durationSeconds}s)`);
                 setInputText(`Voice message (${durationSeconds}s) - tap send to transcribe`);
               }}
-              disabled={isTyping}
+              disabled={isTyping || isInitializing}
             />
             <Pressable
               onPress={handleSend}
-              disabled={!inputText.trim()}
-              style={({ pressed }) => ({ opacity: pressed || !inputText.trim() ? 0.6 : 1 })}
+              disabled={!inputText.trim() || isTyping || !sessionId}
+              style={({ pressed }) => ({ opacity: pressed || !inputText.trim() || isTyping ? 0.6 : 1 })}
             >
               <LinearGradient
-                colors={inputText.trim() ? Gradients.primary : [theme.textSecondary, theme.textSecondary]}
+                colors={inputText.trim() && !isTyping ? Gradients.primary : [theme.textSecondary, theme.textSecondary]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.sendButton}
               >
-                <Feather name="send" size={18} color="#FFFFFF" />
+                {isTyping ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Feather name="send" size={18} color="#FFFFFF" />
+                )}
               </LinearGradient>
             </Pressable>
           </View>
@@ -217,5 +305,11 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: Spacing.xl,
   },
 });
