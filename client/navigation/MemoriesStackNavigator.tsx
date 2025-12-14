@@ -1,25 +1,24 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-
-import ProfileScreen from "@/screens/ProfileScreen";
+import MemoriesScreen from "@/screens/MemoriesScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 
-export type ProfileStackParamList = {
-  Profile: undefined;
+export type MemoriesStackParamList = {
+  Memories: undefined;
 };
 
-const Stack = createNativeStackNavigator<ProfileStackParamList>();
+const Stack = createNativeStackNavigator<MemoriesStackParamList>();
 
-export default function ProfileStackNavigator() {
+export default function MemoriesStackNavigator() {
   const screenOptions = useScreenOptions();
 
   return (
     <Stack.Navigator screenOptions={screenOptions}>
       <Stack.Screen
-        name="Profile"
-        component={ProfileScreen}
+        name="Memories"
+        component={MemoriesScreen}
         options={{
-          title: "Profile",
+          headerTitle: "Memories",
         }}
       />
     </Stack.Navigator>

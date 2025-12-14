@@ -1,7 +1,7 @@
 import React from "react";
 import { View, StyleSheet, Image } from "react-native";
 
-import { ThemedText } from "@/components/ThemedText";
+import { GradientText } from "@/components/GradientText";
 import { Spacing } from "@/constants/theme";
 
 interface HeaderTitleProps {
@@ -16,7 +16,7 @@ export function HeaderTitle({ title }: HeaderTitleProps) {
         style={styles.icon}
         resizeMode="contain"
       />
-      <ThemedText style={styles.title}>{title}</ThemedText>
+      <GradientText type="h4">{title}</GradientText>
     </View>
   );
 }
@@ -31,9 +31,6 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     marginRight: Spacing.sm,
-  },
-  title: {
-    fontSize: 17,
-    fontWeight: "600",
+    borderRadius: 6,
   },
 });
