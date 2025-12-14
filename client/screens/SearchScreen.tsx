@@ -81,13 +81,28 @@ export default function SearchScreen() {
     queryKey: ['/api/devices'],
   });
 
-  const { data: searchResults, isLoading: isSearching, isError } = useQuery<ApiMemory[]>({
-    queryKey: ['/api/memories', 'search', activeSearchQuery],
+  interface SemanticSearchResult extends ApiMemory {
+    relevanceScore: number;
+    matchReason?: string;
+  }
+
+  interface SemanticSearchResponse {
+    results: SemanticSearchResult[];
+    query: string;
+    totalMatches: number;
+  }
+
+  const { data: searchResponse, isLoading: isSearching, isError } = useQuery<SemanticSearchResponse>({
+    queryKey: ['/api/memories/search', activeSearchQuery],
     queryFn: async () => {
-      if (!activeSearchQuery) return [];
-      const url = new URL('/api/memories', getApiUrl());
-      url.searchParams.set('search', activeSearchQuery);
-      const res = await fetch(url.toString(), { credentials: 'include' });
+      if (!activeSearchQuery) return { results: [], query: '', totalMatches: 0 };
+      const url = new URL('/api/memories/search', getApiUrl());
+      const res = await fetch(url.toString(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ query: activeSearchQuery, limit: 10 })
+      });
       if (!res.ok) throw new Error('Failed to search memories');
       return res.json();
     },
@@ -99,7 +114,7 @@ export default function SearchScreen() {
     deviceTypeMap.set(d.id, d.type as "omi" | "limitless");
   });
 
-  const results: Memory[] = (searchResults ?? []).map(m => 
+  const results: Memory[] = (searchResponse?.results ?? []).map(m => 
     mapApiMemoryToMemory(m, deviceTypeMap.get(m.deviceId) ?? "omi")
   );
 
@@ -173,10 +188,10 @@ export default function SearchScreen() {
 
       <View style={styles.suggestionsSection}>
         <ThemedText type="h4" style={{ marginBottom: Spacing.md }}>
-          Try searching for
+          AI-Powered Search
         </ThemedText>
         <ThemedText type="body" secondary>
-          "meeting notes" or "action items from yesterday"
+          Try natural language queries like "meetings about budgets" or "what action items do I have?"
         </ThemedText>
       </View>
     </View>
@@ -188,7 +203,7 @@ export default function SearchScreen() {
         <View style={styles.loadingContainer}>
           <ActivityIndicator color={Colors.dark.primary} />
           <ThemedText type="body" secondary style={{ marginTop: Spacing.md }}>
-            Searching...
+            AI is analyzing your memories...
           </ThemedText>
         </View>
       );

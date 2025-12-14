@@ -258,6 +258,104 @@ Respond in JSON format:
     }
   });
 
+  app.post("/api/memories/search", async (req, res) => {
+    try {
+      const { query, limit = 10 } = req.body;
+      
+      if (!query || typeof query !== 'string') {
+        return res.status(400).json({ error: "Query is required" });
+      }
+
+      const memories = await storage.getMemories({ limit: 50 });
+      
+      if (memories.length === 0) {
+        return res.json({ results: [], query });
+      }
+
+      const memoriesContext = memories.map((m, idx) => ({
+        index: idx,
+        id: m.id,
+        title: m.title,
+        summary: m.summary || '',
+        transcript: m.transcript.substring(0, 500),
+        createdAt: m.createdAt,
+        actionItems: m.actionItems
+      }));
+
+      const searchPrompt = `You are a semantic search engine for a personal memory system. The user has recorded conversations and meetings that are stored as "memories".
+
+Given the user's search query, analyze the memories below and return the most relevant ones ranked by relevance.
+
+User's search query: "${query}"
+
+Available memories:
+${memoriesContext.map(m => `
+[Memory ${m.index}] ID: ${m.id}
+Title: ${m.title}
+Summary: ${m.summary}
+Transcript excerpt: ${m.transcript}
+Date: ${m.createdAt}
+Action items: ${JSON.stringify(m.actionItems || [])}
+`).join('\n---\n')}
+
+Instructions:
+- Understand the semantic meaning of the query (not just keyword matching)
+- Consider context, synonyms, and related concepts
+- Queries like "meetings about budgets" should match memories discussing finances, costs, spending, etc.
+- Queries like "action items from last week" should prioritize memories with action items
+- Return memory IDs ranked by relevance with a relevance score (0-100)
+
+Respond with valid JSON in this format:
+{
+  "results": [
+    { "id": "memory-id-here", "relevanceScore": 95, "reason": "Brief reason why this is relevant" },
+    ...
+  ]
+}
+
+Return at most ${Math.min(limit, 10)} results. Only include memories with relevance score >= 30.`;
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-5",
+        messages: [
+          { role: "system", content: "You are a semantic search assistant. Always respond with valid JSON." },
+          { role: "user", content: searchPrompt }
+        ],
+        max_tokens: 1000,
+        response_format: { type: "json_object" }
+      });
+
+      const responseContent = completion.choices[0]?.message?.content || '{"results":[]}';
+      let searchResults: { results: Array<{ id: string; relevanceScore: number; reason?: string }> };
+      
+      try {
+        searchResults = JSON.parse(responseContent);
+      } catch {
+        searchResults = { results: [] };
+      }
+
+      const memoryMap = new Map(memories.map(m => [m.id, m]));
+      const maxResults = Math.min(limit, 10);
+      const rankedResults = searchResults.results
+        .filter(r => memoryMap.has(r.id) && r.relevanceScore >= 30)
+        .slice(0, maxResults)
+        .map(r => ({
+          ...memoryMap.get(r.id),
+          relevanceScore: r.relevanceScore,
+          matchReason: r.reason
+        }));
+
+      res.json({
+        results: rankedResults,
+        query,
+        totalMatches: rankedResults.length
+      });
+    } catch (error) {
+      console.error("Error in semantic search:", error);
+      res.status(500).json({ error: "Failed to perform semantic search" });
+    }
+  });
+
   // Chat routes
   app.get("/api/chat/sessions", async (_req, res) => {
     try {
