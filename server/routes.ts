@@ -150,12 +150,12 @@ Respond in JSON format:
 }`;
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-5",
+        model: "gpt-4o",
         messages: [
           { role: "system", content: "You are an AI assistant that analyzes conversation transcripts. Always respond with valid JSON." },
           { role: "user", content: analysisPrompt }
         ],
-        max_tokens: 500,
+        max_completion_tokens: 500,
         response_format: { type: "json_object" }
       });
 
@@ -316,12 +316,12 @@ Respond with valid JSON in this format:
 Return at most ${Math.min(limit, 10)} results. Only include memories with relevance score >= 30.`;
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-5",
+        model: "gpt-4o",
         messages: [
           { role: "system", content: "You are a semantic search assistant. Always respond with valid JSON." },
           { role: "user", content: searchPrompt }
         ],
-        max_tokens: 1000,
+        max_completion_tokens: 1000,
         response_format: { type: "json_object" }
       });
 
@@ -433,9 +433,9 @@ Return at most ${Math.min(limit, 10)} results. Only include memories with releva
       ];
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-5",
+        model: "gpt-4o",
         messages,
-        max_tokens: 1000
+        max_completion_tokens: 1000
       });
 
       const assistantContent = completion.choices[0]?.message?.content || "I apologize, but I couldn't generate a response. Please try again.";

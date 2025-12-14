@@ -1,10 +1,12 @@
 import React, { useState, useCallback } from "react";
-import { View, FlatList, StyleSheet, RefreshControl, Pressable, ActivityIndicator } from "react-native";
+import { View, FlatList, StyleSheet, RefreshControl, Pressable, ActivityIndicator, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as Sharing from "expo-sharing";
+import * as FileSystem from "expo-file-system/legacy";
 import { useQuery, useMutation } from "@tanstack/react-query";
 
 import { ThemedText } from "@/components/ThemedText";
@@ -114,6 +116,15 @@ export default function MemoriesScreen() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async (memoryId: string) => {
+      await apiRequest('DELETE', `/api/memories/${memoryId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/memories'], exact: false });
+    },
+  });
+
   const deviceTypeMap = new Map<string, "omi" | "limitless">();
   (devicesData ?? []).forEach(d => {
     const deviceType = (d.type === 'omi' || d.type === 'limitless') ? d.type : 'omi';
@@ -142,6 +153,54 @@ export default function MemoriesScreen() {
   const handleStarMemory = (id: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     starMutation.mutate(id);
+  };
+
+  const handleDeleteMemory = (memory: Memory) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Alert.alert(
+      "Delete Memory",
+      `Are you sure you want to delete "${memory.title}"? This action cannot be undone.`,
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            deleteMutation.mutate(memory.id);
+          },
+        },
+      ]
+    );
+  };
+
+  const handleShareMemory = async (memory: Memory) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
+    const isAvailable = await Sharing.isAvailableAsync();
+    if (!isAvailable) {
+      Alert.alert(
+        "Sharing Unavailable",
+        "Sharing is only available on mobile devices. Please run the app in Expo Go to use this feature."
+      );
+      return;
+    }
+
+    try {
+      const shareContent = `${memory.title}\n\n${memory.transcript}`;
+      const fileUri = FileSystem.cacheDirectory + `memory-${memory.id}.txt`;
+      await FileSystem.writeAsStringAsync(fileUri, shareContent, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      await Sharing.shareAsync(fileUri, {
+        mimeType: "text/plain",
+        dialogTitle: "Share Memory",
+      });
+    } catch (error) {
+      Alert.alert("Error", "Failed to share memory. Please try again.");
+    }
   };
 
   const filters: { key: FilterType; label: string }[] = [
@@ -187,6 +246,8 @@ export default function MemoriesScreen() {
       memory={item}
       onPress={() => handleMemoryPress(item)}
       onStar={() => handleStarMemory(item.id)}
+      onDelete={() => handleDeleteMemory(item)}
+      onShare={() => handleShareMemory(item)}
     />
   );
 

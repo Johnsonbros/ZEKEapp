@@ -1,6 +1,7 @@
 import React from "react";
-import { View, StyleSheet, Pressable } from "react-native";
+import { View, StyleSheet, Pressable, Alert } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -26,12 +27,14 @@ interface MemoryCardProps {
   memory: Memory;
   onPress?: () => void;
   onStar?: () => void;
+  onDelete?: () => void;
+  onShare?: () => void;
   highlightText?: string;
 }
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-export function MemoryCard({ memory, onPress, onStar, highlightText }: MemoryCardProps) {
+export function MemoryCard({ memory, onPress, onStar, onDelete, onShare, highlightText }: MemoryCardProps) {
   const { theme } = useTheme();
   const scale = useSharedValue(1);
 
@@ -45,6 +48,29 @@ export function MemoryCard({ memory, onPress, onStar, highlightText }: MemoryCar
 
   const handlePressOut = () => {
     scale.value = withSpring(1, { damping: 15, stiffness: 150 });
+  };
+
+  const handleMorePress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Alert.alert(
+      "Memory Options",
+      undefined,
+      [
+        {
+          text: "Share",
+          onPress: onShare,
+        },
+        {
+          text: "Delete",
+          onPress: onDelete,
+          style: "destructive",
+        },
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+      ]
+    );
   };
 
   const getHighlightedText = (text: string) => {
@@ -100,17 +126,30 @@ export function MemoryCard({ memory, onPress, onStar, highlightText }: MemoryCar
             </ThemedText>
           ) : null}
         </View>
-        <Pressable
-          onPress={onStar}
-          hitSlop={8}
-          style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
-        >
-          <Feather
-            name={memory.isStarred ? "star" : "star"}
-            size={18}
-            color={memory.isStarred ? Colors.dark.warning : theme.textSecondary}
-          />
-        </Pressable>
+        <View style={styles.headerRight}>
+          <Pressable
+            onPress={onStar}
+            hitSlop={8}
+            style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+          >
+            <Feather
+              name={memory.isStarred ? "star" : "star"}
+              size={18}
+              color={memory.isStarred ? Colors.dark.warning : theme.textSecondary}
+            />
+          </Pressable>
+          <Pressable
+            onPress={handleMorePress}
+            hitSlop={8}
+            style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+          >
+            <Feather
+              name="more-horizontal"
+              size={18}
+              color={theme.textSecondary}
+            />
+          </Pressable>
+        </View>
       </View>
 
       <ThemedText type="h4" numberOfLines={1} style={styles.title}>
@@ -161,6 +200,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.sm,
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
   },
   deviceBadge: {
     paddingHorizontal: Spacing.xs,
