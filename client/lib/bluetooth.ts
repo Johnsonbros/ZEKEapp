@@ -4,9 +4,16 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const STORAGE_KEY = "@zeke/connected_device";
 
-export const AUDIO_SERVICE_UUID = "0000ffe0-0000-1000-8000-00805f9b34fb";
-export const AUDIO_CONTROL_UUID = "0000ffe1-0000-1000-8000-00805f9b34fb";
-export const AUDIO_STREAM_UUID = "0000ffe2-0000-1000-8000-00805f9b34fb";
+export const OMI_SERVICE_UUID = "19b10000-e8f2-537e-4f6c-d104768a1214";
+export const OMI_AUDIO_DATA_UUID = "19b10001-e8f2-537e-4f6c-d104768a1214";
+export const OMI_AUDIO_CODEC_UUID = "19b10002-e8f2-537e-4f6c-d104768a1214";
+
+export const LIMITLESS_SERVICE_UUID = "632de001-604c-446b-a80f-7963e950f3fb";
+export const LIMITLESS_TX_CHAR_UUID = "632de002-604c-446b-a80f-7963e950f3fb";
+export const LIMITLESS_RX_CHAR_UUID = "632de003-604c-446b-a80f-7963e950f3fb";
+
+export const BATTERY_SERVICE_UUID = "0000180f-0000-1000-8000-00805f9b34fb";
+export const BATTERY_LEVEL_CHAR_UUID = "00002a19-0000-1000-8000-00805f9b34fb";
 
 export const AUDIO_SAMPLE_RATE = 16000;
 export const AUDIO_CHANNELS = 1;
@@ -32,15 +39,182 @@ export interface AudioChunk {
   sequenceNumber: number;
 }
 
+export interface OpusFrame {
+  data: number[];
+  timestamp: number;
+}
+
 export type DeviceDiscoveredCallback = (device: BLEDevice) => void;
 export type ConnectionStateChangeCallback = (state: ConnectionState, device: BLEDevice | null) => void;
 export type AudioStreamCallback = (chunk: AudioChunk) => void;
 export type AudioStreamStateChangeCallback = (state: AudioStreamState) => void;
+export type OpusFrameCallback = (frame: OpusFrame) => void;
 
 const MOCK_DEVICES: BLEDevice[] = [
   { id: "omi-devkit-001", name: "Omi DevKit 2", type: "omi", signalStrength: -45, batteryLevel: 85 },
   { id: "limitless-pendant-001", name: "Limitless Pendant", type: "limitless", signalStrength: -62, batteryLevel: 72 },
 ];
+
+const VALID_OPUS_TOC_BYTES = [0xb8, 0x78, 0xf8, 0xb0, 0x70, 0xf0];
+
+class LimitlessProtocol {
+  private messageIndex: number = 0;
+  private requestId: number = 0;
+
+  encodeVarint(value: number): number[] {
+    const result: number[] = [];
+    while (value > 0x7f) {
+      result.push((value & 0x7f) | 0x80);
+      value >>= 7;
+    }
+    result.push(value & 0x7f);
+    return result.length > 0 ? result : [0];
+  }
+
+  decodeVarint(data: number[], pos: number): [number, number] {
+    let result = 0;
+    let shift = 0;
+    while (pos < data.length) {
+      const byte = data[pos];
+      pos++;
+      result |= (byte & 0x7f) << shift;
+      if ((byte & 0x80) === 0) {
+        break;
+      }
+      shift += 7;
+    }
+    return [result, pos];
+  }
+
+  private encodeField(fieldNum: number, wireType: number, value: number[]): number[] {
+    const tag = (fieldNum << 3) | wireType;
+    return [...this.encodeVarint(tag), ...value];
+  }
+
+  private encodeBytesField(fieldNum: number, data: number[]): number[] {
+    const length = this.encodeVarint(data.length);
+    return this.encodeField(fieldNum, 2, [...length, ...data]);
+  }
+
+  private encodeMessage(fieldNum: number, msgBytes: number[]): number[] {
+    return this.encodeBytesField(fieldNum, msgBytes);
+  }
+
+  private encodeInt64Field(fieldNum: number, value: number): number[] {
+    return this.encodeField(fieldNum, 0, this.encodeVarint(value));
+  }
+
+  private encodeInt32Field(fieldNum: number, value: number): number[] {
+    return this.encodeField(fieldNum, 0, this.encodeVarint(value));
+  }
+
+  private encodeBleWrapper(payload: number[]): number[] {
+    const msg: number[] = [];
+    msg.push(...this.encodeInt32Field(1, this.messageIndex));
+    msg.push(...this.encodeInt32Field(2, 0));
+    msg.push(...this.encodeInt32Field(3, 1));
+    msg.push(...this.encodeBytesField(4, payload));
+    this.messageIndex++;
+    return msg;
+  }
+
+  private encodeRequestData(): number[] {
+    this.requestId++;
+    const msg: number[] = [];
+    msg.push(...this.encodeInt64Field(1, this.requestId));
+    msg.push(...this.encodeField(2, 0, [0x00]));
+    return this.encodeMessage(30, msg);
+  }
+
+  encodeSetCurrentTime(timestampMs: number): Uint8Array {
+    const timeMsg = this.encodeInt64Field(1, timestampMs);
+    const cmd = [...this.encodeMessage(6, timeMsg), ...this.encodeRequestData()];
+    return new Uint8Array(this.encodeBleWrapper(cmd));
+  }
+
+  encodeEnableDataStream(enable: boolean = true): Uint8Array {
+    const msg: number[] = [];
+    msg.push(...this.encodeField(1, 0, [0x00]));
+    msg.push(...this.encodeField(2, 0, [enable ? 0x01 : 0x00]));
+    const cmd = [...this.encodeMessage(8, msg), ...this.encodeRequestData()];
+    return new Uint8Array(this.encodeBleWrapper(cmd));
+  }
+
+  encodeAcknowledgeData(upToIndex: number): Uint8Array {
+    const ackMsg = this.encodeInt32Field(1, upToIndex);
+    const cmd = [...this.encodeMessage(7, ackMsg), ...this.encodeRequestData()];
+    return new Uint8Array(this.encodeBleWrapper(cmd));
+  }
+
+  encodeGetDeviceStatus(): Uint8Array {
+    const cmd = [...this.encodeMessage(21, []), ...this.encodeRequestData()];
+    return new Uint8Array(this.encodeBleWrapper(cmd));
+  }
+
+  encodeDownloadFlashPages(batchMode: boolean = true, realTime: boolean = false): Uint8Array {
+    const msg: number[] = [];
+    msg.push(...this.encodeField(1, 0, [batchMode ? 0x01 : 0x00]));
+    msg.push(...this.encodeField(2, 0, [realTime ? 0x01 : 0x00]));
+    const cmd = [...this.encodeMessage(8, msg), ...this.encodeRequestData()];
+    return new Uint8Array(this.encodeBleWrapper(cmd));
+  }
+
+  isValidOpusToc(byte: number): boolean {
+    return VALID_OPUS_TOC_BYTES.includes(byte);
+  }
+
+  extractOpusFrames(data: number[]): { frames: number[][]; remainingStartPos: number } {
+    const frames: number[][] = [];
+    let pos = 0;
+    let lastCompleteFrameEnd = 0;
+
+    while (pos < data.length - 3) {
+      if (data[pos] === 0x22) {
+        const markerPos = pos;
+        pos++;
+
+        if (pos >= data.length) {
+          break;
+        }
+
+        const [length, lengthEndPos] = this.decodeVarint(data, pos);
+
+        if (length >= 10 && length <= 200) {
+          const frameStartPos = lengthEndPos;
+          const frameEndPos = frameStartPos + length;
+
+          if (frameEndPos <= data.length) {
+            const frame = data.slice(frameStartPos, frameEndPos);
+
+            if (frame.length > 0 && this.isValidOpusToc(frame[0])) {
+              frames.push(frame);
+              lastCompleteFrameEnd = frameEndPos;
+              pos = frameEndPos;
+              continue;
+            } else {
+              pos = markerPos + 1;
+              continue;
+            }
+          } else {
+            break;
+          }
+        } else {
+          pos = markerPos + 1;
+          continue;
+        }
+      }
+
+      pos++;
+    }
+
+    return { frames, remainingStartPos: lastCompleteFrameEnd };
+  }
+
+  reset(): void {
+    this.messageIndex = 0;
+    this.requestId = 0;
+  }
+}
 
 class BluetoothService {
   private isScanning: boolean = false;
@@ -54,9 +228,15 @@ class BluetoothService {
   private audioStreamState: AudioStreamState = "idle";
   private audioChunkCallbacks: AudioStreamCallback[] = [];
   private audioStreamStateCallbacks: AudioStreamStateChangeCallback[] = [];
+  private opusFrameCallbacks: OpusFrameCallback[] = [];
   private audioStreamInterval: ReturnType<typeof setInterval> | null = null;
   private audioSequenceNumber: number = 0;
   private mockSinePhase: number = 0;
+
+  private limitlessProtocol: LimitlessProtocol = new LimitlessProtocol();
+  private rawDataBuffer: number[] = [];
+  private highestReceivedIndex: number = -1;
+  private isInitialized: boolean = false;
 
   constructor() {
     this.loadConnectedDevice();
@@ -109,6 +289,10 @@ class BluetoothService {
     this.audioChunkCallbacks.forEach((callback) => callback(chunk));
   }
 
+  private notifyOpusFrame(frame: OpusFrame): void {
+    this.opusFrameCallbacks.forEach((callback) => callback(frame));
+  }
+
   private generateMockAudioChunk(): AudioChunk {
     const samples = AUDIO_CHUNK_SAMPLES;
     const bytesPerSample = 2;
@@ -157,6 +341,65 @@ class BluetoothService {
     }
   }
 
+  private handleLimitlessNotification(data: number[]): void {
+    if (data.length === 0) return;
+
+    if (data.length > 2 && data[0] === 0x08) {
+      const [packetIndex] = this.limitlessProtocol.decodeVarint(data, 1);
+      if (packetIndex > this.highestReceivedIndex) {
+        this.highestReceivedIndex = packetIndex;
+      }
+    }
+
+    this.rawDataBuffer.push(...data);
+    this.processOpusFrames();
+  }
+
+  private processOpusFrames(): void {
+    if (this.rawDataBuffer.length === 0) return;
+
+    const { frames, remainingStartPos } = this.limitlessProtocol.extractOpusFrames(this.rawDataBuffer);
+
+    if (remainingStartPos > 0) {
+      this.rawDataBuffer = this.rawDataBuffer.slice(remainingStartPos);
+    } else if (frames.length > 0) {
+      this.rawDataBuffer = [];
+    }
+
+    for (const frame of frames) {
+      this.notifyOpusFrame({
+        data: frame,
+        timestamp: Date.now(),
+      });
+    }
+  }
+
+  private async initializeLimitlessDevice(): Promise<boolean> {
+    if (this.isMockMode) {
+      console.log("Limitless: Mock initialization (native build required for real BLE)");
+      this.isInitialized = true;
+      return true;
+    }
+
+    try {
+      const timeSyncCmd = this.limitlessProtocol.encodeSetCurrentTime(Date.now());
+      console.log("Limitless: Time sync command ready", timeSyncCmd);
+
+      const dataStreamCmd = this.limitlessProtocol.encodeEnableDataStream(true);
+      console.log("Limitless: Enable data stream command ready", dataStreamCmd);
+
+      this.isInitialized = true;
+      return true;
+    } catch (error) {
+      console.error("Limitless: Initialization failed:", error);
+      return false;
+    }
+  }
+
+  public getLimitlessProtocol(): LimitlessProtocol {
+    return this.limitlessProtocol;
+  }
+
   public getIsMockMode(): boolean {
     return this.isMockMode;
   }
@@ -200,6 +443,13 @@ class BluetoothService {
     this.audioChunkCallbacks.push(callback);
     return () => {
       this.audioChunkCallbacks = this.audioChunkCallbacks.filter((cb) => cb !== callback);
+    };
+  }
+
+  public onOpusFrame(callback: OpusFrameCallback): () => void {
+    this.opusFrameCallbacks.push(callback);
+    return () => {
+      this.opusFrameCallbacks = this.opusFrameCallbacks.filter((cb) => cb !== callback);
     };
   }
 
@@ -317,6 +567,11 @@ class BluetoothService {
     this.connectionState = "connecting";
     this.notifyConnectionStateChange();
 
+    this.limitlessProtocol.reset();
+    this.rawDataBuffer = [];
+    this.highestReceivedIndex = -1;
+    this.isInitialized = false;
+
     if (this.isMockMode) {
       return new Promise((resolve) => {
         setTimeout(async () => {
@@ -324,6 +579,11 @@ class BluetoothService {
           this.connectionState = "connected";
           await this.saveConnectedDevice(device);
           this.notifyConnectionStateChange();
+
+          if (device.type === "limitless") {
+            await this.initializeLimitlessDevice();
+          }
+
           resolve(true);
         }, 1500);
       });
@@ -336,6 +596,11 @@ class BluetoothService {
         this.connectionState = "connected";
         await this.saveConnectedDevice(device);
         this.notifyConnectionStateChange();
+
+        if (device.type === "limitless") {
+          await this.initializeLimitlessDevice();
+        }
+
         resolve(true);
       }, 1500);
     });
@@ -355,8 +620,20 @@ class BluetoothService {
 
     this.connectedDevice = null;
     this.connectionState = "disconnected";
+    this.isInitialized = false;
+    this.rawDataBuffer = [];
     await this.saveConnectedDevice(null);
     this.notifyConnectionStateChange();
+  }
+
+  public simulateLimitlessData(data: number[]): void {
+    if (this.connectedDevice?.type === "limitless") {
+      this.handleLimitlessNotification(data);
+    }
+  }
+
+  public clearBuffer(): void {
+    this.rawDataBuffer = [];
   }
 }
 
