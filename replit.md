@@ -189,3 +189,30 @@ shared/
 - Automatic memory creation with AI analysis
 - Progress indicator during upload/transcription
 - Tips for best recording quality
+
+## ZEKE Sync Configuration
+
+This mobile app can connect to the main ZEKE web deployment for data synchronization.
+
+### Environment Variables
+
+- `EXPO_PUBLIC_ZEKE_BACKEND_URL`: URL of the main ZEKE backend (e.g., `https://zekeassistant.aisyncservice.repl.co`)
+  - When set, the app connects to the main ZEKE backend instead of its local backend
+  - This enables syncing conversations, memories, and chat between the mobile app and web app
+
+### Sync Mode Features
+
+When connected to the main ZEKE backend:
+- Home screen shows connection status indicator (green = connected, red = offline)
+- Chat conversations are synced with the main ZEKE AI
+- Memories are fetched from the main ZEKE database
+- Search uses ZEKE's semantic search capabilities
+
+### API Adapter (`client/lib/zeke-api-adapter.ts`)
+
+Provides a compatibility layer between the mobile app and main ZEKE backend:
+- `getConversations()` / `createConversation()` - Manage chat conversations
+- `sendMessage()` - Send chat messages to ZEKE
+- `getRecentMemories()` - Fetch Omi memories
+- `searchMemories()` - Semantic search across memories
+- `getHealthStatus()` - Check backend connection status

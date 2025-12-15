@@ -19,7 +19,8 @@ import { PulsingDot } from "@/components/PulsingDot";
 import { EmptyState } from "@/components/EmptyState";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, Colors, BorderRadius, Gradients } from "@/constants/theme";
-import { queryClient, apiRequest, getApiUrl } from "@/lib/query-client";
+import { queryClient, apiRequest, getApiUrl, isZekeSyncMode } from "@/lib/query-client";
+import { getRecentMemories, getHealthStatus } from "@/lib/zeke-api-adapter";
 
 interface ApiDevice {
   id: string;
@@ -115,23 +116,50 @@ export default function HomeScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const { theme } = useTheme();
   const navigation = useNavigation<HomeScreenNavigationProp>();
+  const isSyncMode = isZekeSyncMode();
 
   const handleUploadPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     navigation.navigate('AudioUpload');
   };
 
+  const { data: connectionStatus } = useQuery({
+    queryKey: ['zeke-connection-status'],
+    queryFn: getHealthStatus,
+    enabled: isSyncMode,
+    staleTime: 30000,
+    refetchInterval: 60000,
+  });
+
   const { data: devicesData, isLoading: isLoadingDevices, isError: isDevicesError } = useQuery<ApiDevice[]>({
     queryKey: ['/api/devices'],
+    enabled: !isSyncMode,
   });
 
   const { data: memoriesData, isLoading: isLoadingMemories, isError: isMemoriesError } = useQuery<ApiMemory[]>({
-    queryKey: ['/api/memories', 'limit=3'],
+    queryKey: isSyncMode ? ['zeke-memories', 'recent'] : ['/api/memories', 'limit=3'],
     queryFn: async () => {
-      const url = new URL('/api/memories?limit=3', getApiUrl());
-      const res = await fetch(url.toString(), { credentials: 'include' });
-      if (!res.ok) throw new Error('Failed to fetch memories');
-      return res.json();
+      if (isSyncMode) {
+        const memories = await getRecentMemories(3);
+        return memories.map(m => ({
+          id: m.id,
+          deviceId: m.deviceId || 'zeke-main',
+          title: m.title,
+          summary: m.summary || null,
+          transcript: m.transcript,
+          speakers: m.speakers || null,
+          actionItems: m.actionItems || null,
+          duration: m.duration,
+          isStarred: m.isStarred,
+          createdAt: m.createdAt,
+          updatedAt: m.updatedAt,
+        }));
+      } else {
+        const url = new URL('/api/memories?limit=3', getApiUrl());
+        const res = await fetch(url.toString(), { credentials: 'include' });
+        if (!res.ok) throw new Error('Failed to fetch memories');
+        return res.json();
+      }
     },
   });
 
@@ -162,11 +190,18 @@ export default function HomeScreen() {
 
   const onRefresh = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['/api/devices'] }),
-      queryClient.invalidateQueries({ queryKey: ['/api/memories'] }),
-    ]);
-  }, []);
+    if (isSyncMode) {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['zeke-connection-status'] }),
+        queryClient.invalidateQueries({ queryKey: ['zeke-memories'] }),
+      ]);
+    } else {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['/api/devices'] }),
+        queryClient.invalidateQueries({ queryKey: ['/api/memories'] }),
+      ]);
+    }
+  }, [isSyncMode]);
 
   const handleDevicePress = (device: DeviceInfo) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -183,34 +218,61 @@ export default function HomeScreen() {
 
   const renderHeader = () => (
     <View style={styles.headerSection}>
-      <View style={styles.sectionHeader}>
-        <ThemedText type="h3">Devices</ThemedText>
-        <View style={styles.deviceCount}>
+      {isSyncMode ? (
+        <View style={[styles.syncStatusCard, { 
+          backgroundColor: connectionStatus?.connected ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+          borderColor: connectionStatus?.connected ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)',
+        }]}>
+          <View style={styles.syncStatusContent}>
+            <PulsingDot 
+              color={connectionStatus?.connected ? '#22C55E' : '#EF4444'} 
+              size={8} 
+            />
+            <ThemedText type="small" style={{ 
+              marginLeft: Spacing.sm,
+              color: connectionStatus?.connected ? '#22C55E' : '#EF4444',
+            }}>
+              {connectionStatus?.connected ? 'Connected to ZEKE' : 'ZEKE Offline'}
+            </ThemedText>
+          </View>
           <ThemedText type="small" secondary>
-            {devices.filter((d) => d.isConnected).length}/{devices.length} connected
+            Synced with main app
           </ThemedText>
         </View>
+      ) : null}
+
+      <View style={styles.sectionHeader}>
+        <ThemedText type="h3">{isSyncMode ? 'Status' : 'Devices'}</ThemedText>
+        {!isSyncMode ? (
+          <View style={styles.deviceCount}>
+            <ThemedText type="small" secondary>
+              {devices.filter((d) => d.isConnected).length}/{devices.length} connected
+            </ThemedText>
+          </View>
+        ) : null}
       </View>
 
-      {isLoadingDevices ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator color={Colors.dark.primary} />
-        </View>
-      ) : isDevicesError ? (
-        <ThemedText type="body" secondary>Failed to load devices</ThemedText>
-      ) : devices.length === 0 ? (
-        <ThemedText type="body" secondary>No devices connected</ThemedText>
-      ) : (
-        devices.map((device) => (
-          <DeviceCard
-            key={device.id}
-            device={device}
-            onPress={() => handleDevicePress(device)}
-          />
-        ))
-      )}
+      {!isSyncMode ? (
+        isLoadingDevices ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator color={Colors.dark.primary} />
+          </View>
+        ) : isDevicesError ? (
+          <ThemedText type="body" secondary>Failed to load devices</ThemedText>
+        ) : devices.length === 0 ? (
+          <ThemedText type="body" secondary>No devices connected</ThemedText>
+        ) : (
+          devices.map((device) => (
+            <DeviceCard
+              key={device.id}
+              device={device}
+              onPress={() => handleDevicePress(device)}
+            />
+          ))
+        )
+      ) : null}
 
-      {isLiveTranscribing ? (
+      {!isSyncMode && isLiveTranscribing ? (
         <View style={[styles.liveCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
           <View style={styles.liveHeader}>
             <PulsingDot color={Colors.dark.accent} size={10} />
@@ -328,6 +390,19 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   deviceCount: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  syncStatusCard: {
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    marginBottom: Spacing.lg,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  syncStatusContent: {
     flexDirection: "row",
     alignItems: "center",
   },

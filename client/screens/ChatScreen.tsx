@@ -15,9 +15,11 @@ import { ChatBubble, Message, TypingIndicator } from "@/components/ChatBubble";
 import { VoiceInputButton } from "@/components/VoiceInputButton";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, Colors, BorderRadius, Gradients } from "@/constants/theme";
-import { queryClient, apiRequest, getApiUrl } from "@/lib/query-client";
+import { queryClient, apiRequest, getApiUrl, isZekeSyncMode } from "@/lib/query-client";
+import { chatWithZeke, createConversation, getConversationMessages, sendMessage as sendZekeMessage } from "@/lib/zeke-api-adapter";
 
 const CHAT_SESSION_KEY = "zeke_chat_session_id";
+const ZEKE_CONVERSATION_KEY = "zeke_conversation_id";
 
 interface ApiChatSession {
   id: string;
@@ -74,22 +76,43 @@ export default function ChatScreen() {
 
   const initializeSession = async () => {
     try {
-      const storedSessionId = await AsyncStorage.getItem(CHAT_SESSION_KEY);
-      
-      if (storedSessionId) {
-        const url = new URL(`/api/chat/sessions/${storedSessionId}/messages`, getApiUrl());
-        const res = await fetch(url.toString(), { credentials: 'include' });
-        if (res.ok) {
-          setSessionId(storedSessionId);
-          setIsInitializing(false);
-          return;
+      if (isZekeSyncMode()) {
+        const storedConversationId = await AsyncStorage.getItem(ZEKE_CONVERSATION_KEY);
+        
+        if (storedConversationId) {
+          try {
+            const messages = await getConversationMessages(storedConversationId);
+            if (messages) {
+              setSessionId(storedConversationId);
+              setIsInitializing(false);
+              return;
+            }
+          } catch {
+            // Conversation doesn't exist, create new one
+          }
         }
+        
+        const newConversation = await createConversation('Chat with ZEKE');
+        await AsyncStorage.setItem(ZEKE_CONVERSATION_KEY, newConversation.id);
+        setSessionId(newConversation.id);
+      } else {
+        const storedSessionId = await AsyncStorage.getItem(CHAT_SESSION_KEY);
+        
+        if (storedSessionId) {
+          const url = new URL(`/api/chat/sessions/${storedSessionId}/messages`, getApiUrl());
+          const res = await fetch(url.toString(), { credentials: 'include' });
+          if (res.ok) {
+            setSessionId(storedSessionId);
+            setIsInitializing(false);
+            return;
+          }
+        }
+        
+        const createRes = await apiRequest('POST', '/api/chat/sessions', { title: 'Chat with ZEKE' });
+        const newSession: ApiChatSession = await createRes.json();
+        await AsyncStorage.setItem(CHAT_SESSION_KEY, newSession.id);
+        setSessionId(newSession.id);
       }
-      
-      const createRes = await apiRequest('POST', '/api/chat/sessions', { title: 'Chat with ZEKE' });
-      const newSession: ApiChatSession = await createRes.json();
-      await AsyncStorage.setItem(CHAT_SESSION_KEY, newSession.id);
-      setSessionId(newSession.id);
     } catch (error) {
       console.error('Failed to initialize chat session:', error);
     } finally {
@@ -98,13 +121,25 @@ export default function ChatScreen() {
   };
 
   const { data: messagesData, isLoading: isLoadingMessages, isFetching } = useQuery<ApiChatMessage[]>({
-    queryKey: ['/api/chat/sessions', sessionId, 'messages'],
+    queryKey: isZekeSyncMode() ? ['/api/conversations', sessionId, 'messages'] : ['/api/chat/sessions', sessionId, 'messages'],
     queryFn: async () => {
       if (!sessionId) return [];
-      const url = new URL(`/api/chat/sessions/${sessionId}/messages`, getApiUrl());
-      const res = await fetch(url.toString(), { credentials: 'include' });
-      if (!res.ok) throw new Error('Failed to fetch messages');
-      return res.json();
+      
+      if (isZekeSyncMode()) {
+        const messages = await getConversationMessages(sessionId);
+        return messages.map(m => ({
+          id: m.id,
+          sessionId: m.conversationId,
+          role: m.role,
+          content: m.content,
+          createdAt: m.createdAt,
+        }));
+      } else {
+        const url = new URL(`/api/chat/sessions/${sessionId}/messages`, getApiUrl());
+        const res = await fetch(url.toString(), { credentials: 'include' });
+        if (!res.ok) throw new Error('Failed to fetch messages');
+        return res.json();
+      }
     },
     enabled: !!sessionId,
   });
@@ -142,10 +177,16 @@ export default function ChatScreen() {
     setIsTyping(true);
     
     try {
-      const res = await apiRequest('POST', `/api/chat/sessions/${sessionId}/messages`, { content: messageContent });
-      await res.json();
-      setOptimisticMessages([]);
-      await queryClient.invalidateQueries({ queryKey: ['/api/chat/sessions', sessionId, 'messages'] });
+      if (isZekeSyncMode()) {
+        await sendZekeMessage(sessionId, messageContent);
+        setOptimisticMessages([]);
+        await queryClient.invalidateQueries({ queryKey: ['/api/conversations', sessionId, 'messages'] });
+      } else {
+        const res = await apiRequest('POST', `/api/chat/sessions/${sessionId}/messages`, { content: messageContent });
+        await res.json();
+        setOptimisticMessages([]);
+        await queryClient.invalidateQueries({ queryKey: ['/api/chat/sessions', sessionId, 'messages'] });
+      }
     } catch (error) {
       setIsTyping(false);
       setOptimisticMessages(prev => prev.filter(m => m.id !== tempId));

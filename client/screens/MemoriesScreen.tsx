@@ -14,7 +14,8 @@ import { MemoryCard, Memory } from "@/components/MemoryCard";
 import { EmptyState } from "@/components/EmptyState";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, Colors, BorderRadius } from "@/constants/theme";
-import { queryClient, apiRequest, getApiUrl } from "@/lib/query-client";
+import { queryClient, apiRequest, getApiUrl, isZekeSyncMode } from "@/lib/query-client";
+import { getRecentMemories, searchMemories as searchZekeMemories } from "@/lib/zeke-api-adapter";
 
 type FilterType = "all" | "omi" | "limitless" | "starred";
 
@@ -76,11 +77,13 @@ export default function MemoriesScreen() {
   const headerHeight = useHeaderHeight();
   const tabBarHeight = useBottomTabBarHeight();
   const { theme } = useTheme();
+  const isSyncMode = isZekeSyncMode();
 
   const [filter, setFilter] = useState<FilterType>("all");
 
   const { data: devicesData } = useQuery<ApiDevice[]>({
     queryKey: ['/api/devices'],
+    enabled: !isSyncMode,
   });
 
   const buildQueryParams = () => {
@@ -92,36 +95,63 @@ export default function MemoriesScreen() {
   };
 
   const queryString = buildQueryParams();
-  const memoriesQueryKey = queryString 
-    ? ['/api/memories', queryString]
-    : ['/api/memories'];
+  const memoriesQueryKey = isSyncMode 
+    ? ['zeke-memories', filter]
+    : (queryString ? ['/api/memories', queryString] : ['/api/memories']);
 
   const { data: memoriesData, isLoading, isError, isFetching } = useQuery<ApiMemory[]>({
     queryKey: memoriesQueryKey,
     queryFn: async () => {
-      const url = new URL(`/api/memories${queryString ? `?${queryString}` : ''}`, getApiUrl());
-      const res = await fetch(url.toString(), { credentials: 'include' });
-      if (!res.ok) throw new Error('Failed to fetch memories');
-      return res.json();
+      if (isSyncMode) {
+        const memories = await getRecentMemories(50);
+        return memories.map(m => ({
+          id: m.id,
+          deviceId: m.deviceId || 'zeke-main',
+          title: m.title,
+          summary: m.summary || null,
+          transcript: m.transcript,
+          speakers: m.speakers || null,
+          actionItems: m.actionItems || null,
+          duration: m.duration,
+          isStarred: m.isStarred,
+          createdAt: m.createdAt,
+          updatedAt: m.updatedAt,
+        }));
+      } else {
+        const url = new URL(`/api/memories${queryString ? `?${queryString}` : ''}`, getApiUrl());
+        const res = await fetch(url.toString(), { credentials: 'include' });
+        if (!res.ok) throw new Error('Failed to fetch memories');
+        return res.json();
+      }
     },
   });
 
   const starMutation = useMutation({
     mutationFn: async (memoryId: string) => {
+      if (isSyncMode) {
+        throw new Error('Starring memories is not available in sync mode');
+      }
       const res = await apiRequest('POST', `/api/memories/${memoryId}/star`);
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/memories'], exact: false });
+      if (!isSyncMode) {
+        queryClient.invalidateQueries({ queryKey: ['/api/memories'], exact: false });
+      }
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (memoryId: string) => {
+      if (isSyncMode) {
+        throw new Error('Deleting memories is not available in sync mode');
+      }
       await apiRequest('DELETE', `/api/memories/${memoryId}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/memories'], exact: false });
+      if (!isSyncMode) {
+        queryClient.invalidateQueries({ queryKey: ['/api/memories'], exact: false });
+      }
     },
   });
 
@@ -143,8 +173,12 @@ export default function MemoriesScreen() {
 
   const onRefresh = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await queryClient.invalidateQueries({ queryKey: ['/api/memories'], exact: false });
-  }, []);
+    if (isSyncMode) {
+      await queryClient.invalidateQueries({ queryKey: ['zeke-memories'], exact: false });
+    } else {
+      await queryClient.invalidateQueries({ queryKey: ['/api/memories'], exact: false });
+    }
+  }, [isSyncMode]);
 
   const handleMemoryPress = (memory: Memory) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -152,11 +186,19 @@ export default function MemoriesScreen() {
 
   const handleStarMemory = (id: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (isSyncMode) {
+      Alert.alert("Not Available", "Starring memories is not available when synced to ZEKE.");
+      return;
+    }
     starMutation.mutate(id);
   };
 
   const handleDeleteMemory = (memory: Memory) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (isSyncMode) {
+      Alert.alert("Not Available", "Deleting memories is not available when synced to ZEKE.");
+      return;
+    }
     Alert.alert(
       "Delete Memory",
       `Are you sure you want to delete "${memory.title}"? This action cannot be undone.`,

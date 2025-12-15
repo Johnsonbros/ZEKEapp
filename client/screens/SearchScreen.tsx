@@ -13,7 +13,8 @@ import { MemoryCard, Memory } from "@/components/MemoryCard";
 import { EmptyState } from "@/components/EmptyState";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, Colors, BorderRadius } from "@/constants/theme";
-import { getApiUrl } from "@/lib/query-client";
+import { getApiUrl, isZekeSyncMode } from "@/lib/query-client";
+import { searchMemories as searchZekeMemories } from "@/lib/zeke-api-adapter";
 
 interface ApiDevice {
   id: string;
@@ -72,6 +73,7 @@ export default function SearchScreen() {
   const headerHeight = useHeaderHeight();
   const tabBarHeight = useBottomTabBarHeight();
   const { theme } = useTheme();
+  const isSyncMode = isZekeSyncMode();
 
   const [query, setQuery] = useState("");
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
@@ -79,6 +81,7 @@ export default function SearchScreen() {
 
   const { data: devicesData } = useQuery<ApiDevice[]>({
     queryKey: ['/api/devices'],
+    enabled: !isSyncMode,
   });
 
   interface SemanticSearchResult extends ApiMemory {
@@ -93,18 +96,41 @@ export default function SearchScreen() {
   }
 
   const { data: searchResponse, isLoading: isSearching, isError } = useQuery<SemanticSearchResponse>({
-    queryKey: ['/api/memories/search', activeSearchQuery],
+    queryKey: isSyncMode ? ['zeke-search', activeSearchQuery] : ['/api/memories/search', activeSearchQuery],
     queryFn: async () => {
       if (!activeSearchQuery) return { results: [], query: '', totalMatches: 0 };
-      const url = new URL('/api/memories/search', getApiUrl());
-      const res = await fetch(url.toString(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ query: activeSearchQuery, limit: 10 })
-      });
-      if (!res.ok) throw new Error('Failed to search memories');
-      return res.json();
+      
+      if (isSyncMode) {
+        const results = await searchZekeMemories(activeSearchQuery);
+        return {
+          results: results.map(m => ({
+            id: m.id,
+            deviceId: m.deviceId || 'zeke-main',
+            title: m.title,
+            summary: m.summary || null,
+            transcript: m.transcript,
+            speakers: m.speakers || null,
+            actionItems: m.actionItems || null,
+            duration: m.duration,
+            isStarred: m.isStarred,
+            createdAt: m.createdAt,
+            updatedAt: m.updatedAt,
+            relevanceScore: 100,
+          })),
+          query: activeSearchQuery,
+          totalMatches: results.length,
+        };
+      } else {
+        const url = new URL('/api/memories/search', getApiUrl());
+        const res = await fetch(url.toString(), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ query: activeSearchQuery, limit: 10 })
+        });
+        if (!res.ok) throw new Error('Failed to search memories');
+        return res.json();
+      }
     },
     enabled: !!activeSearchQuery,
   });
