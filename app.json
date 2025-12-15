@@ -40,6 +40,19 @@
           }
         }
       ],
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": true,
+          "modes": ["peripheral", "central"],
+          "bluetoothAlwaysPermission": "ZEKE AI needs Bluetooth access to connect to your Omi DevKit 2 or Limitless Pendant for real-time audio streaming and conversation recording.",
+          "androidPermissions": [
+            "BLUETOOTH_SCAN",
+            "BLUETOOTH_CONNECT",
+            "BLUETOOTH_ADVERTISE"
+          ]
+        }
+      ],
       "expo-web-browser"
     ],
     "experiments": {
