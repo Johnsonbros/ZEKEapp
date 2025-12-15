@@ -3,7 +3,10 @@ import { View, FlatList, StyleSheet, RefreshControl, Pressable, ActivityIndicato
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system/legacy";
@@ -13,9 +16,10 @@ import { ThemedText } from "@/components/ThemedText";
 import { MemoryCard, Memory } from "@/components/MemoryCard";
 import { EmptyState } from "@/components/EmptyState";
 import { useTheme } from "@/hooks/useTheme";
-import { Spacing, Colors, BorderRadius } from "@/constants/theme";
+import { Spacing, Colors, BorderRadius, Gradients } from "@/constants/theme";
 import { queryClient, apiRequest, getApiUrl, isZekeSyncMode } from "@/lib/query-client";
 import { getRecentMemories, searchMemories as searchZekeMemories, getZekeDevices } from "@/lib/zeke-api-adapter";
+import { MemoriesStackParamList } from "@/navigation/MemoriesStackNavigator";
 
 type FilterType = "all" | "omi" | "limitless" | "starred";
 
@@ -76,8 +80,14 @@ export default function MemoriesScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
   const tabBarHeight = useBottomTabBarHeight();
+  const navigation = useNavigation<NativeStackNavigationProp<MemoriesStackParamList>>();
   const { theme } = useTheme();
   const isSyncMode = isZekeSyncMode();
+
+  const handleLiveCapture = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    navigation.navigate("LiveCapture");
+  }, [navigation]);
 
   const [filter, setFilter] = useState<FilterType>("all");
 
@@ -348,29 +358,42 @@ export default function MemoriesScreen() {
   };
 
   return (
-    <FlatList
-      style={{ flex: 1, backgroundColor: theme.backgroundRoot }}
-      contentContainerStyle={{
-        paddingTop: headerHeight + Spacing.xl,
-        paddingBottom: tabBarHeight + Spacing.xl + 40,
-        paddingHorizontal: Spacing.lg,
-        flexGrow: 1,
-      }}
-      scrollIndicatorInsets={{ bottom: insets.bottom }}
-      data={filteredMemories}
-      renderItem={renderMemory}
-      keyExtractor={(item) => item.id}
-      ListHeaderComponent={renderHeader}
-      ListEmptyComponent={renderEmpty}
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl
-          refreshing={isFetching && !isLoading}
-          onRefresh={onRefresh}
-          tintColor={Colors.dark.primary}
-        />
-      }
-    />
+    <View style={{ flex: 1, backgroundColor: theme.backgroundRoot }}>
+      <FlatList
+        style={{ flex: 1 }}
+        contentContainerStyle={{
+          paddingTop: headerHeight + Spacing.xl,
+          paddingBottom: tabBarHeight + Spacing.xl + 40,
+          paddingHorizontal: Spacing.lg,
+          flexGrow: 1,
+        }}
+        scrollIndicatorInsets={{ bottom: insets.bottom }}
+        data={filteredMemories}
+        renderItem={renderMemory}
+        keyExtractor={(item) => item.id}
+        ListHeaderComponent={renderHeader}
+        ListEmptyComponent={renderEmpty}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isFetching && !isLoading}
+            onRefresh={onRefresh}
+            tintColor={Colors.dark.primary}
+          />
+        }
+      />
+      <Pressable
+        onPress={handleLiveCapture}
+        style={({ pressed }) => [
+          styles.fab,
+          { bottom: tabBarHeight + Spacing.lg, opacity: pressed ? 0.8 : 1 },
+        ]}
+      >
+        <LinearGradient colors={Gradients.primary} style={styles.fabGradient}>
+          <Feather name="mic" size={24} color="#FFFFFF" />
+        </LinearGradient>
+      </Pressable>
+    </View>
   );
 }
 
@@ -392,5 +415,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingTop: Spacing["3xl"],
+  },
+  fab: {
+    position: "absolute",
+    right: Spacing.lg,
+  },
+  fabGradient: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

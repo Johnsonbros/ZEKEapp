@@ -1,10 +1,12 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import MemoriesScreen from "@/screens/MemoriesScreen";
+import LiveCaptureScreen from "@/screens/LiveCaptureScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 
 export type MemoriesStackParamList = {
   Memories: undefined;
+  LiveCapture: undefined;
 };
 
 const Stack = createNativeStackNavigator<MemoriesStackParamList>();
@@ -19,6 +21,14 @@ export default function MemoriesStackNavigator() {
         component={MemoriesScreen}
         options={{
           headerTitle: "Memories",
+        }}
+      />
+      <Stack.Screen
+        name="LiveCapture"
+        component={LiveCaptureScreen}
+        options={{
+          headerTitle: "Live Capture",
+          presentation: "modal",
         }}
       />
     </Stack.Navigator>

@@ -623,7 +623,7 @@ Return at most ${Math.min(limit, 10)} results. Only include memories with releva
         omiDevice = await storage.createDevice({
           name: "Omi Wearable",
           type: "omi",
-          status: "connected"
+          isConnected: true
         });
       }
 
@@ -720,7 +720,7 @@ Return at most ${Math.min(limit, 10)} results. Only include memories with releva
         omiDevice = await storage.createDevice({
           name: "Omi Wearable",
           type: "omi",
-          status: "connected"
+          isConnected: true
         });
       }
 
@@ -759,6 +759,135 @@ Return at most ${Math.min(limit, 10)} results. Only include memories with releva
     }
   });
 
+  // =========================================
+  // Deepgram Configuration Status Endpoint (secure - no API key exposed)
+  // =========================================
+  
+  app.get("/api/deepgram/status", (_req, res) => {
+    const apiKey = process.env.DEEPGRAM_API_KEY;
+    
+    res.json({
+      configured: !!apiKey,
+      wsEndpoint: "/ws/deepgram"
+    });
+  });
+
   const httpServer = createServer(app);
+
+  // =========================================
+  // Deepgram WebSocket Proxy (keeps API key server-side)
+  // =========================================
+  
+  const WebSocket = require("ws");
+  const wss = new WebSocket.Server({ noServer: true });
+
+  httpServer.on("upgrade", (request: any, socket: any, head: any) => {
+    const pathname = new URL(request.url, `http://${request.headers.host}`).pathname;
+    
+    if (pathname === "/ws/deepgram") {
+      const apiKey = process.env.DEEPGRAM_API_KEY;
+      
+      if (!apiKey) {
+        socket.write("HTTP/1.1 503 Service Unavailable\r\n\r\n");
+        socket.destroy();
+        return;
+      }
+
+      wss.handleUpgrade(request, socket, head, (clientWs: any) => {
+        handleDeepgramProxy(clientWs, apiKey);
+      });
+    }
+  });
+
+  function handleDeepgramProxy(clientWs: any, apiKey: string) {
+    let deepgramWs: any = null;
+    let isClosing = false;
+
+    const params = new URLSearchParams({
+      model: "nova-2",
+      language: "en-US",
+      punctuate: "true",
+      diarize: "true",
+      smart_format: "true",
+      interim_results: "true",
+      utterance_end_ms: "1000",
+      vad_events: "true",
+      encoding: "linear16",
+      sample_rate: "16000",
+      channels: "1",
+    });
+
+    const deepgramUrl = `wss://api.deepgram.com/v1/listen?${params.toString()}`;
+
+    try {
+      deepgramWs = new WebSocket(deepgramUrl, {
+        headers: {
+          Authorization: `Token ${apiKey}`,
+        },
+      });
+
+      deepgramWs.on("open", () => {
+        console.log("[Deepgram Proxy] Connected to Deepgram");
+        clientWs.send(JSON.stringify({ type: "connected" }));
+      });
+
+      deepgramWs.on("message", (data: any) => {
+        if (clientWs.readyState === WebSocket.OPEN) {
+          clientWs.send(data.toString());
+        }
+      });
+
+      deepgramWs.on("error", (error: any) => {
+        console.error("[Deepgram Proxy] Deepgram error:", error.message);
+        if (clientWs.readyState === WebSocket.OPEN) {
+          clientWs.send(JSON.stringify({ type: "error", message: "Transcription service error" }));
+        }
+      });
+
+      deepgramWs.on("close", (code: number, reason: string) => {
+        console.log("[Deepgram Proxy] Deepgram closed:", code, reason?.toString());
+        if (!isClosing && clientWs.readyState === WebSocket.OPEN) {
+          clientWs.send(JSON.stringify({ type: "disconnected" }));
+          clientWs.close();
+        }
+      });
+    } catch (error) {
+      console.error("[Deepgram Proxy] Failed to connect to Deepgram:", error);
+      clientWs.send(JSON.stringify({ type: "error", message: "Failed to connect to transcription service" }));
+      clientWs.close();
+      return;
+    }
+
+    clientWs.on("message", (data: any) => {
+      if (deepgramWs && deepgramWs.readyState === WebSocket.OPEN) {
+        if (typeof data === "string") {
+          const message = JSON.parse(data);
+          if (message.type === "keepAlive") {
+            deepgramWs.send(JSON.stringify({ type: "KeepAlive" }));
+          } else if (message.type === "finalize") {
+            deepgramWs.send(JSON.stringify({ type: "Finalize" }));
+          }
+        } else {
+          deepgramWs.send(data);
+        }
+      }
+    });
+
+    clientWs.on("close", () => {
+      console.log("[Deepgram Proxy] Client disconnected");
+      isClosing = true;
+      if (deepgramWs && deepgramWs.readyState === WebSocket.OPEN) {
+        deepgramWs.close();
+      }
+    });
+
+    clientWs.on("error", (error: any) => {
+      console.error("[Deepgram Proxy] Client error:", error.message);
+      isClosing = true;
+      if (deepgramWs) {
+        deepgramWs.close();
+      }
+    });
+  }
   return httpServer;
 }

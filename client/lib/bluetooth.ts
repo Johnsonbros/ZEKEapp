@@ -13,6 +13,13 @@ type Device = {
     charUUID: string,
     base64Data: string
   ) => Promise<any>;
+  discoverAllServicesAndCharacteristics: () => Promise<void>;
+  monitorCharacteristicForService: (
+    serviceUUID: string,
+    charUUID: string,
+    callback: (error: Error | null, characteristic: Characteristic | null) => void
+  ) => void;
+  cancelConnection: () => Promise<void>;
 };
 
 type Characteristic = {
@@ -46,7 +53,7 @@ class BleManager {
 
   stopDeviceScan(): void {}
 
-  connectToDevice(_deviceId: string): Promise<Device> {
+  connectToDevice(_deviceId: string, _options?: { autoConnect?: boolean }): Promise<Device> {
     return Promise.reject(new Error("BLE not available in Expo Go"));
   }
 
