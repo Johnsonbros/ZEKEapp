@@ -1,5 +1,5 @@
 import React from "react";
-import { StyleSheet, Pressable, View } from "react-native";
+import { StyleSheet, Pressable, View, Platform } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
@@ -65,7 +65,13 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: "center",
-    zIndex: 100,
+    zIndex: 9999,
+    ...Platform.select({
+      web: {
+        elevation: 9999,
+      },
+      default: {},
+    }),
   },
   container: {
     ...Shadows.large,
