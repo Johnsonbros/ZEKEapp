@@ -4,8 +4,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { HomeStackParamList } from "@/navigation/HomeStackNavigator";
 
 import { ThemedText } from "@/components/ThemedText";
 import { GradientText } from "@/components/GradientText";
@@ -14,7 +18,7 @@ import { MemoryCard, Memory } from "@/components/MemoryCard";
 import { PulsingDot } from "@/components/PulsingDot";
 import { EmptyState } from "@/components/EmptyState";
 import { useTheme } from "@/hooks/useTheme";
-import { Spacing, Colors, BorderRadius } from "@/constants/theme";
+import { Spacing, Colors, BorderRadius, Gradients } from "@/constants/theme";
 import { queryClient, apiRequest, getApiUrl } from "@/lib/query-client";
 
 interface ApiDevice {
@@ -103,11 +107,19 @@ function mapApiMemoryToMemory(memory: ApiMemory, deviceType: "omi" | "limitless"
   };
 }
 
+type HomeScreenNavigationProp = NativeStackNavigationProp<HomeStackParamList, 'Home'>;
+
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
   const tabBarHeight = useBottomTabBarHeight();
   const { theme } = useTheme();
+  const navigation = useNavigation<HomeScreenNavigationProp>();
+
+  const handleUploadPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    navigation.navigate('AudioUpload');
+  };
 
   const { data: devicesData, isLoading: isLoadingDevices, isError: isDevicesError } = useQuery<ApiDevice[]>({
     queryKey: ['/api/devices'],
@@ -212,6 +224,31 @@ export default function HomeScreen() {
         </View>
       ) : null}
 
+      <Pressable
+        onPress={handleUploadPress}
+        style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1, marginBottom: Spacing.xl })}
+      >
+        <LinearGradient
+          colors={Gradients.accent}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.uploadCard}
+        >
+          <View style={styles.uploadIconContainer}>
+            <Feather name="upload-cloud" size={28} color="#FFFFFF" />
+          </View>
+          <View style={styles.uploadContent}>
+            <ThemedText type="body" style={styles.uploadTitle}>
+              Upload Audio
+            </ThemedText>
+            <ThemedText type="small" style={styles.uploadSubtitle}>
+              Transcribe audio files and save as memories
+            </ThemedText>
+          </View>
+          <Feather name="chevron-right" size={24} color="#FFFFFF" />
+        </LinearGradient>
+      </Pressable>
+
       <View style={[styles.sectionHeader, { marginTop: Spacing.xl }]}>
         <ThemedText type="h3">Recent Memories</ThemedText>
         <Pressable
@@ -308,5 +345,31 @@ const styles = StyleSheet.create({
   loadingContainer: {
     paddingVertical: Spacing.xl,
     alignItems: "center",
+  },
+  uploadCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.md,
+  },
+  uploadIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: Spacing.md,
+  },
+  uploadContent: {
+    flex: 1,
+  },
+  uploadTitle: {
+    color: "#FFFFFF",
+    fontWeight: "600",
+  },
+  uploadSubtitle: {
+    color: "rgba(255, 255, 255, 0.8)",
+    marginTop: 2,
   },
 });

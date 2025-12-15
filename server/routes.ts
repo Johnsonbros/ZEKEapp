@@ -3,8 +3,10 @@ import { createServer, type Server } from "node:http";
 import { storage } from "./storage";
 import { insertDeviceSchema, insertMemorySchema, insertChatSessionSchema, insertChatMessageSchema } from "@shared/schema";
 import OpenAI from "openai";
+import multer from "multer";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
 const ZEKE_SYSTEM_PROMPT = `You are ZEKE, an intelligent AI companion designed to help users recall and search their memories captured by wearable devices like Omi and Limitless.
 
@@ -195,18 +197,113 @@ Respond in JSON format:
     }
   });
 
-  app.post("/api/transcribe", async (req, res) => {
+  app.post("/api/transcribe", upload.single("audio"), async (req, res) => {
     try {
-      const mockTranscription = "This is a placeholder transcription. The audio transcription service (Deepgram) is not yet configured. Once set up, this endpoint will accept audio data and return the actual transcribed text.";
+      if (!req.file) {
+        return res.status(400).json({ error: "No audio file provided" });
+      }
+
+      const uint8Array = new Uint8Array(req.file.buffer);
+      const file = new File([uint8Array], req.file.originalname, { type: req.file.mimetype });
       
+      const transcription = await openai.audio.transcriptions.create({
+        file: file,
+        model: "whisper-1",
+        response_format: "verbose_json"
+      });
+
       res.json({
-        text: mockTranscription,
-        duration: 0,
-        isMock: true
+        text: transcription.text,
+        duration: transcription.duration || 0,
+        segments: transcription.segments || []
       });
     } catch (error) {
       console.error("Error transcribing audio:", error);
       res.status(500).json({ error: "Failed to transcribe audio" });
+    }
+  });
+
+  app.post("/api/transcribe-and-create-memory", upload.single("audio"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No audio file provided" });
+      }
+
+      const deviceId = req.body.deviceId;
+      if (!deviceId) {
+        return res.status(400).json({ error: "deviceId is required" });
+      }
+
+      const uint8Array2 = new Uint8Array(req.file.buffer);
+      const file = new File([uint8Array2], req.file.originalname, { type: req.file.mimetype });
+      
+      const transcription = await openai.audio.transcriptions.create({
+        file: file,
+        model: "whisper-1",
+        response_format: "verbose_json"
+      });
+
+      const transcript = transcription.text;
+      const duration = transcription.duration || 0;
+
+      const analysisPrompt = `Analyze the following conversation transcript and provide:
+1. A short, descriptive title (max 10 words)
+2. A summary (2-3 sentences)
+3. A list of action items extracted from the conversation (if any)
+
+Transcript:
+${transcript}
+
+Respond in JSON format:
+{
+  "title": "...",
+  "summary": "...",
+  "actionItems": ["action 1", "action 2", ...]
+}`;
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: "You are an AI assistant that analyzes conversation transcripts. Always respond with valid JSON." },
+          { role: "user", content: analysisPrompt }
+        ],
+        max_completion_tokens: 500,
+        response_format: { type: "json_object" }
+      });
+
+      const responseContent = completion.choices[0]?.message?.content || '{}';
+      let analysis: { title?: string; summary?: string; actionItems?: string[] };
+      
+      try {
+        analysis = JSON.parse(responseContent);
+      } catch {
+        analysis = {
+          title: "Untitled Memory",
+          summary: transcript.substring(0, 200),
+          actionItems: []
+        };
+      }
+
+      const memoryData = {
+        deviceId,
+        transcript,
+        duration,
+        speakers: req.body.speakers || null,
+        title: analysis.title || "Untitled Memory",
+        summary: analysis.summary || null,
+        actionItems: analysis.actionItems || []
+      };
+
+      const parsed = insertMemorySchema.safeParse(memoryData);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid memory data", details: parsed.error.errors });
+      }
+      
+      const memory = await storage.createMemory(parsed.data);
+      res.status(201).json(memory);
+    } catch (error) {
+      console.error("Error transcribing and creating memory:", error);
+      res.status(500).json({ error: "Failed to transcribe and create memory" });
     }
   });
 
