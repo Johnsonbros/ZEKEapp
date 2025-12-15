@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { View, FlatList, StyleSheet, RefreshControl, Pressable, ActivityIndicator, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -15,7 +15,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, Colors, BorderRadius } from "@/constants/theme";
 import { queryClient, apiRequest, getApiUrl, isZekeSyncMode } from "@/lib/query-client";
-import { getRecentMemories, searchMemories as searchZekeMemories } from "@/lib/zeke-api-adapter";
+import { getRecentMemories, searchMemories as searchZekeMemories, getZekeDevices } from "@/lib/zeke-api-adapter";
 
 type FilterType = "all" | "omi" | "limitless" | "starred";
 
@@ -81,9 +81,29 @@ export default function MemoriesScreen() {
 
   const [filter, setFilter] = useState<FilterType>("all");
 
+  useEffect(() => {
+    if (isSyncMode && (filter === "omi" || filter === "limitless")) {
+      setFilter("all");
+    }
+  }, [isSyncMode, filter]);
+
   const { data: devicesData } = useQuery<ApiDevice[]>({
-    queryKey: ['/api/devices'],
-    enabled: !isSyncMode,
+    queryKey: isSyncMode ? ['zeke-devices'] : ['/api/devices'],
+    queryFn: async () => {
+      if (isSyncMode) {
+        const devices = await getZekeDevices();
+        return devices.map(d => ({
+          id: d.id,
+          name: d.name,
+          type: d.type,
+        }));
+      } else {
+        const url = new URL('/api/devices', getApiUrl());
+        const res = await fetch(url.toString(), { credentials: 'include' });
+        if (!res.ok) return [];
+        return res.json();
+      }
+    },
   });
 
   const buildQueryParams = () => {
@@ -245,12 +265,17 @@ export default function MemoriesScreen() {
     }
   };
 
-  const filters: { key: FilterType; label: string }[] = [
-    { key: "all", label: "All" },
-    { key: "omi", label: "Omi" },
-    { key: "limitless", label: "Limitless" },
-    { key: "starred", label: "Starred" },
-  ];
+  const filters: { key: FilterType; label: string }[] = isSyncMode
+    ? [
+        { key: "all", label: "All" },
+        { key: "starred", label: "Starred" },
+      ]
+    : [
+        { key: "all", label: "All" },
+        { key: "omi", label: "Omi" },
+        { key: "limitless", label: "Limitless" },
+        { key: "starred", label: "Starred" },
+      ];
 
   const renderHeader = () => (
     <View style={styles.filtersContainer}>
@@ -314,7 +339,10 @@ export default function MemoriesScreen() {
       <EmptyState
         icon="inbox"
         title="No memories yet"
-        description="Your conversations will appear here once your devices start recording."
+        description={isSyncMode 
+          ? "No memories available from ZEKE. Start conversations on the main app to create memories."
+          : "Your conversations will appear here once your devices start recording."
+        }
       />
     );
   };

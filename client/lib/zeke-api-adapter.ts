@@ -246,3 +246,41 @@ export async function getHealthStatus(): Promise<{ status: string; connected: bo
     return { status: 'unreachable', connected: false };
   }
 }
+
+export async function getZekeDevices(): Promise<ZekeDevice[]> {
+  try {
+    const baseUrl = getApiUrl();
+    
+    if (isZekeSyncMode()) {
+      const url = new URL('/api/omi/devices', baseUrl);
+      
+      const res = await fetch(url, { 
+        credentials: 'include',
+        signal: AbortSignal.timeout(5000)
+      });
+      
+      if (!res.ok) {
+        return getDefaultZekeDevices();
+      }
+      
+      const data = await res.json();
+      return data.devices || data || getDefaultZekeDevices();
+    }
+    
+    return getDefaultZekeDevices();
+  } catch {
+    return getDefaultZekeDevices();
+  }
+}
+
+function getDefaultZekeDevices(): ZekeDevice[] {
+  return [
+    {
+      id: 'zeke-omi',
+      name: 'ZEKE Omi',
+      type: 'omi',
+      isConnected: true,
+      createdAt: new Date().toISOString(),
+    }
+  ];
+}
