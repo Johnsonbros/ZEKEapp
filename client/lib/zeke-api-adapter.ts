@@ -541,3 +541,59 @@ export async function toggleTaskComplete(
 ): Promise<ZekeTask> {
   return updateTask(id, { status: completed ? 'completed' : 'pending' });
 }
+
+export async function createCalendarEvent(
+  title: string,
+  startTime: string,
+  endTime?: string,
+  location?: string
+): Promise<ZekeEvent> {
+  const baseUrl = getApiUrl();
+  const url = new URL('/api/calendar', baseUrl);
+  
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, startTime, endTime, location }),
+    credentials: 'include',
+  });
+  
+  if (!res.ok) {
+    throw new Error(`Failed to create event: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function getUpcomingEvents(limit: number = 10): Promise<ZekeEvent[]> {
+  const baseUrl = getApiUrl();
+  const url = new URL('/api/calendar/upcoming', baseUrl);
+  url.searchParams.set('limit', limit.toString());
+  
+  try {
+    const res = await fetch(url, { 
+      credentials: 'include',
+      signal: AbortSignal.timeout(5000)
+    });
+    if (!res.ok) {
+      return [];
+    }
+    const data = await res.json();
+    return data.events || data || [];
+  } catch {
+    return [];
+  }
+}
+
+export async function deleteCalendarEvent(id: string): Promise<void> {
+  const baseUrl = getApiUrl();
+  const url = new URL(`/api/calendar/${id}`, baseUrl);
+  
+  const res = await fetch(url, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  
+  if (!res.ok) {
+    throw new Error(`Failed to delete event: ${res.statusText}`);
+  }
+}

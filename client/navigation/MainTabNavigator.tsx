@@ -7,6 +7,7 @@ import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import HomeStackNavigator from "@/navigation/HomeStackNavigator";
+import CalendarStackNavigator from "@/navigation/CalendarStackNavigator";
 import GroceryStackNavigator from "@/navigation/GroceryStackNavigator";
 import TasksStackNavigator from "@/navigation/TasksStackNavigator";
 import MemoriesStackNavigator from "@/navigation/MemoriesStackNavigator";
@@ -19,6 +20,7 @@ import { RootStackParamList } from "@/navigation/RootStackNavigator";
 
 export type MainTabParamList = {
   HomeTab: undefined;
+  CalendarTab: undefined;
   GroceryTab: undefined;
   TasksTab: undefined;
   MemoriesTab: undefined;
@@ -76,6 +78,16 @@ export default function MainTabNavigator() {
             title: "Home",
             tabBarIcon: ({ color, size }) => (
               <Feather name="home" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tab.Screen
+          name="CalendarTab"
+          component={CalendarStackNavigator}
+          options={{
+            title: "Calendar",
+            tabBarIcon: ({ color, size }) => (
+              <Feather name="calendar" size={size} color={color} />
             ),
           }}
         />
