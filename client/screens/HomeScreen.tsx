@@ -20,7 +20,18 @@ import { EmptyState } from "@/components/EmptyState";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, Colors, BorderRadius, Gradients } from "@/constants/theme";
 import { queryClient, apiRequest, getApiUrl, isZekeSyncMode } from "@/lib/query-client";
-import { getRecentMemories, getHealthStatus } from "@/lib/zeke-api-adapter";
+import { 
+  getRecentMemories, 
+  getHealthStatus, 
+  getDashboardSummary,
+  getTodayEvents,
+  getPendingTasks,
+  getGroceryItems,
+  type ZekeEvent,
+  type ZekeTask,
+  type ZekeGroceryItem,
+  type DashboardSummary,
+} from "@/lib/zeke-api-adapter";
 
 interface ApiDevice {
   id: string;
@@ -110,6 +121,32 @@ function mapApiMemoryToMemory(memory: ApiMemory, deviceType: "omi" | "limitless"
 
 type HomeScreenNavigationProp = NativeStackNavigationProp<HomeStackParamList, 'Home'>;
 
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
+
+function formatDate(): string {
+  return new Date().toLocaleDateString([], { 
+    weekday: 'long', 
+    month: 'long', 
+    day: 'numeric' 
+  });
+}
+
+function formatEventTime(startTime: string, endTime?: string): string {
+  const start = new Date(startTime);
+  const timeStr = start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  if (endTime) {
+    const end = new Date(endTime);
+    const endTimeStr = end.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    return `${timeStr} - ${endTimeStr}`;
+  }
+  return timeStr;
+}
+
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
@@ -129,6 +166,34 @@ export default function HomeScreen() {
     enabled: isSyncMode,
     staleTime: 30000,
     refetchInterval: 60000,
+  });
+
+  const { data: dashboardSummary } = useQuery<DashboardSummary>({
+    queryKey: ['zeke-dashboard-summary'],
+    queryFn: getDashboardSummary,
+    enabled: isSyncMode,
+    staleTime: 60000,
+  });
+
+  const { data: todayEvents = [] } = useQuery<ZekeEvent[]>({
+    queryKey: ['zeke-today-events'],
+    queryFn: getTodayEvents,
+    enabled: isSyncMode,
+    staleTime: 60000,
+  });
+
+  const { data: pendingTasks = [] } = useQuery<ZekeTask[]>({
+    queryKey: ['zeke-pending-tasks'],
+    queryFn: getPendingTasks,
+    enabled: isSyncMode,
+    staleTime: 60000,
+  });
+
+  const { data: groceryItems = [] } = useQuery<ZekeGroceryItem[]>({
+    queryKey: ['zeke-grocery-items'],
+    queryFn: getGroceryItems,
+    enabled: isSyncMode,
+    staleTime: 60000,
   });
 
   const { data: devicesData, isLoading: isLoadingDevices, isError: isDevicesError } = useQuery<ApiDevice[]>({
@@ -194,6 +259,10 @@ export default function HomeScreen() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['zeke-connection-status'] }),
         queryClient.invalidateQueries({ queryKey: ['zeke-memories'] }),
+        queryClient.invalidateQueries({ queryKey: ['zeke-dashboard-summary'] }),
+        queryClient.invalidateQueries({ queryKey: ['zeke-today-events'] }),
+        queryClient.invalidateQueries({ queryKey: ['zeke-pending-tasks'] }),
+        queryClient.invalidateQueries({ queryKey: ['zeke-grocery-items'] }),
       ]);
     } else {
       await Promise.all([
@@ -216,75 +285,256 @@ export default function HomeScreen() {
     starMutation.mutate(id);
   };
 
+  const unpurchasedGroceryItems = groceryItems.filter(item => !item.isPurchased);
+
   const renderHeader = () => (
     <View style={styles.headerSection}>
       {isSyncMode ? (
-        <View style={[styles.syncStatusCard, { 
-          backgroundColor: connectionStatus?.connected ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-          borderColor: connectionStatus?.connected ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)',
-        }]}>
-          <View style={styles.syncStatusContent}>
-            <PulsingDot 
-              color={connectionStatus?.connected ? '#22C55E' : '#EF4444'} 
-              size={8} 
-            />
-            <ThemedText type="small" style={{ 
-              marginLeft: Spacing.sm,
-              color: connectionStatus?.connected ? '#22C55E' : '#EF4444',
-            }}>
-              {connectionStatus?.connected ? 'Connected to ZEKE' : 'ZEKE Offline'}
+        <>
+          <View style={styles.greetingSection}>
+            <GradientText type="h2" colors={Gradients.primary}>
+              {getGreeting()}{dashboardSummary?.userName ? `, ${dashboardSummary.userName}` : ''}
+            </GradientText>
+            <ThemedText type="body" secondary style={{ marginTop: Spacing.xs }}>
+              {formatDate()}
             </ThemedText>
           </View>
-          <ThemedText type="small" secondary>
-            Synced with main app
-          </ThemedText>
-        </View>
-      ) : null}
 
-      <View style={styles.sectionHeader}>
-        <ThemedText type="h3">{isSyncMode ? 'Status' : 'Devices'}</ThemedText>
-        {!isSyncMode ? (
-          <View style={styles.deviceCount}>
+          <View style={[styles.syncStatusCard, { 
+            backgroundColor: connectionStatus?.connected ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+            borderColor: connectionStatus?.connected ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)',
+          }]}>
+            <View style={styles.syncStatusContent}>
+              <PulsingDot 
+                color={connectionStatus?.connected ? '#22C55E' : '#EF4444'} 
+                size={8} 
+              />
+              <ThemedText type="small" style={{ 
+                marginLeft: Spacing.sm,
+                color: connectionStatus?.connected ? '#22C55E' : '#EF4444',
+              }}>
+                {connectionStatus?.connected ? 'Connected to ZEKE' : 'ZEKE Offline'}
+              </ThemedText>
+            </View>
             <ThemedText type="small" secondary>
-              {devices.filter((d) => d.isConnected).length}/{devices.length} connected
+              Synced with main app
             </ThemedText>
           </View>
-        ) : null}
-      </View>
 
-      {!isSyncMode ? (
-        isLoadingDevices ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator color={Colors.dark.primary} />
+          <View style={styles.statsGrid}>
+            <View style={[styles.statCard, { backgroundColor: theme.backgroundDefault }]}>
+              <View style={[styles.statIconContainer, { backgroundColor: 'rgba(99, 102, 241, 0.2)' }]}>
+                <Feather name="calendar" size={20} color={Colors.dark.primary} />
+              </View>
+              <ThemedText type="h3">{dashboardSummary?.eventsCount ?? todayEvents.length}</ThemedText>
+              <ThemedText type="caption" secondary>Events Today</ThemedText>
+            </View>
+            <View style={[styles.statCard, { backgroundColor: theme.backgroundDefault }]}>
+              <View style={[styles.statIconContainer, { backgroundColor: 'rgba(236, 72, 153, 0.2)' }]}>
+                <Feather name="check-square" size={20} color={Colors.dark.accent} />
+              </View>
+              <ThemedText type="h3">{dashboardSummary?.pendingTasksCount ?? pendingTasks.length}</ThemedText>
+              <ThemedText type="caption" secondary>Pending Tasks</ThemedText>
+            </View>
+            <View style={[styles.statCard, { backgroundColor: theme.backgroundDefault }]}>
+              <View style={[styles.statIconContainer, { backgroundColor: 'rgba(16, 185, 129, 0.2)' }]}>
+                <Feather name="shopping-cart" size={20} color={Colors.dark.success} />
+              </View>
+              <ThemedText type="h3">{dashboardSummary?.groceryItemsCount ?? unpurchasedGroceryItems.length}</ThemedText>
+              <ThemedText type="caption" secondary>Grocery Items</ThemedText>
+            </View>
+            <View style={[styles.statCard, { backgroundColor: theme.backgroundDefault }]}>
+              <View style={[styles.statIconContainer, { backgroundColor: 'rgba(139, 92, 246, 0.2)' }]}>
+                <Feather name="message-circle" size={20} color={Colors.dark.secondary} />
+              </View>
+              <ThemedText type="h3">{dashboardSummary?.memoriesCount ?? memories.length}</ThemedText>
+              <ThemedText type="caption" secondary>Memories</ThemedText>
+            </View>
           </View>
-        ) : isDevicesError ? (
-          <ThemedText type="body" secondary>Failed to load devices</ThemedText>
-        ) : devices.length === 0 ? (
-          <ThemedText type="body" secondary>No devices connected</ThemedText>
-        ) : (
-          devices.map((device) => (
-            <DeviceCard
-              key={device.id}
-              device={device}
-              onPress={() => handleDevicePress(device)}
-            />
-          ))
-        )
-      ) : null}
 
-      {!isSyncMode && isLiveTranscribing ? (
-        <View style={[styles.liveCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
-          <View style={styles.liveHeader}>
-            <PulsingDot color={Colors.dark.accent} size={10} />
-            <ThemedText type="small" style={{ marginLeft: Spacing.sm, color: Colors.dark.accent }}>
-              Live Transcription
-            </ThemedText>
+          <View style={styles.sectionHeader}>
+            <ThemedText type="h3">Today's Schedule</ThemedText>
           </View>
-          <ThemedText type="body" secondary numberOfLines={2}>
-            "...and that's why we need to prioritize the user experience in the next sprint..."
-          </ThemedText>
-        </View>
-      ) : null}
+          {todayEvents.length > 0 ? (
+            <View style={[styles.dashboardCard, { backgroundColor: theme.backgroundDefault }]}>
+              {todayEvents.slice(0, 3).map((event, index) => (
+                <View 
+                  key={event.id} 
+                  style={[
+                    styles.eventItem, 
+                    index < Math.min(todayEvents.length, 3) - 1 ? styles.eventItemBorder : null,
+                    { borderBottomColor: theme.border }
+                  ]}
+                >
+                  <View style={styles.eventTimeContainer}>
+                    <Feather name="clock" size={14} color={Colors.dark.primary} />
+                    <ThemedText type="small" style={{ marginLeft: Spacing.xs, color: Colors.dark.primary }}>
+                      {formatEventTime(event.startTime, event.endTime)}
+                    </ThemedText>
+                  </View>
+                  <ThemedText type="body" style={{ marginTop: Spacing.xs }} numberOfLines={1}>
+                    {event.title}
+                  </ThemedText>
+                  {event.location ? (
+                    <View style={styles.eventLocationContainer}>
+                      <Feather name="map-pin" size={12} color={theme.textSecondary} />
+                      <ThemedText type="caption" secondary style={{ marginLeft: Spacing.xs }}>
+                        {event.location}
+                      </ThemedText>
+                    </View>
+                  ) : null}
+                </View>
+              ))}
+              {todayEvents.length > 3 ? (
+                <ThemedText type="small" style={{ color: Colors.dark.primary, marginTop: Spacing.sm }}>
+                  +{todayEvents.length - 3} more events
+                </ThemedText>
+              ) : null}
+            </View>
+          ) : (
+            <View style={[styles.dashboardCard, { backgroundColor: theme.backgroundDefault }]}>
+              <View style={styles.emptyCardContent}>
+                <Feather name="calendar" size={24} color={theme.textSecondary} />
+                <ThemedText type="body" secondary style={{ marginTop: Spacing.sm }}>
+                  No events today
+                </ThemedText>
+              </View>
+            </View>
+          )}
+
+          <View style={styles.sectionHeader}>
+            <ThemedText type="h3">Tasks</ThemedText>
+          </View>
+          {pendingTasks.length > 0 ? (
+            <View style={[styles.dashboardCard, { backgroundColor: theme.backgroundDefault }]}>
+              {pendingTasks.slice(0, 4).map((task, index) => (
+                <View 
+                  key={task.id} 
+                  style={[
+                    styles.taskItem,
+                    index < Math.min(pendingTasks.length, 4) - 1 ? styles.taskItemBorder : null,
+                    { borderBottomColor: theme.border }
+                  ]}
+                >
+                  <View style={styles.taskCheckbox}>
+                    <Feather name="circle" size={18} color={theme.textSecondary} />
+                  </View>
+                  <View style={styles.taskContent}>
+                    <ThemedText type="body" numberOfLines={1}>{task.title}</ThemedText>
+                    {task.dueDate ? (
+                      <ThemedText type="caption" secondary>
+                        Due {new Date(task.dueDate).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                      </ThemedText>
+                    ) : null}
+                  </View>
+                  {task.priority === 'high' ? (
+                    <Feather name="alert-circle" size={16} color={Colors.dark.error} />
+                  ) : null}
+                </View>
+              ))}
+              {pendingTasks.length > 4 ? (
+                <ThemedText type="small" style={{ color: Colors.dark.primary, marginTop: Spacing.sm }}>
+                  +{pendingTasks.length - 4} more tasks
+                </ThemedText>
+              ) : null}
+            </View>
+          ) : (
+            <View style={[styles.dashboardCard, { backgroundColor: theme.backgroundDefault }]}>
+              <View style={styles.emptyCardContent}>
+                <Feather name="check-circle" size={24} color={Colors.dark.success} />
+                <ThemedText type="body" secondary style={{ marginTop: Spacing.sm }}>
+                  All caught up!
+                </ThemedText>
+              </View>
+            </View>
+          )}
+
+          <View style={styles.sectionHeader}>
+            <ThemedText type="h3">Grocery List</ThemedText>
+          </View>
+          {unpurchasedGroceryItems.length > 0 ? (
+            <View style={[styles.dashboardCard, { backgroundColor: theme.backgroundDefault }]}>
+              {unpurchasedGroceryItems.slice(0, 5).map((item, index) => (
+                <View 
+                  key={item.id} 
+                  style={[
+                    styles.groceryItem,
+                    index < Math.min(unpurchasedGroceryItems.length, 5) - 1 ? styles.groceryItemBorder : null,
+                    { borderBottomColor: theme.border }
+                  ]}
+                >
+                  <View style={styles.groceryBullet} />
+                  <ThemedText type="body" style={{ flex: 1 }} numberOfLines={1}>
+                    {item.name}
+                  </ThemedText>
+                  {item.quantity ? (
+                    <ThemedText type="small" secondary>
+                      {item.quantity}{item.unit ? ` ${item.unit}` : ''}
+                    </ThemedText>
+                  ) : null}
+                </View>
+              ))}
+              {unpurchasedGroceryItems.length > 5 ? (
+                <ThemedText type="small" style={{ color: Colors.dark.primary, marginTop: Spacing.sm }}>
+                  +{unpurchasedGroceryItems.length - 5} more items
+                </ThemedText>
+              ) : null}
+            </View>
+          ) : (
+            <View style={[styles.dashboardCard, { backgroundColor: theme.backgroundDefault }]}>
+              <View style={styles.emptyCardContent}>
+                <Feather name="shopping-bag" size={24} color={theme.textSecondary} />
+                <ThemedText type="body" secondary style={{ marginTop: Spacing.sm }}>
+                  No grocery items
+                </ThemedText>
+              </View>
+            </View>
+          )}
+        </>
+      ) : (
+        <>
+          <View style={styles.sectionHeader}>
+            <ThemedText type="h3">Devices</ThemedText>
+            <View style={styles.deviceCount}>
+              <ThemedText type="small" secondary>
+                {devices.filter((d) => d.isConnected).length}/{devices.length} connected
+              </ThemedText>
+            </View>
+          </View>
+
+          {isLoadingDevices ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator color={Colors.dark.primary} />
+            </View>
+          ) : isDevicesError ? (
+            <ThemedText type="body" secondary>Failed to load devices</ThemedText>
+          ) : devices.length === 0 ? (
+            <ThemedText type="body" secondary>No devices connected</ThemedText>
+          ) : (
+            devices.map((device) => (
+              <DeviceCard
+                key={device.id}
+                device={device}
+                onPress={() => handleDevicePress(device)}
+              />
+            ))
+          )}
+
+          {isLiveTranscribing ? (
+            <View style={[styles.liveCard, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+              <View style={styles.liveHeader}>
+                <PulsingDot color={Colors.dark.accent} size={10} />
+                <ThemedText type="small" style={{ marginLeft: Spacing.sm, color: Colors.dark.accent }}>
+                  Live Transcription
+                </ThemedText>
+              </View>
+              <ThemedText type="body" secondary numberOfLines={2}>
+                "...and that's why we need to prioritize the user experience in the next sprint..."
+              </ThemedText>
+            </View>
+          ) : null}
+        </>
+      )}
 
       <Pressable
         onPress={handleUploadPress}
@@ -383,6 +633,9 @@ const styles = StyleSheet.create({
   headerSection: {
     marginBottom: Spacing.md,
   },
+  greetingSection: {
+    marginBottom: Spacing.lg,
+  },
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -405,6 +658,81 @@ const styles = StyleSheet.create({
   syncStatusContent: {
     flexDirection: "row",
     alignItems: "center",
+  },
+  statsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginHorizontal: -Spacing.xs,
+    marginBottom: Spacing.lg,
+  },
+  statCard: {
+    width: "48%",
+    marginHorizontal: "1%",
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.sm,
+    alignItems: "center",
+  },
+  statIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing.sm,
+  },
+  dashboardCard: {
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.lg,
+  },
+  emptyCardContent: {
+    alignItems: "center",
+    paddingVertical: Spacing.lg,
+  },
+  eventItem: {
+    paddingVertical: Spacing.sm,
+  },
+  eventItemBorder: {
+    borderBottomWidth: 1,
+  },
+  eventTimeContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  eventLocationContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: Spacing.xs,
+  },
+  taskItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: Spacing.sm,
+  },
+  taskItemBorder: {
+    borderBottomWidth: 1,
+  },
+  taskCheckbox: {
+    marginRight: Spacing.md,
+  },
+  taskContent: {
+    flex: 1,
+  },
+  groceryItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: Spacing.sm,
+  },
+  groceryItemBorder: {
+    borderBottomWidth: 1,
+  },
+  groceryBullet: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.dark.primary,
+    marginRight: Spacing.md,
   },
   liveCard: {
     padding: Spacing.lg,

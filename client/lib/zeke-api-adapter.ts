@@ -40,6 +40,41 @@ export interface ZekeDevice {
   createdAt: string;
 }
 
+export interface ZekeEvent {
+  id: string;
+  title: string;
+  startTime: string;
+  endTime?: string;
+  location?: string;
+  description?: string;
+}
+
+export interface ZekeTask {
+  id: string;
+  title: string;
+  status: 'pending' | 'completed' | 'cancelled';
+  priority?: 'low' | 'medium' | 'high';
+  dueDate?: string;
+  createdAt: string;
+}
+
+export interface ZekeGroceryItem {
+  id: string;
+  name: string;
+  quantity?: number;
+  unit?: string;
+  category?: string;
+  isPurchased: boolean;
+}
+
+export interface DashboardSummary {
+  eventsCount: number;
+  pendingTasksCount: number;
+  groceryItemsCount: number;
+  memoriesCount: number;
+  userName?: string;
+}
+
 export async function getConversations(): Promise<ZekeConversation[]> {
   const baseUrl = getApiUrl();
   const url = new URL('/api/conversations', baseUrl);
@@ -195,15 +230,23 @@ export async function getTasks(): Promise<any[]> {
   return res.json();
 }
 
-export async function getGroceryItems(): Promise<any[]> {
+export async function getGroceryItems(): Promise<ZekeGroceryItem[]> {
   const baseUrl = getApiUrl();
   const url = new URL('/api/grocery', baseUrl);
   
-  const res = await fetch(url, { credentials: 'include' });
-  if (!res.ok) {
+  try {
+    const res = await fetch(url, { 
+      credentials: 'include',
+      signal: AbortSignal.timeout(5000)
+    });
+    if (!res.ok) {
+      return [];
+    }
+    const data = await res.json();
+    return data.items || data || [];
+  } catch {
     return [];
   }
-  return res.json();
 }
 
 export async function getReminders(): Promise<any[]> {
@@ -283,4 +326,74 @@ function getDefaultZekeDevices(): ZekeDevice[] {
       createdAt: new Date().toISOString(),
     }
   ];
+}
+
+export async function getDashboardSummary(): Promise<DashboardSummary> {
+  const baseUrl = getApiUrl();
+  
+  try {
+    const url = new URL('/api/dashboard/summary', baseUrl);
+    const res = await fetch(url, { 
+      credentials: 'include',
+      signal: AbortSignal.timeout(5000)
+    });
+    
+    if (res.ok) {
+      return res.json();
+    }
+  } catch {
+  }
+  
+  const [events, tasks, grocery, memories] = await Promise.all([
+    getTodayEvents(),
+    getPendingTasks(),
+    getGroceryItems(),
+    getRecentMemories(100),
+  ]);
+  
+  return {
+    eventsCount: events.length,
+    pendingTasksCount: tasks.length,
+    groceryItemsCount: grocery.filter(g => !g.isPurchased).length,
+    memoriesCount: memories.length,
+  };
+}
+
+export async function getTodayEvents(): Promise<ZekeEvent[]> {
+  const baseUrl = getApiUrl();
+  const url = new URL('/api/calendar/today', baseUrl);
+  
+  try {
+    const res = await fetch(url, { 
+      credentials: 'include',
+      signal: AbortSignal.timeout(5000)
+    });
+    if (!res.ok) {
+      return [];
+    }
+    const data = await res.json();
+    return data.events || data || [];
+  } catch {
+    return [];
+  }
+}
+
+export async function getPendingTasks(): Promise<ZekeTask[]> {
+  const baseUrl = getApiUrl();
+  const url = new URL('/api/tasks', baseUrl);
+  url.searchParams.set('status', 'pending');
+  
+  try {
+    const res = await fetch(url, { 
+      credentials: 'include',
+      signal: AbortSignal.timeout(5000)
+    });
+    if (!res.ok) {
+      return [];
+    }
+    const data = await res.json();
+    return (data.tasks || data || []).filter((t: ZekeTask) => t.status === 'pending');
+  } catch {
+    return [];
+  }
 }
