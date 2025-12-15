@@ -90,19 +90,7 @@ export async function getConversations(): Promise<ZekeConversation[]> {
 }
 
 export async function createConversation(title?: string): Promise<ZekeConversation> {
-  const baseUrl = getApiUrl();
-  const url = new URL('/api/conversations', baseUrl);
-  
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title: title || 'Chat with ZEKE' }),
-    credentials: 'include',
-  });
-  
-  if (!res.ok) {
-    throw new Error(`Failed to create conversation: ${res.statusText}`);
-  }
+  const res = await apiRequest('POST', '/api/conversations', { title: title || 'Chat with ZEKE' });
   return res.json();
 }
 
@@ -121,39 +109,15 @@ export async function getConversationMessages(conversationId: string): Promise<Z
 }
 
 export async function sendMessage(conversationId: string, content: string): Promise<{ userMessage: ZekeMessage; assistantMessage: ZekeMessage }> {
-  const baseUrl = getApiUrl();
-  const url = new URL(`/api/conversations/${conversationId}/messages`, baseUrl);
-  
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ content }),
-    credentials: 'include',
-  });
-  
-  if (!res.ok) {
-    throw new Error(`Failed to send message: ${res.statusText}`);
-  }
+  const res = await apiRequest('POST', `/api/conversations/${conversationId}/messages`, { content });
   return res.json();
 }
 
 export async function chatWithZeke(message: string, phone?: string): Promise<{ response: string; conversationId?: string }> {
-  const baseUrl = getApiUrl();
-  const url = new URL('/api/chat', baseUrl);
-  
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ 
-      message,
-      phone: phone || 'mobile-app'
-    }),
-    credentials: 'include',
+  const res = await apiRequest('POST', '/api/chat', { 
+    message,
+    phone: phone || 'mobile-app'
   });
-  
-  if (!res.ok) {
-    throw new Error(`Failed to chat: ${res.statusText}`);
-  }
   return res.json();
 }
 
@@ -184,38 +148,18 @@ export async function getRecentMemories(limit: number = 10): Promise<ZekeMemory[
 }
 
 export async function searchMemories(query: string): Promise<ZekeMemory[]> {
-  const baseUrl = getApiUrl();
-  
-  if (isZekeSyncMode()) {
-    const url = new URL('/api/semantic-search', baseUrl);
-    
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, limit: 20 }),
-      credentials: 'include',
-    });
-    
-    if (!res.ok) {
-      return [];
+  try {
+    if (isZekeSyncMode()) {
+      const res = await apiRequest('POST', '/api/semantic-search', { query, limit: 20 });
+      const data = await res.json();
+      return data.results || [];
+    } else {
+      const res = await apiRequest('POST', '/api/memories/search', { query });
+      const data = await res.json();
+      return data.results || [];
     }
-    const data = await res.json();
-    return data.results || [];
-  } else {
-    const url = new URL('/api/memories/search', baseUrl);
-    
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query }),
-      credentials: 'include',
-    });
-    
-    if (!res.ok) {
-      return [];
-    }
-    const data = await res.json();
-    return data.results || [];
+  } catch {
+    return [];
   }
 }
 
@@ -404,19 +348,7 @@ export async function addGroceryItem(
   unit?: string,
   category?: string
 ): Promise<ZekeGroceryItem> {
-  const baseUrl = getApiUrl();
-  const url = new URL('/api/grocery', baseUrl);
-  
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, quantity, unit, category }),
-    credentials: 'include',
-  });
-  
-  if (!res.ok) {
-    throw new Error(`Failed to add grocery item: ${res.statusText}`);
-  }
+  const res = await apiRequest('POST', '/api/grocery', { name, quantity, unit, category });
   return res.json();
 }
 
@@ -424,34 +356,12 @@ export async function updateGroceryItem(
   id: string,
   updates: Partial<ZekeGroceryItem>
 ): Promise<ZekeGroceryItem> {
-  const baseUrl = getApiUrl();
-  const url = new URL(`/api/grocery/${id}`, baseUrl);
-  
-  const res = await fetch(url, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(updates),
-    credentials: 'include',
-  });
-  
-  if (!res.ok) {
-    throw new Error(`Failed to update grocery item: ${res.statusText}`);
-  }
+  const res = await apiRequest('PATCH', `/api/grocery/${id}`, updates);
   return res.json();
 }
 
 export async function deleteGroceryItem(id: string): Promise<void> {
-  const baseUrl = getApiUrl();
-  const url = new URL(`/api/grocery/${id}`, baseUrl);
-  
-  const res = await fetch(url, {
-    method: 'DELETE',
-    credentials: 'include',
-  });
-  
-  if (!res.ok) {
-    throw new Error(`Failed to delete grocery item: ${res.statusText}`);
-  }
+  await apiRequest('DELETE', `/api/grocery/${id}`);
 }
 
 export async function toggleGroceryPurchased(
@@ -485,19 +395,7 @@ export async function createTask(
   dueDate?: string,
   priority?: string
 ): Promise<ZekeTask> {
-  const baseUrl = getApiUrl();
-  const url = new URL('/api/tasks', baseUrl);
-  
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title, dueDate, priority }),
-    credentials: 'include',
-  });
-  
-  if (!res.ok) {
-    throw new Error(`Failed to create task: ${res.statusText}`);
-  }
+  const res = await apiRequest('POST', '/api/tasks', { title, dueDate, priority });
   return res.json();
 }
 
@@ -505,34 +403,12 @@ export async function updateTask(
   id: string,
   updates: Partial<ZekeTask>
 ): Promise<ZekeTask> {
-  const baseUrl = getApiUrl();
-  const url = new URL(`/api/tasks/${id}`, baseUrl);
-  
-  const res = await fetch(url, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(updates),
-    credentials: 'include',
-  });
-  
-  if (!res.ok) {
-    throw new Error(`Failed to update task: ${res.statusText}`);
-  }
+  const res = await apiRequest('PATCH', `/api/tasks/${id}`, updates);
   return res.json();
 }
 
 export async function deleteTask(id: string): Promise<void> {
-  const baseUrl = getApiUrl();
-  const url = new URL(`/api/tasks/${id}`, baseUrl);
-  
-  const res = await fetch(url, {
-    method: 'DELETE',
-    credentials: 'include',
-  });
-  
-  if (!res.ok) {
-    throw new Error(`Failed to delete task: ${res.statusText}`);
-  }
+  await apiRequest('DELETE', `/api/tasks/${id}`);
 }
 
 export async function toggleTaskComplete(
@@ -548,19 +424,7 @@ export async function createCalendarEvent(
   endTime?: string,
   location?: string
 ): Promise<ZekeEvent> {
-  const baseUrl = getApiUrl();
-  const url = new URL('/api/calendar', baseUrl);
-  
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title, startTime, endTime, location }),
-    credentials: 'include',
-  });
-  
-  if (!res.ok) {
-    throw new Error(`Failed to create event: ${res.statusText}`);
-  }
+  const res = await apiRequest('POST', '/api/calendar', { title, startTime, endTime, location });
   return res.json();
 }
 
@@ -585,15 +449,5 @@ export async function getUpcomingEvents(limit: number = 10): Promise<ZekeEvent[]
 }
 
 export async function deleteCalendarEvent(id: string): Promise<void> {
-  const baseUrl = getApiUrl();
-  const url = new URL(`/api/calendar/${id}`, baseUrl);
-  
-  const res = await fetch(url, {
-    method: 'DELETE',
-    credentials: 'include',
-  });
-  
-  if (!res.ok) {
-    throw new Error(`Failed to delete event: ${res.statusText}`);
-  }
+  await apiRequest('DELETE', `/api/calendar/${id}`);
 }
