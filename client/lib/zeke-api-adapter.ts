@@ -397,3 +397,66 @@ export async function getPendingTasks(): Promise<ZekeTask[]> {
     return [];
   }
 }
+
+export async function addGroceryItem(
+  name: string,
+  quantity?: number,
+  unit?: string,
+  category?: string
+): Promise<ZekeGroceryItem> {
+  const baseUrl = getApiUrl();
+  const url = new URL('/api/grocery', baseUrl);
+  
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, quantity, unit, category }),
+    credentials: 'include',
+  });
+  
+  if (!res.ok) {
+    throw new Error(`Failed to add grocery item: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function updateGroceryItem(
+  id: string,
+  updates: Partial<ZekeGroceryItem>
+): Promise<ZekeGroceryItem> {
+  const baseUrl = getApiUrl();
+  const url = new URL(`/api/grocery/${id}`, baseUrl);
+  
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates),
+    credentials: 'include',
+  });
+  
+  if (!res.ok) {
+    throw new Error(`Failed to update grocery item: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function deleteGroceryItem(id: string): Promise<void> {
+  const baseUrl = getApiUrl();
+  const url = new URL(`/api/grocery/${id}`, baseUrl);
+  
+  const res = await fetch(url, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  
+  if (!res.ok) {
+    throw new Error(`Failed to delete grocery item: ${res.statusText}`);
+  }
+}
+
+export async function toggleGroceryPurchased(
+  id: string,
+  purchased: boolean
+): Promise<ZekeGroceryItem> {
+  return updateGroceryItem(id, { isPurchased: purchased });
+}
