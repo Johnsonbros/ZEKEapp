@@ -182,3 +182,10 @@ shared/
 - Message history with user/assistant bubbles
 - Text input with send button
 - Keyboard-aware scrolling
+
+### Audio Upload Screen
+- Upload audio files (MP3, M4A, WAV, OGG, WebM)
+- OpenAI Whisper transcription
+- Automatic memory creation with AI analysis
+- Progress indicator during upload/transcription
+- Tips for best recording quality
