@@ -460,3 +460,84 @@ export async function toggleGroceryPurchased(
 ): Promise<ZekeGroceryItem> {
   return updateGroceryItem(id, { isPurchased: purchased });
 }
+
+export async function getAllTasks(): Promise<ZekeTask[]> {
+  const baseUrl = getApiUrl();
+  const url = new URL('/api/tasks', baseUrl);
+  
+  try {
+    const res = await fetch(url, { 
+      credentials: 'include',
+      signal: AbortSignal.timeout(5000)
+    });
+    if (!res.ok) {
+      return [];
+    }
+    const data = await res.json();
+    return data.tasks || data || [];
+  } catch {
+    return [];
+  }
+}
+
+export async function createTask(
+  title: string,
+  dueDate?: string,
+  priority?: string
+): Promise<ZekeTask> {
+  const baseUrl = getApiUrl();
+  const url = new URL('/api/tasks', baseUrl);
+  
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, dueDate, priority }),
+    credentials: 'include',
+  });
+  
+  if (!res.ok) {
+    throw new Error(`Failed to create task: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function updateTask(
+  id: string,
+  updates: Partial<ZekeTask>
+): Promise<ZekeTask> {
+  const baseUrl = getApiUrl();
+  const url = new URL(`/api/tasks/${id}`, baseUrl);
+  
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates),
+    credentials: 'include',
+  });
+  
+  if (!res.ok) {
+    throw new Error(`Failed to update task: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function deleteTask(id: string): Promise<void> {
+  const baseUrl = getApiUrl();
+  const url = new URL(`/api/tasks/${id}`, baseUrl);
+  
+  const res = await fetch(url, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  
+  if (!res.ok) {
+    throw new Error(`Failed to delete task: ${res.statusText}`);
+  }
+}
+
+export async function toggleTaskComplete(
+  id: string,
+  completed: boolean
+): Promise<ZekeTask> {
+  return updateTask(id, { status: completed ? 'completed' : 'pending' });
+}

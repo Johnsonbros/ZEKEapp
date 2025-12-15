@@ -155,7 +155,7 @@ export function VoiceInputButton({ onRecordingComplete, disabled }: VoiceInputBu
         });
         
         if (!status.granted) {
-          if (!status.canAskAgain && Platform.OS !== "web") {
+          if (!status.canAskAgain && (Platform.OS as string) !== "web") {
             Alert.alert(
               "Microphone Permission Required",
               "Microphone access was denied. Please enable it in your device settings to use voice input.",

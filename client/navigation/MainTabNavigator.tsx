@@ -8,6 +8,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import HomeStackNavigator from "@/navigation/HomeStackNavigator";
 import GroceryStackNavigator from "@/navigation/GroceryStackNavigator";
+import TasksStackNavigator from "@/navigation/TasksStackNavigator";
 import MemoriesStackNavigator from "@/navigation/MemoriesStackNavigator";
 import SearchStackNavigator from "@/navigation/SearchStackNavigator";
 import SettingsStackNavigator from "@/navigation/SettingsStackNavigator";
@@ -19,6 +20,7 @@ import { RootStackParamList } from "@/navigation/RootStackNavigator";
 export type MainTabParamList = {
   HomeTab: undefined;
   GroceryTab: undefined;
+  TasksTab: undefined;
   MemoriesTab: undefined;
   SearchTab: undefined;
   SettingsTab: undefined;
@@ -84,6 +86,16 @@ export default function MainTabNavigator() {
             title: "Grocery",
             tabBarIcon: ({ color, size }) => (
               <Feather name="shopping-cart" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tab.Screen
+          name="TasksTab"
+          component={TasksStackNavigator}
+          options={{
+            title: "Tasks",
+            tabBarIcon: ({ color, size }) => (
+              <Feather name="check-square" size={size} color={color} />
             ),
           }}
         />
