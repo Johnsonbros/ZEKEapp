@@ -7,11 +7,11 @@ import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import HomeStackNavigator from "@/navigation/HomeStackNavigator";
+import ContactsStackNavigator from "@/navigation/ContactsStackNavigator";
+import CommunicationStackNavigator from "@/navigation/CommunicationStackNavigator";
 import CalendarStackNavigator from "@/navigation/CalendarStackNavigator";
-import GroceryStackNavigator from "@/navigation/GroceryStackNavigator";
 import TasksStackNavigator from "@/navigation/TasksStackNavigator";
 import MemoriesStackNavigator from "@/navigation/MemoriesStackNavigator";
-import SearchStackNavigator from "@/navigation/SearchStackNavigator";
 import SettingsStackNavigator from "@/navigation/SettingsStackNavigator";
 import { FloatingActionButton } from "@/components/FloatingActionButton";
 import { useTheme } from "@/hooks/useTheme";
@@ -20,11 +20,11 @@ import { RootStackParamList } from "@/navigation/RootStackNavigator";
 
 export type MainTabParamList = {
   HomeTab: undefined;
+  ContactsTab: undefined;
+  InboxTab: undefined;
   CalendarTab: undefined;
-  GroceryTab: undefined;
   TasksTab: undefined;
   MemoriesTab: undefined;
-  SearchTab: undefined;
   SettingsTab: undefined;
 };
 
@@ -82,22 +82,32 @@ export default function MainTabNavigator() {
           }}
         />
         <Tab.Screen
+          name="ContactsTab"
+          component={ContactsStackNavigator}
+          options={{
+            title: "Contacts",
+            tabBarIcon: ({ color, size }) => (
+              <Feather name="users" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tab.Screen
+          name="InboxTab"
+          component={CommunicationStackNavigator}
+          options={{
+            title: "Inbox",
+            tabBarIcon: ({ color, size }) => (
+              <Feather name="message-circle" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tab.Screen
           name="CalendarTab"
           component={CalendarStackNavigator}
           options={{
             title: "Calendar",
             tabBarIcon: ({ color, size }) => (
               <Feather name="calendar" size={size} color={color} />
-            ),
-          }}
-        />
-        <Tab.Screen
-          name="GroceryTab"
-          component={GroceryStackNavigator}
-          options={{
-            title: "Grocery",
-            tabBarIcon: ({ color, size }) => (
-              <Feather name="shopping-cart" size={size} color={color} />
             ),
           }}
         />
@@ -118,16 +128,6 @@ export default function MainTabNavigator() {
             title: "Memories",
             tabBarIcon: ({ color, size }) => (
               <Feather name="layers" size={size} color={color} />
-            ),
-          }}
-        />
-        <Tab.Screen
-          name="SearchTab"
-          component={SearchStackNavigator}
-          options={{
-            title: "Search",
-            tabBarIcon: ({ color, size }) => (
-              <Feather name="search" size={size} color={color} />
             ),
           }}
         />

@@ -2,9 +2,11 @@
 
 ## Overview
 
-ZEKE AI is a mobile companion app built with Expo/React Native that serves as an always-on extension of the main ZEKE web application on a dedicated mobile device (Google Pixel 8). The app provides quick access to daily essentials (calendar, tasks, grocery list), conversation memory capture from AI wearables, and an AI chat assistant. It follows a dark-themed design with gradient accents and supports iOS, Android, and web platforms.
+ZEKE AI is a mobile companion app built with Expo/React Native that serves as an always-on extension of the main ZEKE web application on a dedicated mobile device (Google Pixel 8). The app provides quick access to daily essentials (calendar, tasks, contacts), conversation memory capture from AI wearables, communication via SMS/Voice through Twilio, and an AI chat assistant. It follows a dark-themed design with gradient accents and supports iOS, Android, and web platforms.
 
-**Key Concept**: Mobile handles native device features (voice input, location, notifications), while the ZEKE web server handles data persistence, AI processing, and complex features.
+**Key Concept**: Mobile handles native device features (voice input, location, notifications) and serves as the primary communication interface. The ZEKE web server handles data persistence, AI processing, Twilio integration, and complex features.
+
+**Communication Priority**: 1st App Chat, 2nd SMS, 3rd Voice calls
 
 ## User Preferences
 
@@ -17,8 +19,8 @@ Preferred communication style: Simple, everyday language.
 **Framework**: Expo SDK 54 with React Native 0.81, using the new React 19 architecture with React Compiler enabled.
 
 **Navigation**: React Navigation v7 with a hybrid structure:
-- Root stack navigator containing main tabs and modal screens
-- Bottom tab navigator with 7 tabs: Home, Calendar, Grocery, Tasks, Memories, Search, Settings
+- Root stack navigator containing main tabs and modal screens (Chat, SMS Compose)
+- Bottom tab navigator with 7 tabs: Home, Contacts, Inbox, Calendar, Tasks, Memories, Settings
 - Center floating action button for Chat modal
 - Each tab wraps its own native stack navigator for nested navigation
 
@@ -36,7 +38,7 @@ Preferred communication style: Simple, everyday language.
 **Key UI Components**:
 - Custom themed components (ThemedText, ThemedView, Card, Button)
 - Gradient text using masked views
-- Device cards with status indicators and battery levels
+- Contact cards with initials, access levels, and quick actions
 - Memory cards with transcript previews and speaker tags
 - Chat bubbles with user/assistant styling differentiation
 - VoiceInputButton for voice-to-text recording
@@ -79,6 +81,12 @@ The project uses path aliases configured in both TypeScript and Babel:
 - **Omi**: AI wearable device for conversation capture
 - **Limitless**: Wearable pendant for lifelogging
 - API key storage prepared in AsyncStorage
+
+### Communication Services
+- **Twilio**: SMS and Voice calling via main ZEKE backend
+  - SMS sending/receiving through `/api/twilio/sms/send`
+  - Voice call initiation through `/api/twilio/call/initiate`
+  - Supports 3-way calling with ZEKE AI participation
 
 ### Third-Party Services
 - **Expo Services**: Splash screen, haptics, image handling, web browser, blur effects, audio recording
@@ -125,26 +133,29 @@ client/
 │   └── useScreenOptions.ts  # Navigation header config
 ├── lib/
 │   ├── query-client.ts      # TanStack Query setup with sync mode detection
-│   ├── zeke-api-adapter.ts  # ZEKE backend API adapter
+│   ├── zeke-api-adapter.ts  # ZEKE backend API adapter (contacts, SMS, calls)
 │   ├── storage.ts           # AsyncStorage utilities
 │   └── mockData.ts          # Development mock data
 ├── navigation/
 │   ├── RootStackNavigator.tsx    # Root navigator with modals
 │   ├── MainTabNavigator.tsx      # Bottom tabs + FAB (7 tabs)
 │   ├── HomeStackNavigator.tsx    # Home tab stack
+│   ├── ContactsStackNavigator.tsx # Contacts tab stack
+│   ├── CommunicationStackNavigator.tsx # Inbox/SMS tab stack
 │   ├── CalendarStackNavigator.tsx # Calendar tab stack
-│   ├── GroceryStackNavigator.tsx  # Grocery tab stack
 │   ├── TasksStackNavigator.tsx    # Tasks tab stack
 │   ├── MemoriesStackNavigator.tsx # Memories tab stack
-│   ├── SearchStackNavigator.tsx   # Search tab stack
 │   └── SettingsStackNavigator.tsx # Settings tab stack
 └── screens/
     ├── HomeScreen.tsx       # Quick dashboard with daily summary
+    ├── ContactsScreen.tsx   # Contact list with search and quick actions
+    ├── ContactDetailScreen.tsx # Contact info and interaction history
+    ├── CommunicationLogScreen.tsx # Unified inbox (SMS/Voice/Chat)
+    ├── SmsConversationScreen.tsx  # SMS thread view
+    ├── SmsComposeScreen.tsx # Send new SMS message
     ├── CalendarScreen.tsx   # Today's events timeline
-    ├── GroceryScreen.tsx    # Grocery list with categories
     ├── TasksScreen.tsx      # Task management with filters
     ├── MemoriesScreen.tsx   # Memory feed with filters
-    ├── SearchScreen.tsx     # Search with recent queries
     ├── SettingsScreen.tsx   # App/device preferences
     ├── ChatScreen.tsx       # ZEKE AI chat modal
     └── AudioUploadScreen.tsx # Audio file upload/transcription
@@ -169,76 +180,82 @@ shared/
 ## Screen Details
 
 ### Home Screen (Quick Dashboard)
-In sync mode displays:
-- Dynamic greeting based on time of day ("Good morning/afternoon/evening")
+- Dynamic greeting based on time of day
 - Connection status indicator (green = connected, red = offline)
 - Stats grid: Today's Events, Pending Tasks, Grocery Items, Memories
-- Today's Schedule preview (first 3 events)
-- Tasks preview (first 4 pending tasks)
-- Grocery List preview (first 5 unpurchased items)
-- Upload audio card and recent memories
+- Today's Schedule preview
+- Tasks preview (pending tasks)
+- Recent memories
 
-In standalone mode displays:
-- Device status cards for Omi DevKit 2 and Limitless AI Pendant
-- Live transcription indicator with pulsing animation
-- Recent memories list
+### Contacts Screen
+- Alphabetical contact list with section headers (A, B, C...)
+- Search bar to filter by name, email, or phone
+- Each contact shows: Avatar with initials, full name, relationship badge
+- Quick action buttons: Phone (call), Message (SMS), chevron (detail)
+- Color-coded by access level (family, close friend, friend, acquaintance)
+- Add contact FAB button
+
+### Contact Detail Screen
+- Large avatar with initials and access level color
+- Full name and relationship/organization
+- Quick action row: Message, Call, Email buttons
+- Contact info card: Phone, Email, Organization, Birthday, Notes
+- Permissions card: Access level and permission flags
+- Interaction history: Recent conversations with source icons
+- Delete contact button
+
+### Communication Log (Inbox) Screen
+- Filter tabs: All, SMS, Voice, App Chat
+- Unified list of all communication interactions
+- Each item shows: Avatar/icon, contact name, message preview, timestamp
+- Source badge (SMS, Voice, Chat)
+- Unread indicator dot
+- Tap to open conversation
+
+### SMS Conversation Screen
+- Chat-style message bubbles
+- Outbound messages on right with gradient
+- Inbound messages on left with dark background
+- Date separators between message groups
+- Text input with send button at bottom
+- Call button in header
+
+### SMS Compose Screen (Modal)
+- Recipient row showing contact name
+- Large text input for message composition
+- Character counter (1600 limit)
+- Send Message button with gradient
 
 ### Calendar Screen
-- Today's date prominently displayed at top
-- Timeline view (6 AM - 11 PM) with events
+- Today's date displayed at top
+- Timeline view (6 AM - 11 PM)
 - Current time indicator (red line)
-- Events show time, title, location, color-coded
-- Add Event modal with title, start/end time, location
-- Voice input for adding events
-- Pull-to-refresh
-
-### Grocery Screen
-- Items grouped by category (Produce, Dairy, Meat, Bakery, Pantry, etc.)
-- Filter toggles: All / Unpurchased
-- Each item shows: name, quantity/unit, category badge, purchased checkbox
-- Tap to toggle purchased status
-- Long-press to delete with confirmation
-- Add Item modal with name, quantity, unit, category
-- Voice input for adding items
-- Category color coding
+- Events with time, title, location
+- Add Event functionality with voice input
 
 ### Tasks Screen
 - Filter toggles: All / Pending / Completed
-- Tasks grouped by: Today, Tomorrow, This Week, Later, No Due Date
-- Each task shows: title, due date, priority indicator, checkbox
-- Priority colors: high = red, medium = orange, low = green
+- Tasks grouped by: Today, Tomorrow, This Week, Later
+- Priority indicators (red/orange/green)
 - Tap checkbox to toggle completion
-- Swipe to delete
-- Add Task modal with title, due date, priority
-- Voice input for adding tasks
+- Add Task with voice input
 
 ### Memories Screen
-- Filter tabs: All, Starred (sync mode) or All, Omi, Limitless, Starred (standalone)
-- Date-grouped memory cards with transcript previews
+- Filter tabs: All, Starred
+- Date-grouped memory cards
 - Star toggle for favorites
 - Swipe actions for delete/share
 
-### Search Screen
-- Search input with gradient focus border
-- Recent searches as horizontal chips
-- Search results in memory card format
-
 ### Settings Screen
-- Device configuration section
-- Preference toggles (notifications, auto-sync)
+- Device configuration
+- Preference toggles
 - About section with version info
 
 ### Chat Screen (Modal)
-- Full-screen modal with close button
-- Message history with user/assistant bubbles
+- Full-screen ZEKE AI chat
+- Message history with chat bubbles
 - Text input with send button
 - Keyboard-aware scrolling
-
-### Audio Upload Screen
-- Upload audio files (MP3, M4A, WAV, OGG, WebM)
-- OpenAI Whisper transcription
-- Automatic memory creation with AI analysis
-- Progress indicator during upload/transcription
 
 ## ZEKE Sync Configuration
 
@@ -248,75 +265,52 @@ This mobile app connects to the main ZEKE web deployment for data synchronizatio
 
 - `EXPO_PUBLIC_ZEKE_BACKEND_URL`: URL of the main ZEKE backend
   - Example: `https://zekeai.replit.app` or `https://zekeassistant.aisyncservice.repl.co`
-  - When set, the app connects to the main ZEKE backend instead of its local backend
-  - This enables syncing all data between the mobile app and web app
-
-### Sync Mode Detection
-
-The app uses `isZekeSyncMode()` from `query-client.ts` to detect sync mode:
-- Returns `true` if `EXPO_PUBLIC_ZEKE_BACKEND_URL` is set
-- UI adapts based on this setting (different features enabled/disabled)
-
-### Sync Mode Features
-
-When connected to the main ZEKE backend:
-- Home screen shows Quick Dashboard with daily summaries
-- Calendar, Grocery, and Tasks screens sync with ZEKE
-- Chat conversations are synced with the main ZEKE AI
-- Memories are fetched from the main ZEKE database
-- Search uses ZEKE's semantic search capabilities
+  - Enables syncing all data between mobile app and web app
 
 ### API Adapter (`client/lib/zeke-api-adapter.ts`)
 
-Provides a compatibility layer between the mobile app and main ZEKE backend:
+**Contacts:**
+- `getContacts()` - GET `/api/contacts`
+- `getContact(id)` - GET `/api/contacts/:id`
+- `createContact(data)` - POST `/api/contacts`
+- `updateContact(id, data)` - PATCH `/api/contacts/:id`
+- `deleteContact(id)` - DELETE `/api/contacts/:id`
+
+**Communication:**
+- `getSmsConversations()` - GET `/api/sms-log`
+- `sendSms(contactId, message)` - POST `/api/twilio/sms/send`
+- `initiateCall(contactId)` - POST `/api/twilio/call/initiate`
 
 **Chat/Conversations:**
 - `getConversations()` / `createConversation()` - Manage chat conversations
 - `sendMessage()` - Send chat messages to ZEKE
 - `chatWithZeke()` - Direct chat endpoint
 
-**Memories:**
-- `getRecentMemories()` - Fetch Omi memories
-- `searchMemories()` - Semantic search across memories
-
-**Dashboard:**
-- `getDashboardSummary()` - Aggregated dashboard data
-- `getTodayEvents()` - Today's calendar events
-- `getPendingTasks()` - Pending tasks
-- `getGroceryItems()` - Grocery list items
-
 **Calendar:**
 - `getTodayEvents()` - GET `/api/calendar/today`
-- `getUpcomingEvents()` - GET `/api/calendar/upcoming`
 - `createCalendarEvent()` - POST `/api/calendar`
 - `deleteCalendarEvent()` - DELETE `/api/calendar/:id`
 
 **Tasks:**
-- `getAllTasks()` - GET `/api/tasks`
-- `getPendingTasks()` - GET `/api/tasks?status=pending`
+- `getAllTasks()` / `getPendingTasks()` - GET `/api/tasks`
 - `createTask()` - POST `/api/tasks`
-- `updateTask()` - PATCH `/api/tasks/:id`
+- `updateTask()` / `toggleTaskComplete()` - PATCH `/api/tasks/:id`
 - `deleteTask()` - DELETE `/api/tasks/:id`
-- `toggleTaskComplete()` - PATCH to update status
 
-**Grocery:**
-- `getGroceryItems()` - GET `/api/grocery`
-- `addGroceryItem()` - POST `/api/grocery`
-- `updateGroceryItem()` - PATCH `/api/grocery/:id`
-- `deleteGroceryItem()` - DELETE `/api/grocery/:id`
-- `toggleGroceryPurchased()` - PATCH to update purchased status
+**Memories:**
+- `getRecentMemories()` - Fetch Omi memories
+- `searchMemories()` - Semantic search
 
 **Status:**
-- `getHealthStatus()` - Check backend connection status
-- `getDevices()` - GET `/api/omi/devices`
+- `getHealthStatus()` - Check backend connection
 
 ## Recent Changes (December 2025)
 
-- Added Quick Dashboard to HomeScreen with daily summaries and stats grid
-- Created Calendar screen with timeline view and event management
-- Created Grocery screen with category grouping and CRUD operations
-- Created Tasks screen with due date grouping and priority indicators
-- Added VoiceInputButton component for voice recording
-- Expanded navigation to 7 tabs (Home, Calendar, Grocery, Tasks, Memories, Search, Settings)
-- Built comprehensive ZEKE API adapter with all CRUD endpoints
-- Implemented sync mode detection and adaptive UI based on connection status
+- Added Contacts system with list, detail, and quick action screens
+- Created Communication Log (Inbox) for unified SMS/Voice/Chat view
+- Implemented SMS Conversation and Compose screens
+- Added Twilio integration via ZEKE backend for SMS/Voice calls
+- Updated navigation to 7 tabs: Home, Contacts, Inbox, Calendar, Tasks, Memories, Settings
+- Removed Grocery and Search tabs (available on main ZEKE web app)
+- Built comprehensive ZEKE API adapter with contacts and communication endpoints
+- Cross-platform SMS compose (replaced iOS-only Alert.prompt with modal screen)

@@ -67,6 +67,45 @@ export interface ZekeGroceryItem {
   isPurchased: boolean;
 }
 
+export interface ZekeContactConversation {
+  id: string;
+  title: string;
+  phoneNumber?: string;
+  source: 'sms' | 'app' | 'voice';
+  mode: string;
+  summary?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ZekeContact {
+  id: string;
+  firstName: string;
+  lastName: string;
+  middleName?: string;
+  phoneNumber?: string;
+  email?: string;
+  aiAssistantPhone?: string;
+  imageUrl?: string;
+  accessLevel: 'unknown' | 'acquaintance' | 'friend' | 'close_friend' | 'family';
+  relationship?: string;
+  notes?: string;
+  canAccessPersonalInfo: boolean;
+  canAccessCalendar: boolean;
+  canAccessTasks: boolean;
+  canAccessGrocery: boolean;
+  canSetReminders: boolean;
+  birthday?: string;
+  occupation?: string;
+  organization?: string;
+  lastInteractionAt?: string;
+  interactionCount: number;
+  messageCount?: number;
+  createdAt: string;
+  updatedAt: string;
+  conversations?: ZekeContactConversation[];
+}
+
 export interface DashboardSummary {
   eventsCount: number;
   pendingTasksCount: number;
@@ -204,14 +243,83 @@ export async function getReminders(): Promise<any[]> {
   return res.json();
 }
 
-export async function getContacts(): Promise<any[]> {
+export async function getContacts(): Promise<ZekeContact[]> {
   const baseUrl = getApiUrl();
   const url = new URL('/api/contacts', baseUrl);
   
-  const res = await fetch(url, { credentials: 'include' });
-  if (!res.ok) {
+  try {
+    const res = await fetch(url, { 
+      credentials: 'include',
+      signal: AbortSignal.timeout(5000)
+    });
+    if (!res.ok) {
+      return [];
+    }
+    const data = await res.json();
+    return data.contacts || data || [];
+  } catch {
     return [];
   }
+}
+
+export async function getContact(id: string): Promise<ZekeContact | null> {
+  const baseUrl = getApiUrl();
+  const url = new URL(`/api/contacts/${id}`, baseUrl);
+  
+  try {
+    const res = await fetch(url, { 
+      credentials: 'include',
+      signal: AbortSignal.timeout(5000)
+    });
+    if (!res.ok) {
+      return null;
+    }
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function createContact(data: Partial<ZekeContact>): Promise<ZekeContact> {
+  const res = await apiRequest('POST', '/api/contacts', data);
+  return res.json();
+}
+
+export async function updateContact(id: string, updates: Partial<ZekeContact>): Promise<ZekeContact> {
+  const res = await apiRequest('PATCH', `/api/contacts/${id}`, updates);
+  return res.json();
+}
+
+export async function deleteContact(id: string): Promise<void> {
+  await apiRequest('DELETE', `/api/contacts/${id}`);
+}
+
+export async function getSmsConversations(): Promise<ZekeContactConversation[]> {
+  const baseUrl = getApiUrl();
+  const url = new URL('/api/sms-log', baseUrl);
+  
+  try {
+    const res = await fetch(url, { 
+      credentials: 'include',
+      signal: AbortSignal.timeout(5000)
+    });
+    if (!res.ok) {
+      return [];
+    }
+    const data = await res.json();
+    return data.conversations || data || [];
+  } catch {
+    return [];
+  }
+}
+
+export async function sendSms(contactId: string, message: string): Promise<{ success: boolean; messageId?: string }> {
+  const res = await apiRequest('POST', '/api/twilio/sms/send', { contactId, message });
+  return res.json();
+}
+
+export async function initiateCall(contactId: string): Promise<{ success: boolean; callId?: string }> {
+  const res = await apiRequest('POST', '/api/twilio/call/initiate', { contactId });
   return res.json();
 }
 

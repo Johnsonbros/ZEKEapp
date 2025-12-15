@@ -2,12 +2,18 @@ import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import MainTabNavigator from "@/navigation/MainTabNavigator";
 import ChatScreen from "@/screens/ChatScreen";
+import SmsComposeScreen from "@/screens/SmsComposeScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { GradientText } from "@/components/GradientText";
 
 export type RootStackParamList = {
   Main: undefined;
   Chat: undefined;
+  SmsCompose: {
+    contactId?: string;
+    phoneNumber?: string;
+    contactName?: string;
+  };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -28,6 +34,14 @@ export default function RootStackNavigator() {
         options={{
           presentation: "modal",
           headerTitle: () => <GradientText type="h4">ZEKE AI</GradientText>,
+        }}
+      />
+      <Stack.Screen
+        name="SmsCompose"
+        component={SmsComposeScreen}
+        options={{
+          presentation: "modal",
+          headerTitle: "New Message",
         }}
       />
     </Stack.Navigator>
