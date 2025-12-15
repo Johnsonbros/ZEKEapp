@@ -128,14 +128,6 @@ function getGreeting(): string {
   return "Good evening";
 }
 
-function formatDate(): string {
-  return new Date().toLocaleDateString([], { 
-    weekday: 'long', 
-    month: 'long', 
-    day: 'numeric' 
-  });
-}
-
 function formatEventTime(startTime: string, endTime?: string): string {
   const start = new Date(startTime);
   const timeStr = start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
@@ -295,30 +287,6 @@ export default function HomeScreen() {
             <GradientText type="h2" colors={Gradients.primary}>
               {getGreeting()}{dashboardSummary?.userName ? `, ${dashboardSummary.userName}` : ''}
             </GradientText>
-            <ThemedText type="body" secondary style={{ marginTop: Spacing.xs }}>
-              {formatDate()}
-            </ThemedText>
-          </View>
-
-          <View style={[styles.syncStatusCard, { 
-            backgroundColor: connectionStatus?.connected ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-            borderColor: connectionStatus?.connected ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)',
-          }]}>
-            <View style={styles.syncStatusContent}>
-              <PulsingDot 
-                color={connectionStatus?.connected ? '#22C55E' : '#EF4444'} 
-                size={8} 
-              />
-              <ThemedText type="small" style={{ 
-                marginLeft: Spacing.sm,
-                color: connectionStatus?.connected ? '#22C55E' : '#EF4444',
-              }}>
-                {connectionStatus?.connected ? 'Connected to ZEKE' : 'ZEKE Offline'}
-              </ThemedText>
-            </View>
-            <ThemedText type="small" secondary>
-              Synced with main app
-            </ThemedText>
           </View>
 
           <View style={styles.statsGrid}>
@@ -643,19 +611,6 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   deviceCount: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  syncStatusCard: {
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    marginBottom: Spacing.lg,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  syncStatusContent: {
     flexDirection: "row",
     alignItems: "center",
   },

@@ -26,7 +26,7 @@ export function HeaderTitle({ title, isOnline = false, isSynced = false }: Heade
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
-    }, 30000); // Update every 30 seconds
+    }, 30000);
     
     return () => clearInterval(timer);
   }, []);
@@ -40,22 +40,31 @@ export function HeaderTitle({ title, isOnline = false, isSynced = false }: Heade
         style={styles.icon}
         resizeMode="contain"
       />
-      <GradientText type="h4" style={styles.title}>{title}</GradientText>
-      
-      <View style={styles.statusContainer}>
-        <View style={[styles.statusDot, { backgroundColor: isOnline ? Colors.dark.success : Colors.dark.error }]} />
-        <ThemedText type="small" style={{ fontSize: 10, color: isOnline ? Colors.dark.success : theme.textSecondary }}>
-          {isOnline ? "Online" : "Offline"}
-        </ThemedText>
+      <View style={styles.titleSection}>
+        <GradientText type="h3">{title}</GradientText>
       </View>
       
-      <View style={styles.divider} />
+      <View style={styles.statusSection}>
+        <View style={[
+          styles.statusBadge, 
+          { backgroundColor: isOnline ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)' }
+        ]}>
+          <View style={[styles.statusDot, { backgroundColor: isOnline ? Colors.dark.success : Colors.dark.error }]} />
+          <ThemedText type="small" style={{ 
+            fontSize: 10, 
+            fontWeight: "600",
+            color: isOnline ? Colors.dark.success : Colors.dark.error 
+          }}>
+            {isOnline ? "All Systems Go" : "Offline"}
+          </ThemedText>
+        </View>
+      </View>
       
-      <View style={styles.dateTimeContainer}>
-        <ThemedText type="small" style={{ fontSize: 11, color: theme.text, fontWeight: "600" }}>
+      <View style={styles.dateTimeSection}>
+        <ThemedText type="body" style={{ fontSize: 13, color: theme.text, fontWeight: "600" }}>
           {time}
         </ThemedText>
-        <ThemedText type="small" style={{ fontSize: 9, color: theme.textSecondary }}>
+        <ThemedText type="small" style={{ fontSize: 10, color: theme.textSecondary }}>
           {date}
         </ThemedText>
       </View>
@@ -68,33 +77,34 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "flex-start",
-    gap: Spacing.xs,
+    gap: Spacing.sm,
   },
   icon: {
-    width: 24,
-    height: 24,
-    borderRadius: 4,
+    width: 36,
+    height: 36,
+    borderRadius: 8,
   },
-  title: {
-    marginRight: 2,
+  titleSection: {
+    marginRight: Spacing.xs,
   },
-  statusContainer: {
+  statusSection: {
+    flex: 1,
+  },
+  statusBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 3,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+    alignSelf: "flex-start",
   },
   statusDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
   },
-  divider: {
-    width: 1,
-    height: 16,
-    backgroundColor: Colors.dark.border,
-    marginHorizontal: Spacing.xs,
-  },
-  dateTimeContainer: {
+  dateTimeSection: {
     alignItems: "flex-end",
   },
 });
