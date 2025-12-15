@@ -1,7 +1,17 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { DeviceInfo } from "@/components/DeviceCard";
-import { Memory } from "@/components/MemoryCard";
 import { Message } from "@/components/ChatBubble";
+
+export interface Memory {
+  id: string;
+  title: string;
+  transcript: string;
+  timestamp: string;
+  deviceType: "omi" | "limitless";
+  speakers?: string[];
+  isStarred: boolean;
+  duration?: string;
+}
 
 const STORAGE_KEYS = {
   DEVICES: "@zeke/devices",

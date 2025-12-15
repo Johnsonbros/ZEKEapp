@@ -11,7 +11,6 @@ import ContactsStackNavigator from "@/navigation/ContactsStackNavigator";
 import CommunicationStackNavigator from "@/navigation/CommunicationStackNavigator";
 import CalendarStackNavigator from "@/navigation/CalendarStackNavigator";
 import TasksStackNavigator from "@/navigation/TasksStackNavigator";
-import MemoriesStackNavigator from "@/navigation/MemoriesStackNavigator";
 import SettingsStackNavigator from "@/navigation/SettingsStackNavigator";
 import { FloatingActionButton } from "@/components/FloatingActionButton";
 import { useTheme } from "@/hooks/useTheme";
@@ -24,7 +23,6 @@ export type MainTabParamList = {
   InboxTab: undefined;
   CalendarTab: undefined;
   TasksTab: undefined;
-  MemoriesTab: undefined;
   SettingsTab: undefined;
 };
 
@@ -118,16 +116,6 @@ export default function MainTabNavigator() {
             title: "Tasks",
             tabBarIcon: ({ color, size }) => (
               <Feather name="check-square" size={size} color={color} />
-            ),
-          }}
-        />
-        <Tab.Screen
-          name="MemoriesTab"
-          component={MemoriesStackNavigator}
-          options={{
-            title: "Memories",
-            tabBarIcon: ({ color, size }) => (
-              <Feather name="layers" size={size} color={color} />
             ),
           }}
         />

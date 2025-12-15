@@ -9,8 +9,9 @@ import { useQuery } from "@tanstack/react-query";
 
 import { ThemedText } from "@/components/ThemedText";
 import { SearchBar } from "@/components/SearchBar";
-import { MemoryCard, Memory } from "@/components/MemoryCard";
+import { Card } from "@/components/Card";
 import { EmptyState } from "@/components/EmptyState";
+import { Memory } from "@/lib/storage";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, Colors, BorderRadius } from "@/constants/theme";
 import { getApiUrl, isZekeSyncMode } from "@/lib/query-client";
@@ -261,12 +262,23 @@ export default function SearchScreen() {
           {results.length} result{results.length !== 1 ? "s" : ""} found
         </ThemedText>
         {results.map((memory) => (
-          <MemoryCard
+          <Pressable
             key={memory.id}
-            memory={memory}
             onPress={() => handleMemoryPress(memory)}
-            highlightText={activeSearchQuery ?? undefined}
-          />
+            style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1 })}
+          >
+            <Card style={styles.resultCard}>
+              <ThemedText type="body" style={{ fontWeight: "600" }} numberOfLines={1}>
+                {memory.title}
+              </ThemedText>
+              <ThemedText type="small" secondary style={{ marginTop: Spacing.xs }}>
+                {memory.timestamp} - {memory.duration}
+              </ThemedText>
+              <ThemedText type="caption" secondary numberOfLines={2} style={{ marginTop: Spacing.sm }}>
+                {memory.transcript}
+              </ThemedText>
+            </Card>
+          </Pressable>
         ))}
       </View>
     );
@@ -331,6 +343,9 @@ const styles = StyleSheet.create({
   },
   resultsCount: {
     marginTop: Spacing.lg,
+    marginBottom: Spacing.md,
+  },
+  resultCard: {
     marginBottom: Spacing.md,
   },
 });

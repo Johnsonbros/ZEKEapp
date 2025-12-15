@@ -1,6 +1,6 @@
 import { DeviceInfo } from "@/components/DeviceCard";
-import { Memory } from "@/components/MemoryCard";
 import { Message } from "@/components/ChatBubble";
+import { Memory } from "@/lib/storage";
 
 export const mockDevices: DeviceInfo[] = [
   {

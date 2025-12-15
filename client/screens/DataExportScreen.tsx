@@ -6,14 +6,13 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 
 import { ThemedText } from "@/components/ThemedText";
 import { SettingsRow, SettingsSection } from "@/components/SettingsRow";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Colors } from "@/constants/theme";
-import { getMemories, getChatMessages } from "@/lib/storage";
-import { Memory } from "@/components/MemoryCard";
+import { getMemories, getChatMessages, Memory } from "@/lib/storage";
 import { Message } from "@/components/ChatBubble";
 import { mockMemories, mockMessages } from "@/lib/mockData";
 
@@ -257,7 +256,7 @@ export default function DataExportScreen() {
       filename = memories.length > 0 ? "zeke-export" : "zeke-conversations";
     }
 
-    const fileUri = `${FileSystem.cacheDirectory}${filename}.md`;
+    const fileUri = `${FileSystem.documentDirectory}${filename}.md`;
     await FileSystem.writeAsStringAsync(fileUri, content);
 
     await Sharing.shareAsync(fileUri, {
@@ -288,7 +287,7 @@ export default function DataExportScreen() {
 
     const { uri } = await Print.printToFileAsync({ html });
 
-    const pdfUri = `${FileSystem.cacheDirectory}${filename}.pdf`;
+    const pdfUri = `${FileSystem.documentDirectory}${filename}.pdf`;
     await FileSystem.moveAsync({
       from: uri,
       to: pdfUri,

@@ -119,6 +119,17 @@ export default function SettingsScreen() {
             Add Device
           </ThemedText>
         </Pressable>
+        <View style={{ marginTop: Spacing.md }}>
+          <SettingsRow
+            icon="mic"
+            label="Live Capture"
+            value="Real-time transcription"
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              navigation.navigate("LiveCapture");
+            }}
+          />
+        </View>
       </SettingsSection>
 
       <SettingsSection title="PREFERENCES">
