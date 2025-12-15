@@ -1,6 +1,7 @@
-import { Platform } from "react-native";
+import { Platform, PermissionsAndroid } from "react-native";
 import Constants from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { BleManager, Device, Characteristic } from "react-native-ble-plx";
 
 const STORAGE_KEY = "@zeke/connected_device";
 
@@ -217,6 +218,8 @@ class LimitlessProtocol {
 }
 
 class BluetoothService {
+  private bleManager: BleManager | null = null;
+  private connectedBleDevice: Device | null = null;
   private isScanning: boolean = false;
   private connectionState: ConnectionState = "disconnected";
   private connectedDevice: BLEDevice | null = null;
@@ -239,7 +242,51 @@ class BluetoothService {
   private isInitialized: boolean = false;
 
   constructor() {
+    this.initializeBleManager();
     this.loadConnectedDevice();
+  }
+
+  private initializeBleManager(): void {
+    if (!this.isMockMode) {
+      this.bleManager = new BleManager();
+    }
+  }
+
+  private async requestBluetoothPermissions(): Promise<boolean> {
+    if (Platform.OS === "ios") {
+      return true;
+    }
+
+    if (Platform.OS === "android") {
+      if (Platform.Version >= 31) {
+        try {
+          const granted = await PermissionsAndroid.requestMultiple([
+            PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+            PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+          ]);
+
+          return (
+            granted["android.permission.BLUETOOTH_SCAN"] === PermissionsAndroid.RESULTS.GRANTED &&
+            granted["android.permission.BLUETOOTH_CONNECT"] === PermissionsAndroid.RESULTS.GRANTED
+          );
+        } catch (err) {
+          console.error("Bluetooth permission error:", err);
+          return false;
+        }
+      } else {
+        try {
+          const granted = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
+          );
+          return granted === PermissionsAndroid.RESULTS.GRANTED;
+        } catch (err) {
+          console.error("Location permission error:", err);
+          return false;
+        }
+      }
+    }
+
+    return true;
   }
 
   private get isMockMode(): boolean {
@@ -382,12 +429,27 @@ class BluetoothService {
     }
 
     try {
+      console.log("Limitless: Initializing device...");
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
       const timeSyncCmd = this.limitlessProtocol.encodeSetCurrentTime(Date.now());
-      console.log("Limitless: Time sync command ready", timeSyncCmd);
+      console.log("Limitless: Sending time sync command...");
+      const timeSyncSuccess = await this.writeBleCommand(timeSyncCmd);
+      if (!timeSyncSuccess) {
+        throw new Error("Failed to send time sync command");
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
       const dataStreamCmd = this.limitlessProtocol.encodeEnableDataStream(true);
-      console.log("Limitless: Enable data stream command ready", dataStreamCmd);
+      console.log("Limitless: Sending enable data stream command...");
+      const streamSuccess = await this.writeBleCommand(dataStreamCmd);
+      if (!streamSuccess) {
+        throw new Error("Failed to send data stream command");
+      }
 
+      console.log("Limitless: Initialization complete");
       this.isInitialized = true;
       return true;
     } catch (error) {
@@ -513,6 +575,27 @@ class BluetoothService {
     }, 100);
   }
 
+  private async writeBleCommand(data: Uint8Array): Promise<boolean> {
+    if (!this.bleManager || !this.connectedBleDevice) {
+      console.error("BLE not ready for write");
+      return false;
+    }
+
+    try {
+      const base64Data = Buffer.from(data).toString("base64");
+      await this.connectedBleDevice.writeCharacteristicWithResponseForService(
+        LIMITLESS_SERVICE_UUID,
+        LIMITLESS_TX_CHAR_UUID,
+        base64Data
+      );
+      console.log("BLE write successful:", data.length, "bytes");
+      return true;
+    } catch (error) {
+      console.error("BLE write failed:", error);
+      return false;
+    }
+  }
+
   public async startScan(): Promise<void> {
     if (this.isScanning) return;
 
@@ -521,9 +604,69 @@ class BluetoothService {
 
     if (this.isMockMode) {
       this.simulateScan();
-    } else {
-      console.warn("Real BLE scanning not implemented - native build required");
-      this.simulateScan();
+      return;
+    }
+
+    const hasPermission = await this.requestBluetoothPermissions();
+    if (!hasPermission) {
+      console.error("Bluetooth permissions not granted");
+      this.isScanning = false;
+      return;
+    }
+
+    if (!this.bleManager) {
+      console.error("BLE Manager not initialized");
+      this.isScanning = false;
+      return;
+    }
+
+    try {
+      const state = await this.bleManager.state();
+      if (state !== "PoweredOn") {
+        console.error("Bluetooth is not powered on:", state);
+        this.isScanning = false;
+        return;
+      }
+
+      console.log("Starting BLE scan for Limitless and Omi devices...");
+      this.bleManager.startDeviceScan(
+        [LIMITLESS_SERVICE_UUID, OMI_SERVICE_UUID],
+        { allowDuplicates: false },
+        (error, device) => {
+          if (error) {
+            console.error("BLE scan error:", error);
+            this.stopScan();
+            return;
+          }
+
+          if (device && device.name) {
+            const deviceType: DeviceType = device.serviceUUIDs?.includes(LIMITLESS_SERVICE_UUID)
+              ? "limitless"
+              : "omi";
+
+            const bleDevice: BLEDevice = {
+              id: device.id,
+              name: device.name,
+              type: deviceType,
+              signalStrength: device.rssi || -100,
+            };
+
+            const exists = this.discoveredDevices.find((d) => d.id === bleDevice.id);
+            if (!exists) {
+              this.discoveredDevices.push(bleDevice);
+              this.notifyDeviceDiscovered(bleDevice);
+              console.log("Discovered device:", bleDevice.name, bleDevice.type);
+            }
+          }
+        }
+      );
+
+      this.scanTimeout = setTimeout(() => {
+        this.stopScan();
+      }, 10000);
+    } catch (error) {
+      console.error("Failed to start scan:", error);
+      this.isScanning = false;
     }
   }
 
@@ -554,6 +697,11 @@ class BluetoothService {
     if (this.scanTimeout) {
       clearTimeout(this.scanTimeout);
       this.scanTimeout = null;
+    }
+
+    if (this.bleManager && !this.isMockMode) {
+      this.bleManager.stopDeviceScan();
+      console.log("BLE scan stopped");
     }
   }
 
@@ -589,21 +737,75 @@ class BluetoothService {
       });
     }
 
-    console.warn("Real BLE connection not implemented - native build required");
-    return new Promise((resolve) => {
-      setTimeout(async () => {
-        this.connectedDevice = device;
-        this.connectionState = "connected";
-        await this.saveConnectedDevice(device);
-        this.notifyConnectionStateChange();
+    if (!this.bleManager) {
+      console.error("BLE Manager not initialized");
+      this.connectionState = "disconnected";
+      this.notifyConnectionStateChange();
+      return false;
+    }
 
-        if (device.type === "limitless") {
-          await this.initializeLimitlessDevice();
+    try {
+      console.log("Connecting to device:", device.name, device.id);
+      const bleDevice = await this.bleManager.connectToDevice(device.id, { autoConnect: false });
+      this.connectedBleDevice = bleDevice;
+
+      console.log("Discovering services and characteristics...");
+      await bleDevice.discoverAllServicesAndCharacteristics();
+
+      if (device.type === "limitless") {
+        console.log("Setting up Limitless RX notifications...");
+        await this.setupLimitlessNotifications();
+      }
+
+      this.connectedDevice = device;
+      this.connectionState = "connected";
+      await this.saveConnectedDevice(device);
+      this.notifyConnectionStateChange();
+      console.log("Successfully connected to", device.name);
+
+      if (device.type === "limitless") {
+        await this.initializeLimitlessDevice();
+      }
+
+      return true;
+    } catch (error) {
+      console.error("BLE connection failed:", error);
+      this.connectedBleDevice = null;
+      this.connectionState = "disconnected";
+      this.notifyConnectionStateChange();
+      return false;
+    }
+  }
+
+  private async setupLimitlessNotifications(): Promise<void> {
+    if (!this.connectedBleDevice) {
+      throw new Error("No connected device");
+    }
+
+    try {
+      this.connectedBleDevice.monitorCharacteristicForService(
+        LIMITLESS_SERVICE_UUID,
+        LIMITLESS_RX_CHAR_UUID,
+        (error, characteristic) => {
+          if (error) {
+            console.error("Notification error:", error);
+            return;
+          }
+
+          if (characteristic?.value) {
+            const base64Data = characteristic.value;
+            const buffer = Buffer.from(base64Data, "base64");
+            const dataArray = Array.from(buffer);
+            console.log("Received Limitless data:", dataArray.length, "bytes");
+            this.handleLimitlessNotification(dataArray);
+          }
         }
-
-        resolve(true);
-      }, 1500);
-    });
+      );
+      console.log("Limitless RX notifications enabled");
+    } catch (error) {
+      console.error("Failed to setup notifications:", error);
+      throw error;
+    }
   }
 
   public async disconnect(): Promise<void> {
@@ -613,6 +815,16 @@ class BluetoothService {
 
     this.connectionState = "disconnecting";
     this.notifyConnectionStateChange();
+
+    if (this.connectedBleDevice && !this.isMockMode) {
+      try {
+        await this.connectedBleDevice.cancelConnection();
+        console.log("BLE device disconnected");
+      } catch (error) {
+        console.error("Error disconnecting BLE device:", error);
+      }
+      this.connectedBleDevice = null;
+    }
 
     if (this.isMockMode) {
       await new Promise((resolve) => setTimeout(resolve, 500));
