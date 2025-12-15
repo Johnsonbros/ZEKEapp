@@ -126,25 +126,40 @@ export const Fonts = Platform.select({
 });
 
 export const Shadows = {
-  small: {
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  medium: {
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  large: {
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 8,
-  },
+  small: Platform.select({
+    web: {
+      boxShadow: "0px 2px 4px rgba(0, 0, 0, 0.1)",
+    },
+    default: {
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+      elevation: 2,
+    },
+  }),
+  medium: Platform.select({
+    web: {
+      boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.15)",
+    },
+    default: {
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.15,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+  }),
+  large: Platform.select({
+    web: {
+      boxShadow: "0px 8px 32px rgba(0, 0, 0, 0.25)",
+    },
+    default: {
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.25,
+      shadowRadius: 16,
+      elevation: 8,
+    },
+  }),
 };
