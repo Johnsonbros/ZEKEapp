@@ -58,6 +58,11 @@ function setupBodyParsing(app: express.Application) {
   );
 
   app.use(express.urlencoded({ extended: false }));
+  
+  app.use(express.raw({ 
+    type: 'application/octet-stream',
+    limit: '50mb'
+  }));
 }
 
 function setupRequestLogging(app: express.Application) {

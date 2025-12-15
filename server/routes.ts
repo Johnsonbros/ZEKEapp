@@ -566,6 +566,185 @@ Return at most ${Math.min(limit, 10)} results. Only include memories with releva
     }
   });
 
+  // =========================================
+  // Omi Webhook Routes
+  // =========================================
+
+  // Memory Trigger Webhook - Called when Omi creates a new memory/conversation
+  app.post("/api/omi/memory-trigger", async (req, res) => {
+    try {
+      const uid = req.query.uid as string;
+      const memoryData = req.body;
+      
+      console.log("[Omi Memory Trigger] Received memory for user:", uid);
+      console.log("[Omi Memory Trigger] Memory ID:", memoryData.id);
+
+      // Extract transcript from segments
+      const transcriptSegments = memoryData.transcript_segments || [];
+      const transcript = transcriptSegments.map((seg: any) => seg.text).join(" ");
+      
+      // Get structured data
+      const structured = memoryData.structured || {};
+      const title = structured.title || "Omi Memory";
+      const summary = structured.overview || null;
+      const actionItems = (structured.action_items || []).map((item: any) => 
+        typeof item === 'string' ? item : item.description
+      );
+
+      // Calculate duration from timestamps
+      const startedAt = memoryData.started_at ? new Date(memoryData.started_at) : null;
+      const finishedAt = memoryData.finished_at ? new Date(memoryData.finished_at) : null;
+      const duration = startedAt && finishedAt 
+        ? Math.round((finishedAt.getTime() - startedAt.getTime()) / 1000)
+        : 0;
+
+      // Find or create a default Omi device
+      let devices = await storage.getDevices();
+      let omiDevice = devices.find(d => d.type === "omi");
+      
+      if (!omiDevice) {
+        omiDevice = await storage.createDevice({
+          name: "Omi Wearable",
+          type: "omi",
+          status: "connected"
+        });
+      }
+
+      // Create the memory in our system
+      if (transcript && !memoryData.discarded) {
+        const memoryPayload = {
+          deviceId: omiDevice.id,
+          transcript,
+          duration,
+          speakers: transcriptSegments.reduce((acc: number, seg: any) => {
+            const speakerId = seg.speakerId || seg.speaker_id || 0;
+            return Math.max(acc, speakerId + 1);
+          }, 1),
+          title,
+          summary,
+          actionItems
+        };
+
+        const parsed = insertMemorySchema.safeParse(memoryPayload);
+        if (parsed.success) {
+          const memory = await storage.createMemory(parsed.data);
+          console.log("[Omi Memory Trigger] Created memory:", memory.id);
+        } else {
+          console.error("[Omi Memory Trigger] Validation error:", parsed.error.errors);
+        }
+      }
+
+      res.json({ status: "ok", message: "Memory processed" });
+    } catch (error) {
+      console.error("[Omi Memory Trigger] Error:", error);
+      res.status(500).json({ error: "Failed to process memory" });
+    }
+  });
+
+  // Real-time Transcript Webhook - Called with live transcript segments
+  app.post("/api/omi/transcript", async (req, res) => {
+    try {
+      const sessionId = req.query.session_id as string;
+      const uid = req.query.uid as string;
+      const segments = req.body;
+
+      console.log("[Omi Transcript] Session:", sessionId, "User:", uid);
+      console.log("[Omi Transcript] Received", Array.isArray(segments) ? segments.length : 0, "segments");
+
+      // Log the transcript segments for real-time processing
+      if (Array.isArray(segments)) {
+        for (const segment of segments) {
+          console.log(`[Omi Transcript] Speaker ${segment.speakerId || segment.speaker}: ${segment.text}`);
+        }
+      }
+
+      // Return success - real-time processing can be extended here
+      res.json({ status: "ok" });
+    } catch (error) {
+      console.error("[Omi Transcript] Error:", error);
+      res.status(500).json({ error: "Failed to process transcript" });
+    }
+  });
+
+  // Audio Bytes Webhook - Called with raw PCM16 audio data
+  app.post("/api/omi/audio-bytes", async (req, res) => {
+    try {
+      const sampleRate = req.query.sample_rate as string || "16000";
+      const uid = req.query.uid as string;
+      
+      // Get raw audio bytes from the request body
+      const audioBuffer = req.body;
+      const byteLength = Buffer.isBuffer(audioBuffer) ? audioBuffer.length : 0;
+
+      console.log("[Omi Audio Bytes] User:", uid);
+      console.log("[Omi Audio Bytes] Sample rate:", sampleRate);
+      console.log("[Omi Audio Bytes] Received", byteLength, "bytes");
+
+      // Audio processing can be extended here (e.g., custom STT, VAD, etc.)
+      
+      res.json({ status: "ok", bytes_received: byteLength });
+    } catch (error) {
+      console.error("[Omi Audio Bytes] Error:", error);
+      res.status(500).json({ error: "Failed to process audio" });
+    }
+  });
+
+  // Day Summary Webhook - Called when a daily summary is generated
+  app.post("/api/omi/day-summary", async (req, res) => {
+    try {
+      const uid = req.query.uid as string;
+      const summaryData = req.body;
+
+      console.log("[Omi Day Summary] User:", uid);
+      console.log("[Omi Day Summary] Data:", JSON.stringify(summaryData, null, 2));
+
+      // Find or create a default Omi device
+      let devices = await storage.getDevices();
+      let omiDevice = devices.find(d => d.type === "omi");
+      
+      if (!omiDevice) {
+        omiDevice = await storage.createDevice({
+          name: "Omi Wearable",
+          type: "omi",
+          status: "connected"
+        });
+      }
+
+      // Create a memory for the day summary
+      const summaryText = typeof summaryData === 'string' 
+        ? summaryData 
+        : summaryData.summary || summaryData.content || JSON.stringify(summaryData);
+
+      const today = new Date().toLocaleDateString('en-US', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+
+      const memoryPayload = {
+        deviceId: omiDevice.id,
+        transcript: summaryText,
+        duration: 0,
+        speakers: null,
+        title: `Day Summary - ${today}`,
+        summary: summaryText.substring(0, 500),
+        actionItems: []
+      };
+
+      const parsed = insertMemorySchema.safeParse(memoryPayload);
+      if (parsed.success) {
+        const memory = await storage.createMemory(parsed.data);
+        console.log("[Omi Day Summary] Created summary memory:", memory.id);
+      }
+
+      res.json({ status: "ok", message: "Day summary processed" });
+    } catch (error) {
+      console.error("[Omi Day Summary] Error:", error);
+      res.status(500).json({ error: "Failed to process day summary" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
