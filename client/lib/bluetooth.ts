@@ -1,7 +1,57 @@
 import { Platform, PermissionsAndroid } from "react-native";
 import Constants from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { BleManager, Device, Characteristic } from "react-native-ble-plx";
+
+// Mock types for Expo Go compatibility - real BLE only works in native builds
+type Device = {
+  id: string;
+  name: string | null;
+  rssi: number | null;
+  serviceUUIDs: string[] | null;
+  writeCharacteristicWithResponseForService: (
+    serviceUUID: string,
+    charUUID: string,
+    base64Data: string
+  ) => Promise<any>;
+};
+
+type Characteristic = {
+  uuid: string;
+  value: string | null;
+};
+
+// BleManager stub for Expo Go - real implementation requires native build
+class BleManager {
+  private stateChangeCallback: ((state: string) => void) | null = null;
+
+  state(): Promise<string> {
+    return Promise.resolve("PoweredOn");
+  }
+
+  onStateChange(callback: (state: string) => void, emitCurrentState: boolean): { remove: () => void } {
+    this.stateChangeCallback = callback;
+    if (emitCurrentState) {
+      setTimeout(() => callback("PoweredOn"), 100);
+    }
+    return { remove: () => { this.stateChangeCallback = null; } };
+  }
+
+  startDeviceScan(
+    _serviceUUIDs: string[] | null,
+    _options: any,
+    _callback: (error: any, device: Device | null) => void
+  ): void {
+    console.log("BLE scanning not available in Expo Go - use native build for real BLE");
+  }
+
+  stopDeviceScan(): void {}
+
+  connectToDevice(_deviceId: string): Promise<Device> {
+    return Promise.reject(new Error("BLE not available in Expo Go"));
+  }
+
+  destroy(): void {}
+}
 
 const STORAGE_KEY = "@zeke/connected_device";
 
