@@ -18,7 +18,7 @@ export interface Memory {
   transcript: string;
   timestamp: string;
   deviceType: "omi" | "limitless";
-  speakers?: string[];
+  speakers?: (string | { id: number; label: string; isUser: boolean })[];
   isStarred?: boolean;
   duration?: string;
 }
@@ -162,16 +162,21 @@ export function MemoryCard({ memory, onPress, onStar, onDelete, onShare, highlig
 
       {memory.speakers && memory.speakers.length > 0 ? (
         <View style={styles.speakers}>
-          {memory.speakers.slice(0, 3).map((speaker, index) => (
-            <View
-              key={index}
-              style={[styles.speakerBadge, { backgroundColor: theme.backgroundSecondary }]}
-            >
-              <ThemedText type="caption" secondary>
-                {speaker}
-              </ThemedText>
-            </View>
-          ))}
+          {memory.speakers.slice(0, 3).map((speaker, index) => {
+            const speakerLabel = typeof speaker === 'string' 
+              ? speaker 
+              : (speaker as { label?: string })?.label || `Speaker ${index + 1}`;
+            return (
+              <View
+                key={index}
+                style={[styles.speakerBadge, { backgroundColor: theme.backgroundSecondary }]}
+              >
+                <ThemedText type="caption" secondary>
+                  {speakerLabel}
+                </ThemedText>
+              </View>
+            );
+          })}
           {memory.speakers.length > 3 ? (
             <ThemedText type="caption" secondary>
               +{memory.speakers.length - 3}
