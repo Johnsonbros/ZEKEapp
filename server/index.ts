@@ -49,6 +49,11 @@ function setupCors(app: express.Application) {
 }
 
 function setupBodyParsing(app: express.Application) {
+  app.use(express.raw({ 
+    type: ['application/octet-stream', 'audio/*'],
+    limit: '50mb'
+  }));
+  
   app.use(
     express.json({
       verify: (req, _res, buf) => {
@@ -58,11 +63,6 @@ function setupBodyParsing(app: express.Application) {
   );
 
   app.use(express.urlencoded({ extended: false }));
-  
-  app.use(express.raw({ 
-    type: 'application/octet-stream',
-    limit: '50mb'
-  }));
 }
 
 function setupRequestLogging(app: express.Application) {

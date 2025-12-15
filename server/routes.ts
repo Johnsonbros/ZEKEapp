@@ -579,16 +579,19 @@ Return at most ${Math.min(limit, 10)} results. Only include memories with releva
       console.log("[Omi Memory Trigger] Received memory for user:", uid);
       console.log("[Omi Memory Trigger] Memory ID:", memoryData.id);
 
-      // Extract transcript from segments
-      const transcriptSegments = memoryData.transcript_segments || [];
+      // Extract transcript from segments (Omi uses snake_case: transcript_segments)
+      const transcriptSegments = memoryData.transcript_segments || memoryData.transcriptSegments || [];
       const transcript = transcriptSegments.map((seg: any) => seg.text).join(" ");
       
       // Get structured data
       const structured = memoryData.structured || {};
       const title = structured.title || "Omi Memory";
       const summary = structured.overview || null;
-      const actionItems = (structured.action_items || []).map((item: any) => 
-        typeof item === 'string' ? item : item.description
+      
+      // Extract action items - handle both formats
+      const rawActionItems = structured.action_items || structured.actionItems || [];
+      const actionItems = rawActionItems.map((item: any) => 
+        typeof item === 'string' ? item : (item.description || item.text || JSON.stringify(item))
       );
 
       // Calculate duration from timestamps
@@ -597,6 +600,20 @@ Return at most ${Math.min(limit, 10)} results. Only include memories with releva
       const duration = startedAt && finishedAt 
         ? Math.round((finishedAt.getTime() - startedAt.getTime()) / 1000)
         : 0;
+
+      // Extract unique speakers as array with metadata
+      const speakersMap = new Map<number, { id: number; label: string; isUser: boolean }>();
+      for (const seg of transcriptSegments) {
+        const speakerId = seg.speakerId ?? seg.speaker_id ?? 0;
+        if (!speakersMap.has(speakerId)) {
+          speakersMap.set(speakerId, {
+            id: speakerId,
+            label: seg.speaker || `Speaker ${speakerId}`,
+            isUser: seg.is_user || seg.isUser || false
+          });
+        }
+      }
+      const speakers = Array.from(speakersMap.values());
 
       // Find or create a default Omi device
       let devices = await storage.getDevices();
@@ -616,13 +633,10 @@ Return at most ${Math.min(limit, 10)} results. Only include memories with releva
           deviceId: omiDevice.id,
           transcript,
           duration,
-          speakers: transcriptSegments.reduce((acc: number, seg: any) => {
-            const speakerId = seg.speakerId || seg.speaker_id || 0;
-            return Math.max(acc, speakerId + 1);
-          }, 1),
+          speakers: speakers.length > 0 ? speakers : null,
           title,
           summary,
-          actionItems
+          actionItems: actionItems.length > 0 ? actionItems : []
         };
 
         const parsed = insertMemorySchema.safeParse(memoryPayload);
