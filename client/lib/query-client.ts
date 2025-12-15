@@ -1,10 +1,23 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
 /**
- * Gets the base URL for the Express API server (e.g., "http://localhost:3000")
+ * Gets the base URL for the Express API server
+ * Uses ZEKE_BACKEND_URL if set (for syncing with main ZEKE deployment)
+ * Otherwise falls back to EXPO_PUBLIC_DOMAIN (local backend)
  * @returns {string} The API base URL
  */
 export function getApiUrl(): string {
+  // Check for external ZEKE backend URL first (for sync mode)
+  const zekeBackendUrl = process.env.EXPO_PUBLIC_ZEKE_BACKEND_URL;
+  if (zekeBackendUrl) {
+    // Ensure URL has protocol
+    if (zekeBackendUrl.startsWith('http')) {
+      return zekeBackendUrl.endsWith('/') ? zekeBackendUrl : `${zekeBackendUrl}/`;
+    }
+    return `https://${zekeBackendUrl}/`;
+  }
+
+  // Fall back to local domain
   let host = process.env.EXPO_PUBLIC_DOMAIN;
 
   if (!host) {
@@ -14,6 +27,13 @@ export function getApiUrl(): string {
   let url = new URL(`https://${host}`);
 
   return url.href;
+}
+
+/**
+ * Check if we're in sync mode (connected to external ZEKE backend)
+ */
+export function isZekeSyncMode(): boolean {
+  return !!process.env.EXPO_PUBLIC_ZEKE_BACKEND_URL;
 }
 
 async function throwIfResNotOk(res: Response) {

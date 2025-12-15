@@ -50,3 +50,8 @@ args = "npm run all:dev"
 waitForPort = 8081
 ensurePreviewReachable = "/status"
 
+[userenv]
+
+[userenv.shared]
+EXPO_PUBLIC_ZEKE_BACKEND_URL = "https://zekeassistant.aisyncservice.repl.co"
+
