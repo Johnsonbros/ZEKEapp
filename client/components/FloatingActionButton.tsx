@@ -1,5 +1,5 @@
 import React from "react";
-import { StyleSheet, Pressable } from "react-native";
+import { StyleSheet, Pressable, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
@@ -39,29 +39,35 @@ export function FloatingActionButton({ onPress, bottom }: FloatingActionButtonPr
   };
 
   return (
-    <AnimatedPressable
-      onPress={handlePress}
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
-      style={[styles.container, { bottom }, animatedStyle]}
-    >
-      <LinearGradient
-        colors={Gradients.accent}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.gradient}
+    <View style={[styles.wrapper, { bottom, pointerEvents: "box-none" }]}>
+      <AnimatedPressable
+        onPress={handlePress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        style={[styles.container, animatedStyle]}
       >
-        <Feather name="message-circle" size={24} color="#FFFFFF" />
-      </LinearGradient>
-    </AnimatedPressable>
+        <LinearGradient
+          colors={Gradients.accent}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.gradient}
+        >
+          <Feather name="message-circle" size={24} color="#FFFFFF" />
+        </LinearGradient>
+      </AnimatedPressable>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  wrapper: {
     position: "absolute",
-    alignSelf: "center",
+    left: 0,
+    right: 0,
+    alignItems: "center",
     zIndex: 100,
+  },
+  container: {
     ...Shadows.large,
   },
   gradient: {

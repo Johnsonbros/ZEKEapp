@@ -1,73 +1,87 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { View, StyleSheet, ScrollView, Pressable, Platform, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
+import { useNavigation } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import Constants from "expo-constants";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withRepeat,
   withSequence,
   withTiming,
-  withSpring,
 } from "react-native-reanimated";
 
 import { ThemedText } from "@/components/ThemedText";
 import { Card } from "@/components/Card";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Colors, Gradients } from "@/constants/theme";
-
-interface MockDevice {
-  id: string;
-  name: string;
-  type: "omi" | "limitless";
-  signalStrength: number;
-}
-
-const MOCK_NEARBY_DEVICES: MockDevice[] = [
-  { id: "omi-nearby-1", name: "Omi DevKit 2", type: "omi", signalStrength: -45 },
-  { id: "limitless-nearby-1", name: "Limitless Pendant", type: "limitless", signalStrength: -62 },
-];
+import { bluetoothService, BLEDevice, ConnectionState } from "@/lib/bluetooth";
 
 export default function BluetoothConnectionScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
+  const navigation = useNavigation();
   const { theme } = useTheme();
 
   const [isScanning, setIsScanning] = useState(false);
-  const [nearbyDevices, setNearbyDevices] = useState<MockDevice[]>([]);
+  const [nearbyDevices, setNearbyDevices] = useState<BLEDevice[]>([]);
+  const [connectionState, setConnectionState] = useState<ConnectionState>("disconnected");
+  const [connectingDeviceId, setConnectingDeviceId] = useState<string | null>(null);
 
   const scanPulse = useSharedValue(1);
+  const scanIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const isExpoGo = Constants.appOwnership === "expo";
-  const isBluetoothUnavailable = Platform.OS === "web" || isExpoGo;
+  const isMockMode = bluetoothService.getIsMockMode();
 
-  const handleStartScan = () => {
-    if (isBluetoothUnavailable) {
-      if (Platform.OS === "web") {
-        startSimulatedScan();
-      } else {
-        Alert.alert(
-          "Bluetooth Not Available",
-          "Bluetooth Low Energy is not available in Expo Go. To use real device pairing, please build a development version of this app.\n\nFor now, you can see how the pairing flow works with simulated devices.",
-          [
-            { text: "Cancel", style: "cancel" },
-            {
-              text: "Try Simulation",
-              onPress: () => startSimulatedScan(),
-            },
-          ]
-        );
+  useEffect(() => {
+    const unsubscribeDiscovery = bluetoothService.onDeviceDiscovered((device) => {
+      setNearbyDevices((prev) => {
+        if (prev.find((d) => d.id === device.id)) return prev;
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        return [...prev, device];
+      });
+    });
+
+    const unsubscribeConnection = bluetoothService.onConnectionStateChange((state, device) => {
+      setConnectionState(state);
+      if (state === "connected" && device) {
+        setConnectingDeviceId(null);
       }
+    });
+
+    return () => {
+      unsubscribeDiscovery();
+      unsubscribeConnection();
+      bluetoothService.stopScan();
+      if (scanIntervalRef.current) {
+        clearInterval(scanIntervalRef.current);
+        scanIntervalRef.current = null;
+      }
+    };
+  }, []);
+
+  const handleStartScan = useCallback(() => {
+    if (isMockMode && Platform.OS !== "web") {
+      Alert.alert(
+        "Bluetooth Not Available",
+        "Bluetooth Low Energy is not available in Expo Go. To use real device pairing, please build a development version of this app.\n\nFor now, you can see how the pairing flow works with simulated devices.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Try Simulation",
+            onPress: () => startScanning(),
+          },
+        ]
+      );
       return;
     }
-    startSimulatedScan();
-  };
+    startScanning();
+  }, [isMockMode]);
 
-  const startSimulatedScan = () => {
+  const startScanning = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsScanning(true);
     setNearbyDevices([]);
@@ -81,45 +95,70 @@ export default function BluetoothConnectionScreen() {
       false
     );
 
-    setTimeout(() => {
-      setNearbyDevices([MOCK_NEARBY_DEVICES[0]]);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }, 1500);
+    bluetoothService.startScan();
 
-    setTimeout(() => {
-      setNearbyDevices(MOCK_NEARBY_DEVICES);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }, 3000);
+    if (scanIntervalRef.current) {
+      clearInterval(scanIntervalRef.current);
+    }
+    scanIntervalRef.current = setInterval(() => {
+      if (!bluetoothService.getIsScanning()) {
+        setIsScanning(false);
+        scanPulse.value = withTiming(1);
+        if (scanIntervalRef.current) {
+          clearInterval(scanIntervalRef.current);
+          scanIntervalRef.current = null;
+        }
+      }
+    }, 500);
+  }, []);
 
-    setTimeout(() => {
-      setIsScanning(false);
-      scanPulse.value = withTiming(1);
-    }, 5000);
-  };
-
-  const handleStopScan = () => {
+  const handleStopScan = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    bluetoothService.stopScan();
     setIsScanning(false);
     scanPulse.value = withTiming(1);
-  };
+    if (scanIntervalRef.current) {
+      clearInterval(scanIntervalRef.current);
+      scanIntervalRef.current = null;
+    }
+  }, []);
 
-  const handleConnectDevice = (device: MockDevice) => {
+  const handleConnectDevice = useCallback((device: BLEDevice) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
       `Connect to ${device.name}?`,
-      "This is a simulated connection. In a production build with BLE support, the device would pair here.",
+      isMockMode
+        ? "This is a simulated connection. In a production build with BLE support, the device would pair here."
+        : "ZEKE will pair with this device.",
       [
         { text: "Cancel", style: "cancel" },
         {
           text: "Connect",
-          onPress: () => {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            Alert.alert("Connected!", `Successfully connected to ${device.name} (simulated).`);
+          onPress: async () => {
+            setConnectingDeviceId(device.id);
+            const success = await bluetoothService.connect(device.id);
+            if (success) {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Alert.alert(
+                "Connected!",
+                `Successfully connected to ${device.name}${isMockMode ? " (simulated)" : ""}.`,
+                [
+                  {
+                    text: "OK",
+                    onPress: () => navigation.goBack(),
+                  },
+                ]
+              );
+            } else {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+              Alert.alert("Connection Failed", "Could not connect to the device. Please try again.");
+              setConnectingDeviceId(null);
+            }
           },
         },
       ]
     );
-  };
+  }, [isMockMode, navigation]);
 
   const getSignalIcon = (strength: number): keyof typeof Feather.glyphMap => {
     if (strength > -50) return "wifi";
@@ -202,7 +241,8 @@ export default function BluetoothConnectionScreen() {
             <Pressable
               key={device.id}
               onPress={() => handleConnectDevice(device)}
-              style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1 })}
+              disabled={connectingDeviceId === device.id}
+              style={({ pressed }) => ({ opacity: pressed || connectingDeviceId === device.id ? 0.6 : 1 })}
             >
               <Card elevation={1} style={styles.deviceCard}>
                 <View style={styles.deviceRow}>
@@ -234,9 +274,28 @@ export default function BluetoothConnectionScreen() {
                       <ThemedText type="caption" secondary style={{ marginLeft: 4 }}>
                         {device.signalStrength} dBm
                       </ThemedText>
+                      {device.batteryLevel !== undefined ? (
+                        <>
+                          <Feather
+                            name="battery"
+                            size={12}
+                            color={theme.textSecondary}
+                            style={{ marginLeft: Spacing.sm }}
+                          />
+                          <ThemedText type="caption" secondary style={{ marginLeft: 4 }}>
+                            {device.batteryLevel}%
+                          </ThemedText>
+                        </>
+                      ) : null}
                     </View>
                   </View>
-                  <Feather name="chevron-right" size={20} color={theme.textSecondary} />
+                  {connectingDeviceId === device.id ? (
+                    <ThemedText type="caption" style={{ color: Colors.dark.primary }}>
+                      Connecting...
+                    </ThemedText>
+                  ) : (
+                    <Feather name="chevron-right" size={20} color={theme.textSecondary} />
+                  )}
                 </View>
               </Card>
             </Pressable>
