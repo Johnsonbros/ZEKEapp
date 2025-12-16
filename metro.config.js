@@ -35,6 +35,6 @@ config.transformer = {
   },
 };
 
-config.maxWorkers = 2;
+config.maxWorkers = 4;
 
 module.exports = config;
