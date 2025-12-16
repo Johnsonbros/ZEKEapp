@@ -552,6 +552,33 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
   };
 }
 
+export async function getEventsForDateRange(startDate: Date, endDate: Date): Promise<ZekeEvent[]> {
+  const baseUrl = getLocalApiUrl();
+  const url = new URL('/api/calendar/events', baseUrl);
+  url.searchParams.set('timeMin', startDate.toISOString());
+  url.searchParams.set('timeMax', endDate.toISOString());
+  
+  console.log('[Calendar] Fetching events for range:', startDate.toISOString(), 'to', endDate.toISOString());
+  
+  try {
+    const res = await fetch(url, { 
+      credentials: 'include',
+      signal: createTimeoutSignal(10000)
+    });
+    console.log('[Calendar] Range response status:', res.status);
+    if (!res.ok) {
+      console.log('[Calendar] Range response not OK, falling back to today events');
+      return getTodayEvents();
+    }
+    const data = await res.json();
+    console.log('[Calendar] Fetched range events count:', Array.isArray(data) ? data.length : (data.events?.length ?? 0));
+    return data.events || data || [];
+  } catch (error) {
+    console.error('[Calendar] Range fetch error:', error);
+    return [];
+  }
+}
+
 export async function getTodayEvents(): Promise<ZekeEvent[]> {
   // Always use local backend for Google Calendar integration
   const baseUrl = getLocalApiUrl();
