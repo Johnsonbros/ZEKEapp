@@ -1,5 +1,11 @@
 import { getApiUrl, getLocalApiUrl, isZekeSyncMode, apiRequest } from "./query-client";
 
+function createTimeoutSignal(ms: number): AbortSignal {
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), ms);
+  return controller.signal;
+}
+
 export interface ZekeConversation {
   id: string;
   title?: string;
@@ -231,7 +237,7 @@ export async function getGroceryItems(): Promise<ZekeGroceryItem[]> {
   try {
     const res = await fetch(url, { 
       credentials: 'include',
-      signal: AbortSignal.timeout(5000)
+      signal: createTimeoutSignal(5000)
     });
     if (!res.ok) {
       return [];
@@ -261,7 +267,7 @@ export async function getContacts(): Promise<ZekeContact[]> {
   try {
     const res = await fetch(url, { 
       credentials: 'include',
-      signal: AbortSignal.timeout(5000)
+      signal: createTimeoutSignal(5000)
     });
     if (!res.ok) {
       return [];
@@ -280,7 +286,7 @@ export async function getContact(id: string): Promise<ZekeContact | null> {
   try {
     const res = await fetch(url, { 
       credentials: 'include',
-      signal: AbortSignal.timeout(5000)
+      signal: createTimeoutSignal(5000)
     });
     if (!res.ok) {
       return null;
@@ -312,7 +318,7 @@ export async function getSmsConversations(): Promise<ZekeContactConversation[]> 
   try {
     const res = await fetch(url, { 
       credentials: 'include',
-      signal: AbortSignal.timeout(5000)
+      signal: createTimeoutSignal(5000)
     });
     if (!res.ok) {
       return [];
@@ -373,7 +379,7 @@ export async function getTwilioConversations(): Promise<TwilioSmsConversation[]>
   try {
     const res = await fetch(url, { 
       credentials: 'include',
-      signal: AbortSignal.timeout(10000)
+      signal: createTimeoutSignal(10000)
     });
     if (!res.ok) {
       if (res.status === 404) {
@@ -396,7 +402,7 @@ export async function getTwilioConversation(phoneNumber: string): Promise<Twilio
   try {
     const res = await fetch(url, { 
       credentials: 'include',
-      signal: AbortSignal.timeout(10000)
+      signal: createTimeoutSignal(10000)
     });
     if (!res.ok) {
       if (res.status === 404) {
@@ -419,7 +425,7 @@ export async function getTwilioCalls(): Promise<TwilioCallRecord[]> {
   try {
     const res = await fetch(url, { 
       credentials: 'include',
-      signal: AbortSignal.timeout(10000)
+      signal: createTimeoutSignal(10000)
     });
     if (!res.ok) {
       if (res.status === 404) {
@@ -442,7 +448,7 @@ export async function getTwilioPhoneNumber(): Promise<string | null> {
   try {
     const res = await fetch(url, { 
       credentials: 'include',
-      signal: AbortSignal.timeout(5000)
+      signal: createTimeoutSignal(5000)
     });
     if (!res.ok) {
       return null;
@@ -462,7 +468,7 @@ export async function getHealthStatus(): Promise<{ status: string; connected: bo
     
     const res = await fetch(url, { 
       credentials: 'include',
-      signal: AbortSignal.timeout(5000)
+      signal: createTimeoutSignal(5000)
     });
     
     return { 
@@ -483,7 +489,7 @@ export async function getZekeDevices(): Promise<ZekeDevice[]> {
       
       const res = await fetch(url, { 
         credentials: 'include',
-        signal: AbortSignal.timeout(5000)
+        signal: createTimeoutSignal(5000)
       });
       
       if (!res.ok) {
@@ -519,7 +525,7 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
     const url = new URL('/api/dashboard/summary', baseUrl);
     const res = await fetch(url, { 
       credentials: 'include',
-      signal: AbortSignal.timeout(5000)
+      signal: createTimeoutSignal(5000)
     });
     
     if (res.ok) {
@@ -553,7 +559,7 @@ export async function getTodayEvents(): Promise<ZekeEvent[]> {
   try {
     const res = await fetch(url, { 
       credentials: 'include',
-      signal: AbortSignal.timeout(10000)
+      signal: createTimeoutSignal(10000)
     });
     console.log('[Calendar] Response status:', res.status);
     if (!res.ok) {
@@ -577,7 +583,7 @@ export async function getPendingTasks(): Promise<ZekeTask[]> {
   try {
     const res = await fetch(url, { 
       credentials: 'include',
-      signal: AbortSignal.timeout(5000)
+      signal: createTimeoutSignal(5000)
     });
     if (!res.ok) {
       return [];
@@ -625,7 +631,7 @@ export async function getAllTasks(): Promise<ZekeTask[]> {
   try {
     const res = await fetch(url, { 
       credentials: 'include',
-      signal: AbortSignal.timeout(5000)
+      signal: createTimeoutSignal(5000)
     });
     if (!res.ok) {
       return [];
@@ -724,7 +730,7 @@ export async function getUpcomingEvents(limit: number = 10): Promise<ZekeEvent[]
   try {
     const res = await fetch(url, { 
       credentials: 'include',
-      signal: AbortSignal.timeout(5000)
+      signal: createTimeoutSignal(5000)
     });
     if (!res.ok) {
       return [];
@@ -760,7 +766,7 @@ export async function getCalendarList(): Promise<ZekeCalendar[]> {
   try {
     const res = await fetch(url, { 
       credentials: 'include',
-      signal: AbortSignal.timeout(10000)
+      signal: createTimeoutSignal(10000)
     });
     if (!res.ok) {
       return [];
@@ -778,7 +784,7 @@ export async function getZekeCalendar(): Promise<ZekeCalendar | null> {
   try {
     const res = await fetch(url, { 
       credentials: 'include',
-      signal: AbortSignal.timeout(10000)
+      signal: createTimeoutSignal(10000)
     });
     if (!res.ok) {
       return null;
