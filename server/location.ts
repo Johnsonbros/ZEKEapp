@@ -32,7 +32,21 @@ const starredPlaceSchema = z.object({
   icon: z.string().optional(),
 });
 
-const DEFAULT_USER_ID = "zeke-default-user";
+/**
+ * User ID for location data storage.
+ * 
+ * ZEKE is designed as a single-user companion app running on a dedicated device.
+ * Currently uses a default user ID for the single-device deployment model.
+ * 
+ * When authentication is implemented (Apple/Google Sign-In), this should be
+ * replaced with the authenticated user's ID from the request context.
+ * 
+ * The ZEKE_USER_ID environment variable allows configuration for different
+ * deployment scenarios or testing.
+ */
+function getUserId(): string {
+  return process.env.ZEKE_USER_ID || "zeke-default-user";
+}
 
 export function registerLocationRoutes(app: Express): void {
   app.get("/api/location/current", async (_req, res) => {
@@ -40,7 +54,7 @@ export function registerLocationRoutes(app: Express): void {
       const [location] = await db
         .select()
         .from(locations)
-        .where(eq(locations.userId, DEFAULT_USER_ID))
+        .where(eq(locations.userId, getUserId()))
         .orderBy(desc(locations.createdAt))
         .limit(1);
 
@@ -84,7 +98,7 @@ export function registerLocationRoutes(app: Express): void {
       const [location] = await db
         .insert(locations)
         .values({
-          userId: DEFAULT_USER_ID,
+          userId: getUserId(),
           latitude: data.latitude.toString(),
           longitude: data.longitude.toString(),
           altitude: data.altitude?.toString() ?? null,
@@ -136,7 +150,7 @@ export function registerLocationRoutes(app: Express): void {
       const results = await db
         .select()
         .from(locations)
-        .where(eq(locations.userId, DEFAULT_USER_ID))
+        .where(eq(locations.userId, getUserId()))
         .orderBy(desc(locations.createdAt))
         .limit(limit)
         .offset(offset);
@@ -144,7 +158,7 @@ export function registerLocationRoutes(app: Express): void {
       const [countResult] = await db
         .select({ count: sql<number>`count(*)::int` })
         .from(locations)
-        .where(eq(locations.userId, DEFAULT_USER_ID));
+        .where(eq(locations.userId, getUserId()));
 
       const formattedResults = results.map((loc) => ({
         id: loc.id,
@@ -182,7 +196,7 @@ export function registerLocationRoutes(app: Express): void {
     try {
       await db
         .delete(locations)
-        .where(eq(locations.userId, DEFAULT_USER_ID));
+        .where(eq(locations.userId, getUserId()));
 
       res.status(204).send();
     } catch (error) {
@@ -196,7 +210,7 @@ export function registerLocationRoutes(app: Express): void {
       const results = await db
         .select()
         .from(starredPlaces)
-        .where(eq(starredPlaces.userId, DEFAULT_USER_ID))
+        .where(eq(starredPlaces.userId, getUserId()))
         .orderBy(desc(starredPlaces.createdAt));
 
       const formattedResults = results.map((place) => ({
@@ -230,7 +244,7 @@ export function registerLocationRoutes(app: Express): void {
       const [place] = await db
         .insert(starredPlaces)
         .values({
-          userId: DEFAULT_USER_ID,
+          userId: getUserId(),
           name: data.name,
           latitude: data.latitude.toString(),
           longitude: data.longitude.toString(),
@@ -267,7 +281,7 @@ export function registerLocationRoutes(app: Express): void {
         .from(starredPlaces)
         .where(and(
           eq(starredPlaces.id, req.params.id),
-          eq(starredPlaces.userId, DEFAULT_USER_ID)
+          eq(starredPlaces.userId, getUserId())
         ));
 
       if (!existing) {
@@ -303,7 +317,7 @@ export function registerLocationRoutes(app: Express): void {
         .set(updates)
         .where(and(
           eq(starredPlaces.id, req.params.id),
-          eq(starredPlaces.userId, DEFAULT_USER_ID)
+          eq(starredPlaces.userId, getUserId())
         ))
         .returning();
 
@@ -331,7 +345,7 @@ export function registerLocationRoutes(app: Express): void {
         .delete(starredPlaces)
         .where(and(
           eq(starredPlaces.id, req.params.id),
-          eq(starredPlaces.userId, DEFAULT_USER_ID)
+          eq(starredPlaces.userId, getUserId())
         ))
         .returning();
 
@@ -351,7 +365,7 @@ export function registerLocationRoutes(app: Express): void {
       const [currentLocation] = await db
         .select()
         .from(locations)
-        .where(eq(locations.userId, DEFAULT_USER_ID))
+        .where(eq(locations.userId, getUserId()))
         .orderBy(desc(locations.createdAt))
         .limit(1);
 
@@ -367,7 +381,7 @@ export function registerLocationRoutes(app: Express): void {
       const [place] = await db
         .insert(starredPlaces)
         .values({
-          userId: DEFAULT_USER_ID,
+          userId: getUserId(),
           name: parsed.data.name,
           latitude: currentLocation.latitude,
           longitude: currentLocation.longitude,
@@ -410,7 +424,7 @@ export function registerLocationRoutes(app: Express): void {
       const allPlaces = await db
         .select()
         .from(starredPlaces)
-        .where(eq(starredPlaces.userId, DEFAULT_USER_ID));
+        .where(eq(starredPlaces.userId, getUserId()));
 
       const nearbyPlaces = allPlaces.filter((place) => {
         const placeLat = parseFloat(place.latitude);
