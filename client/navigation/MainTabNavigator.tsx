@@ -3,19 +3,14 @@ import { View, StyleSheet, Platform } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
-import { useNavigation } from "@react-navigation/native";
-import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import HomeStackNavigator from "@/navigation/HomeStackNavigator";
 import ContactsStackNavigator from "@/navigation/ContactsStackNavigator";
 import CommunicationStackNavigator from "@/navigation/CommunicationStackNavigator";
 import CalendarStackNavigator from "@/navigation/CalendarStackNavigator";
 import TasksStackNavigator from "@/navigation/TasksStackNavigator";
-import SettingsStackNavigator from "@/navigation/SettingsStackNavigator";
-import { FloatingActionButton } from "@/components/FloatingActionButton";
 import { useTheme } from "@/hooks/useTheme";
 import { Colors } from "@/constants/theme";
-import { RootStackParamList } from "@/navigation/RootStackNavigator";
 
 export type MainTabParamList = {
   HomeTab: undefined;
@@ -23,18 +18,12 @@ export type MainTabParamList = {
   InboxTab: undefined;
   CalendarTab: undefined;
   TasksTab: undefined;
-  SettingsTab: undefined;
 };
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
 export default function MainTabNavigator() {
-  const { theme, isDark } = useTheme();
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-
-  const handleChatPress = () => {
-    navigation.navigate("Chat");
-  };
+  const { theme } = useTheme();
 
   return (
     <View style={styles.container}>
@@ -119,18 +108,7 @@ export default function MainTabNavigator() {
             ),
           }}
         />
-        <Tab.Screen
-          name="SettingsTab"
-          component={SettingsStackNavigator}
-          options={{
-            title: "Settings",
-            tabBarIcon: ({ color, size }) => (
-              <Feather name="settings" size={size} color={color} />
-            ),
-          }}
-        />
       </Tab.Navigator>
-      <FloatingActionButton onPress={handleChatPress} bottom={90} />
     </View>
   );
 }
