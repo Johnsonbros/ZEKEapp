@@ -1,4 +1,33 @@
 import { getApiUrl, isZekeSyncMode, apiRequest } from "./query-client";
+import type {
+  Task,
+  GroceryItem,
+  CustomList,
+  CustomListItem,
+  CustomListWithItems,
+  Contact,
+  CalendarEvent,
+  Message,
+  Conversation,
+  MemoryNote,
+  AccessLevel,
+} from "./zeke-types";
+
+export type {
+  Task,
+  GroceryItem,
+  CustomList,
+  CustomListItem,
+  CustomListWithItems,
+  Contact,
+  CalendarEvent,
+  Message,
+  Conversation,
+  MemoryNote,
+  AccessLevel,
+} from "./zeke-types";
+
+export { accessLevels, customListTypes, customListItemPriorities } from "./zeke-types";
 
 function createTimeoutSignal(ms: number): AbortSignal {
   const controller = new AbortController();
@@ -66,23 +95,14 @@ export interface ZekeCalendar {
   primary: boolean;
 }
 
-export interface ZekeTask {
-  id: string;
-  title: string;
-  status: 'pending' | 'completed' | 'cancelled';
-  priority?: 'low' | 'medium' | 'high';
-  dueDate?: string;
-  createdAt: string;
-}
+export type ZekeTask = Task & {
+  status?: 'pending' | 'completed' | 'cancelled';
+};
 
-export interface ZekeGroceryItem {
-  id: string;
-  name: string;
-  quantity?: number;
+export type ZekeGroceryItem = GroceryItem & {
+  isPurchased?: boolean;
   unit?: string;
-  category?: string;
-  isPurchased: boolean;
-}
+};
 
 export interface ZekeContactConversation {
   id: string;
@@ -95,33 +115,10 @@ export interface ZekeContactConversation {
   updatedAt: string;
 }
 
-export interface ZekeContact {
-  id: string;
-  firstName: string;
-  lastName: string;
-  middleName?: string;
-  phoneNumber?: string;
-  email?: string;
-  aiAssistantPhone?: string;
-  imageUrl?: string;
-  accessLevel: 'unknown' | 'acquaintance' | 'friend' | 'close_friend' | 'family';
-  relationship?: string;
-  notes?: string;
-  canAccessPersonalInfo: boolean;
-  canAccessCalendar: boolean;
-  canAccessTasks: boolean;
-  canAccessGrocery: boolean;
-  canSetReminders: boolean;
-  birthday?: string;
-  occupation?: string;
-  organization?: string;
-  lastInteractionAt?: string;
-  interactionCount: number;
+export type ZekeContact = Contact & {
   messageCount?: number;
-  createdAt: string;
-  updatedAt: string;
   conversations?: ZekeContactConversation[];
-}
+};
 
 export interface DashboardSummary {
   eventsCount: number;
@@ -1347,29 +1344,20 @@ export async function clearGeofenceTriggerEvents(): Promise<void> {
   }
 }
 
-// Custom Lists types
-export interface ZekeList {
-  id: string;
-  name: string;
+export type ZekeList = CustomList & {
   description?: string;
-  color?: string;
   itemCount?: number;
-  createdAt: string;
-  updatedAt: string;
-}
+};
 
-export interface ZekeListItem {
-  id: string;
-  listId: string;
-  text: string;
-  checked: boolean;
+export type ZekeListItem = CustomListItem & {
+  text?: string;
   order?: number;
-  createdAt: string;
-}
+};
 
-export interface ZekeListWithItems extends ZekeList {
-  items: ZekeListItem[];
-}
+export type ZekeListWithItems = CustomListWithItems & {
+  description?: string;
+  itemCount?: number;
+};
 
 // Lists API functions
 export async function getLists(): Promise<ZekeList[]> {
