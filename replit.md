@@ -58,7 +58,7 @@ Client-side data is persisted using AsyncStorage with namespaced keys, storing d
 - **Settings:** Device configuration, preference toggles, and app information.
 - **Chat Screen:** Full-screen ZEKE AI chat with message history and keyboard-aware text input.
 - **Real-Time Transcription:** Integrates Deepgram via a secure WebSocket proxy for real-time transcription from BLE audio devices (Omi, Limitless), with a dedicated `LiveCaptureScreen` for display and saving to ZEKE.
-- **Real-Time WebSocket Sync:** Uses `/ws/zeke` endpoint for real-time updates between app and ZEKE backend. Client hook (`useZekeSync`) with auto-reconnect and React Query cache invalidation. `SyncStatus` component shows connection status with colored indicators. Messages validated with Zod schema.
+- **Real-Time WebSocket Sync:** Uses `/ws/zeke` endpoint for real-time updates between app and ZEKE backend. Client hook (`useZekeSync`) with auto-reconnect and React Query cache invalidation. `SyncStatus` component shows connection status with colored indicators. Supports message types: `sms`, `voice`, `activity`, `device_status`, `notification`, `task`, `grocery`, `list`, `calendar`, `contact`. When messages arrive, corresponding React Query caches are automatically invalidated for real-time data freshness.
 
 ## External Dependencies
 

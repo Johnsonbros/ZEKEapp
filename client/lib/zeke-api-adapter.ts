@@ -216,15 +216,23 @@ export async function searchMemories(query: string): Promise<ZekeMemory[]> {
   }
 }
 
-export async function getTasks(): Promise<any[]> {
+export async function getTasks(): Promise<ZekeTask[]> {
   const baseUrl = getApiUrl();
   const url = new URL('/api/tasks', baseUrl);
   
-  const res = await fetch(url, { credentials: 'include' });
-  if (!res.ok) {
+  try {
+    const res = await fetch(url, { 
+      credentials: 'include',
+      signal: createTimeoutSignal(5000)
+    });
+    if (!res.ok) {
+      return [];
+    }
+    const data = await res.json();
+    return data.tasks || data || [];
+  } catch {
     return [];
   }
-  return res.json();
 }
 
 export async function getGroceryItems(): Promise<ZekeGroceryItem[]> {
@@ -246,15 +254,32 @@ export async function getGroceryItems(): Promise<ZekeGroceryItem[]> {
   }
 }
 
-export async function getReminders(): Promise<any[]> {
+export interface ZekeReminder {
+  id: string;
+  title: string;
+  dueAt: string;
+  completed: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function getReminders(): Promise<ZekeReminder[]> {
   const baseUrl = getApiUrl();
   const url = new URL('/api/reminders', baseUrl);
   
-  const res = await fetch(url, { credentials: 'include' });
-  if (!res.ok) {
+  try {
+    const res = await fetch(url, { 
+      credentials: 'include',
+      signal: createTimeoutSignal(5000)
+    });
+    if (!res.ok) {
+      return [];
+    }
+    const data = await res.json();
+    return data.reminders || data || [];
+  } catch {
     return [];
   }
-  return res.json();
 }
 
 export async function getContacts(): Promise<ZekeContact[]> {
