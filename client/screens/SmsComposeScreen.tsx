@@ -19,44 +19,58 @@ import { RootStackParamList } from "@/navigation/RootStackNavigator";
 type Props = NativeStackScreenProps<RootStackParamList, "SmsCompose">;
 
 export default function SmsComposeScreen({ route, navigation }: Props) {
-  const { contactId, phoneNumber, contactName } = route.params;
+  const { phoneNumber: initialPhoneNumber, contactName } = route.params;
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
   const { theme } = useTheme();
   const inputRef = useRef<TextInput>(null);
+  const phoneInputRef = useRef<TextInput>(null);
   const [message, setMessage] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState(initialPhoneNumber || "");
 
   useEffect(() => {
     navigation.setOptions({
-      headerTitle: contactName || phoneNumber || "New Message",
+      headerTitle: contactName || (initialPhoneNumber ? initialPhoneNumber : "New Message"),
     });
-    setTimeout(() => inputRef.current?.focus(), 100);
-  }, [navigation, contactName, phoneNumber]);
+    if (initialPhoneNumber) {
+      setTimeout(() => inputRef.current?.focus(), 100);
+    } else {
+      setTimeout(() => phoneInputRef.current?.focus(), 100);
+    }
+  }, [navigation, contactName, initialPhoneNumber]);
 
   const sendMutation = useMutation({
-    mutationFn: async ({ contactId, message }: { contactId: string; message: string }) => {
-      return sendSms(contactId, message);
+    mutationFn: async ({ to, body }: { to: string; body: string }) => {
+      return sendSms(to, body);
     },
     onSuccess: () => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      queryClient.invalidateQueries({ queryKey: ["/api/sms-log"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
-      Alert.alert("Sent", "Your message has been sent.", [
-        { text: "OK", onPress: () => navigation.goBack() },
-      ]);
+      queryClient.invalidateQueries({ queryKey: ["twilio-conversations"] });
+      if (Platform.OS === 'web') {
+        window.alert("Your message has been sent.");
+        navigation.goBack();
+      } else {
+        Alert.alert("Sent", "Your message has been sent.", [
+          { text: "OK", onPress: () => navigation.goBack() },
+        ]);
+      }
     },
     onError: (error: Error) => {
-      Alert.alert("Failed to Send", error.message || "Please try again.");
+      if (Platform.OS === 'web') {
+        window.alert(`Failed to Send: ${error.message || "Please try again."}`);
+      } else {
+        Alert.alert("Failed to Send", error.message || "Please try again.");
+      }
     },
   });
 
   const handleSend = () => {
-    if (!message.trim() || !contactId) return;
+    if (!message.trim() || !phoneNumber.trim()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    sendMutation.mutate({ contactId, message: message.trim() });
+    sendMutation.mutate({ to: phoneNumber.trim(), body: message.trim() });
   };
 
-  const canSend = message.trim().length > 0 && contactId && !sendMutation.isPending;
+  const canSend = message.trim().length > 0 && phoneNumber.trim().length > 0 && !sendMutation.isPending;
 
   return (
     <ThemedView style={styles.container}>
@@ -70,9 +84,22 @@ export default function SmsComposeScreen({ route, navigation }: Props) {
             <ThemedText type="small" style={{ color: theme.textSecondary }}>
               To:
             </ThemedText>
-            <ThemedText type="body" style={{ marginLeft: Spacing.sm }}>
-              {contactName || phoneNumber || "Unknown"}
-            </ThemedText>
+            {initialPhoneNumber ? (
+              <ThemedText type="body" style={{ marginLeft: Spacing.sm }}>
+                {contactName || phoneNumber}
+              </ThemedText>
+            ) : (
+              <TextInput
+                ref={phoneInputRef}
+                style={[styles.phoneInput, { color: theme.text }]}
+                placeholder="Enter phone number..."
+                placeholderTextColor={theme.textSecondary}
+                value={phoneNumber}
+                onChangeText={setPhoneNumber}
+                keyboardType="phone-pad"
+                autoComplete="tel"
+              />
+            )}
           </View>
 
           <View style={styles.messageContainer}>
@@ -123,7 +150,9 @@ export default function SmsComposeScreen({ route, navigation }: Props) {
             ]}
           >
             {sendMutation.isPending ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
+              <View style={[styles.sendGradient, { backgroundColor: Colors.dark.primary }]}>
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              </View>
             ) : (
               <LinearGradient
                 colors={canSend ? Gradients.primary : ["#666", "#666"]}
@@ -161,6 +190,12 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     borderBottomWidth: 1,
     marginBottom: Spacing.lg,
+  },
+  phoneInput: {
+    flex: 1,
+    marginLeft: Spacing.sm,
+    fontSize: 16,
+    paddingVertical: 0,
   },
   messageContainer: {
     flex: 1,

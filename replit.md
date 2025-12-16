@@ -37,7 +37,17 @@ Client-side data is persisted using AsyncStorage with namespaced keys, storing d
 - **Limitless**: Wearable pendant for lifelogging.
 
 ### Communication Services
-- **Twilio**: For SMS and Voice calling, integrated through the main ZEKE backend API (`/api/twilio/sms/send`, `/api/twilio/call/initiate`).
+- **Twilio**: Independent Twilio integration via Replit connector for SMS and Voice calling. Server-side service layer in `server/twilio.ts` manages Twilio client authentication using Replit's secure connector API. API endpoints include:
+  - `POST /api/twilio/sms/send` - Send SMS messages
+  - `GET /api/twilio/sms/conversations` - Fetch SMS conversation list
+  - `GET /api/twilio/sms/conversation/:phoneNumber` - Fetch single conversation
+  - `POST /api/twilio/call/initiate` - Initiate voice calls
+  - `GET /api/twilio/calls` - Fetch call history
+  - `GET /api/twilio/calls/:callSid` - Fetch call details
+  - `GET /api/twilio/phone-number` - Get configured Twilio phone number
+  - `POST /api/twilio/webhook/sms` - Inbound SMS webhook
+  - `POST /api/twilio/webhook/voice` - Inbound voice webhook
+- Client-side API adapter functions in `client/lib/zeke-api-adapter.ts` for Twilio data fetching with TypeScript interfaces for SMS conversations, messages, and call records.
 
 ### Third-Party Services
 - **Expo Services**: Utilized for splash screen, haptics, image handling, web browser, blur effects, and audio recording.

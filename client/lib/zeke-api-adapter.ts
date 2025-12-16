@@ -365,10 +365,15 @@ export async function getTwilioConversations(): Promise<TwilioSmsConversation[]>
       signal: AbortSignal.timeout(10000)
     });
     if (!res.ok) {
-      return [];
+      if (res.status === 404) {
+        return [];
+      }
+      throw new Error(`Failed to fetch conversations: ${res.statusText}`);
     }
-    return res.json();
-  } catch {
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    console.error('[Twilio] Error fetching conversations:', error);
     return [];
   }
 }
@@ -383,10 +388,15 @@ export async function getTwilioConversation(phoneNumber: string): Promise<Twilio
       signal: AbortSignal.timeout(10000)
     });
     if (!res.ok) {
-      return null;
+      if (res.status === 404) {
+        return null;
+      }
+      throw new Error(`Failed to fetch conversation: ${res.statusText}`);
     }
-    return res.json();
-  } catch {
+    const data = await res.json();
+    return data;
+  } catch (error) {
+    console.error('[Twilio] Error fetching conversation:', error);
     return null;
   }
 }
@@ -401,10 +411,15 @@ export async function getTwilioCalls(): Promise<TwilioCallRecord[]> {
       signal: AbortSignal.timeout(10000)
     });
     if (!res.ok) {
-      return [];
+      if (res.status === 404) {
+        return [];
+      }
+      throw new Error(`Failed to fetch calls: ${res.statusText}`);
     }
-    return res.json();
-  } catch {
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    console.error('[Twilio] Error fetching calls:', error);
     return [];
   }
 }
@@ -423,7 +438,8 @@ export async function getTwilioPhoneNumber(): Promise<string | null> {
     }
     const data = await res.json();
     return data.phoneNumber || null;
-  } catch {
+  } catch (error) {
+    console.error('[Twilio] Error fetching phone number:', error);
     return null;
   }
 }

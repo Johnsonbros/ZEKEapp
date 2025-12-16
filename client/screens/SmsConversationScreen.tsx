@@ -15,28 +15,17 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, Colors, BorderRadius, Gradients } from "@/constants/theme";
-import { queryClient, apiRequest, getApiUrl } from "@/lib/query-client";
-import { sendSms, initiateCall } from "@/lib/zeke-api-adapter";
+import { queryClient } from "@/lib/query-client";
+import { 
+  sendSms, 
+  initiateCall, 
+  getTwilioConversation, 
+  getTwilioPhoneNumber,
+  type TwilioSmsMessage 
+} from "@/lib/zeke-api-adapter";
 import { CommunicationStackParamList } from "@/navigation/CommunicationStackNavigator";
 
 type Props = NativeStackScreenProps<CommunicationStackParamList, "SmsConversation">;
-
-interface SmsMessage {
-  id: string;
-  conversationId: string;
-  direction: "inbound" | "outbound";
-  body: string;
-  status?: string;
-  createdAt: string;
-}
-
-interface ConversationDetail {
-  id: string;
-  contactId?: string;
-  phoneNumber: string;
-  contactName?: string;
-  messages: SmsMessage[];
-}
 
 function formatMessageTime(dateStr: string): string {
   const date = new Date(dateStr);
@@ -58,11 +47,11 @@ function formatDateSeparator(dateStr: string): string {
   return date.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" });
 }
 
-function groupMessagesByDate(messages: SmsMessage[]): { date: string; messages: SmsMessage[] }[] {
-  const groups: Map<string, SmsMessage[]> = new Map();
+function groupMessagesByDate(messages: TwilioSmsMessage[]): { date: string; messages: TwilioSmsMessage[] }[] {
+  const groups: Map<string, TwilioSmsMessage[]> = new Map();
   
   messages.forEach((msg) => {
-    const date = new Date(msg.createdAt).toDateString();
+    const date = new Date(msg.dateCreated).toDateString();
     if (!groups.has(date)) {
       groups.set(date, []);
     }
@@ -71,17 +60,17 @@ function groupMessagesByDate(messages: SmsMessage[]): { date: string; messages: 
 
   return Array.from(groups.entries()).map(([date, msgs]) => ({
     date,
-    messages: msgs.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
+    messages: msgs.sort((a, b) => new Date(a.dateCreated).getTime() - new Date(b.dateCreated).getTime()),
   })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 }
 
 interface SmsBubbleProps {
-  message: SmsMessage;
+  message: TwilioSmsMessage;
+  isOutbound: boolean;
 }
 
-function SmsBubble({ message }: SmsBubbleProps) {
+function SmsBubble({ message, isOutbound }: SmsBubbleProps) {
   const { theme } = useTheme();
-  const isOutbound = message.direction === "outbound";
 
   if (isOutbound) {
     return (
@@ -95,7 +84,7 @@ function SmsBubble({ message }: SmsBubbleProps) {
           <ThemedText style={styles.outboundText}>{message.body}</ThemedText>
         </LinearGradient>
         <ThemedText type="caption" secondary style={styles.timestamp}>
-          {formatMessageTime(message.createdAt)}
+          {formatMessageTime(message.dateCreated)}
         </ThemedText>
       </View>
     );
@@ -107,7 +96,7 @@ function SmsBubble({ message }: SmsBubbleProps) {
         <ThemedText>{message.body}</ThemedText>
       </View>
       <ThemedText type="caption" secondary style={styles.timestamp}>
-        {formatMessageTime(message.createdAt)}
+        {formatMessageTime(message.dateCreated)}
       </ThemedText>
     </View>
   );
@@ -132,14 +121,13 @@ function DateSeparator({ date }: DateSeparatorProps) {
 }
 
 export default function SmsConversationScreen({ route, navigation }: Props) {
-  const { conversationId, contactId, phoneNumber } = route.params;
+  const { phoneNumber } = route.params;
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
   const { theme } = useTheme();
   const flatListRef = useRef<FlatList>(null);
 
   const [inputText, setInputText] = useState("");
-  const [isSending, setIsSending] = useState(false);
 
   const { height: keyboardHeight } = useReanimatedKeyboardAnimation();
 
@@ -149,25 +137,17 @@ export default function SmsConversationScreen({ route, navigation }: Props) {
     };
   });
 
-  const { data: conversationData, isLoading, isFetching } = useQuery<ConversationDetail>({
-    queryKey: ["/api/sms-log", conversationId],
-    queryFn: async () => {
-      const baseUrl = getApiUrl();
-      const url = new URL(`/api/sms-log/${conversationId}`, baseUrl);
-      const res = await fetch(url, { credentials: "include" });
-      if (!res.ok) {
-        if (res.status === 404) {
-          return {
-            id: conversationId || "",
-            phoneNumber: phoneNumber || "",
-            messages: [],
-          };
-        }
-        throw new Error("Failed to fetch conversation");
-      }
-      return res.json();
-    },
-    enabled: !!conversationId,
+  const { data: twilioPhoneNumber } = useQuery({
+    queryKey: ['twilio-phone-number'],
+    queryFn: getTwilioPhoneNumber,
+    staleTime: 300000,
+  });
+
+  const { data: conversationData, isLoading, refetch } = useQuery({
+    queryKey: ['twilio-conversation', phoneNumber],
+    queryFn: () => getTwilioConversation(phoneNumber || ''),
+    enabled: !!phoneNumber,
+    refetchInterval: 10000,
   });
 
   const contactName = conversationData?.contactName || phoneNumber || "Unknown";
@@ -188,16 +168,29 @@ export default function SmsConversationScreen({ route, navigation }: Props) {
 
   const handleCallPress = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    if (contactId) {
+    if (phoneNumber) {
       try {
-        await initiateCall(contactId);
-      } catch (error) {
-        Alert.alert("Error", "Failed to initiate call. Please try again.");
+        await initiateCall(phoneNumber);
+        if (Platform.OS === 'web') {
+          window.alert('Call initiated successfully!');
+        } else {
+          Alert.alert("Call Initiated", "Your call is being connected.");
+        }
+      } catch (error: any) {
+        if (Platform.OS === 'web') {
+          window.alert(`Failed to initiate call: ${error.message || 'Please try again.'}`);
+        } else {
+          Alert.alert("Error", "Failed to initiate call. Please try again.");
+        }
       }
     } else {
-      Alert.alert("Cannot Call", "No contact information available for calling.");
+      if (Platform.OS === 'web') {
+        window.alert("No phone number available for calling.");
+      } else {
+        Alert.alert("Cannot Call", "No phone number available for calling.");
+      }
     }
-  }, [contactId]);
+  }, [phoneNumber]);
 
   const messages = useMemo(() => {
     return conversationData?.messages || [];
@@ -208,7 +201,7 @@ export default function SmsConversationScreen({ route, navigation }: Props) {
   }, [messages]);
 
   const flatListData = useMemo(() => {
-    const items: { type: "date" | "message"; data: string | SmsMessage }[] = [];
+    const items: { type: "date" | "message"; data: string | TwilioSmsMessage }[] = [];
     groupedMessages.forEach((group) => {
       items.push({ type: "date", data: group.date });
       group.messages.forEach((msg) => {
@@ -228,34 +221,45 @@ export default function SmsConversationScreen({ route, navigation }: Props) {
     }, 100);
   };
 
+  const sendMutation = useMutation({
+    mutationFn: async ({ to, body }: { to: string; body: string }) => {
+      return sendSms(to, body);
+    },
+    onSuccess: () => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      queryClient.invalidateQueries({ queryKey: ['twilio-conversation', phoneNumber] });
+      queryClient.invalidateQueries({ queryKey: ['twilio-conversations'] });
+      refetch();
+    },
+    onError: (error: Error) => {
+      if (Platform.OS === 'web') {
+        window.alert(`Failed to send message: ${error.message || 'Please try again.'}`);
+      } else {
+        Alert.alert("Error", "Failed to send message. Please try again.");
+      }
+    },
+  });
+
   const handleSend = async () => {
-    if (!inputText.trim()) return;
+    if (!inputText.trim() || !phoneNumber) return;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const messageContent = inputText.trim();
-    
     setInputText("");
-    setIsSending(true);
-
-    try {
-      if (contactId) {
-        await sendSms(contactId, messageContent);
-        await queryClient.invalidateQueries({ queryKey: ["/api/sms-log", conversationId] });
-      } else {
-        Alert.alert("Error", "Cannot send message without contact information.");
-      }
-    } catch (error) {
-      Alert.alert("Error", "Failed to send message. Please try again.");
-    } finally {
-      setIsSending(false);
-    }
+    
+    sendMutation.mutate({ to: phoneNumber, body: messageContent });
   };
 
-  const renderItem = ({ item }: { item: { type: "date" | "message"; data: string | SmsMessage } }) => {
+  const isOutboundMessage = (msg: TwilioSmsMessage): boolean => {
+    return msg.direction === 'outbound-api' || msg.direction === 'outbound-reply' || msg.from === twilioPhoneNumber;
+  };
+
+  const renderItem = ({ item }: { item: { type: "date" | "message"; data: string | TwilioSmsMessage } }) => {
     if (item.type === "date") {
       return <DateSeparator date={item.data as string} />;
     }
-    return <SmsBubble message={item.data as SmsMessage} />;
+    const msg = item.data as TwilioSmsMessage;
+    return <SmsBubble message={msg} isOutbound={isOutboundMessage(msg)} />;
   };
 
   const renderEmpty = () => {
@@ -302,7 +306,7 @@ export default function SmsConversationScreen({ route, navigation }: Props) {
         keyExtractor={(item, index) => 
           item.type === "date" 
             ? `date-${item.data}` 
-            : `msg-${(item.data as SmsMessage).id}`
+            : `msg-${(item.data as TwilioSmsMessage).sid}`
         }
         ListEmptyComponent={renderEmpty}
         showsVerticalScrollIndicator={false}
@@ -334,17 +338,17 @@ export default function SmsConversationScreen({ route, navigation }: Props) {
         </View>
         <Pressable
           onPress={handleSend}
-          disabled={!inputText.trim() || isSending}
+          disabled={!inputText.trim() || sendMutation.isPending}
           style={({ pressed }) => [
             styles.sendButton,
-            { opacity: (!inputText.trim() || isSending) ? 0.5 : pressed ? 0.8 : 1 },
+            { opacity: (!inputText.trim() || sendMutation.isPending) ? 0.5 : pressed ? 0.8 : 1 },
           ]}
         >
           <LinearGradient
             colors={Gradients.primary}
             style={styles.sendButtonGradient}
           >
-            {isSending ? (
+            {sendMutation.isPending ? (
               <ActivityIndicator color="#FFFFFF" size="small" />
             ) : (
               <Feather name="send" size={20} color="#FFFFFF" />
