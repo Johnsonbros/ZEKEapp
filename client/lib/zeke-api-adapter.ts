@@ -382,15 +382,15 @@ export async function getTwilioConversations(): Promise<TwilioSmsConversation[]>
       signal: createTimeoutSignal(10000)
     });
     if (!res.ok) {
-      if (res.status === 404) {
-        return [];
-      }
-      throw new Error(`Failed to fetch conversations: ${res.statusText}`);
+      return [];
+    }
+    const contentType = res.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      return [];
     }
     const data = await res.json();
     return Array.isArray(data) ? data : [];
   } catch (error) {
-    console.error('[Twilio] Error fetching conversations:', error);
     return [];
   }
 }
@@ -405,15 +405,15 @@ export async function getTwilioConversation(phoneNumber: string): Promise<Twilio
       signal: createTimeoutSignal(10000)
     });
     if (!res.ok) {
-      if (res.status === 404) {
-        return null;
-      }
-      throw new Error(`Failed to fetch conversation: ${res.statusText}`);
+      return null;
+    }
+    const contentType = res.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      return null;
     }
     const data = await res.json();
     return data;
   } catch (error) {
-    console.error('[Twilio] Error fetching conversation:', error);
     return null;
   }
 }
@@ -428,15 +428,15 @@ export async function getTwilioCalls(): Promise<TwilioCallRecord[]> {
       signal: createTimeoutSignal(10000)
     });
     if (!res.ok) {
-      if (res.status === 404) {
-        return [];
-      }
-      throw new Error(`Failed to fetch calls: ${res.statusText}`);
+      return [];
+    }
+    const contentType = res.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      return [];
     }
     const data = await res.json();
     return Array.isArray(data) ? data : [];
   } catch (error) {
-    console.error('[Twilio] Error fetching calls:', error);
     return [];
   }
 }
@@ -453,10 +453,13 @@ export async function getTwilioPhoneNumber(): Promise<string | null> {
     if (!res.ok) {
       return null;
     }
+    const contentType = res.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      return null;
+    }
     const data = await res.json();
     return data.phoneNumber || null;
   } catch (error) {
-    console.error('[Twilio] Error fetching phone number:', error);
     return null;
   }
 }
