@@ -40,6 +40,14 @@ const HOUR_HEIGHT = 60;
 const TIMELINE_START_HOUR = 6;
 const TIMELINE_END_HOUR = 23;
 
+const CALENDAR_NAME_MAP: Record<string, string> = {
+  "krazedrecords@gmail.com": "Nate",
+};
+
+function getCalendarDisplayName(calendarName: string): string {
+  return CALENDAR_NAME_MAP[calendarName] || calendarName;
+}
+
 function formatTime(dateString: string): string {
   const date = new Date(dateString);
   return date.toLocaleTimeString(undefined, {
@@ -211,7 +219,7 @@ function EventCard({ event, onPress, onDelete, theme }: EventCardProps) {
           {event.calendarName ? (
             <View style={[styles.calendarBadge, { backgroundColor: `${color}40` }]}>
               <ThemedText style={[styles.calendarBadgeText, { color }]} numberOfLines={1}>
-                {event.calendarName}
+                {getCalendarDisplayName(event.calendarName)}
               </ThemedText>
             </View>
           ) : null}
@@ -576,7 +584,7 @@ export default function CalendarScreen() {
                   ]}
                   numberOfLines={1}
                 >
-                  {cal.name}
+                  {getCalendarDisplayName(cal.name)}
                 </ThemedText>
               </Pressable>
             ))}
@@ -630,7 +638,7 @@ export default function CalendarScreen() {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                       Alert.alert(
                         "Event Options",
-                        `"${event.title}"${event.calendarName ? ` (${event.calendarName})` : ""}`,
+                        `"${event.title}"${event.calendarName ? ` (${getCalendarDisplayName(event.calendarName)})` : ""}`,
                         [
                           { text: "Cancel", style: "cancel" },
                           { text: "Edit", onPress: () => openEditModal(event) },
@@ -653,7 +661,7 @@ export default function CalendarScreen() {
                       {event.calendarName ? (
                         <View style={[styles.calendarBadge, { backgroundColor: `${color}40` }]}>
                           <ThemedText style={[styles.calendarBadgeText, { color }]} numberOfLines={1}>
-                            {event.calendarName}
+                            {getCalendarDisplayName(event.calendarName)}
                           </ThemedText>
                         </View>
                       ) : null}
