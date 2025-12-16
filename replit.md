@@ -9,7 +9,7 @@ Preferred communication style: Simple, everyday language.
 ## System Architecture
 
 ### Frontend Architecture
-The frontend is built with Expo SDK 54 and React Native 0.81, utilizing React 19 architecture with the React Compiler. Navigation is managed by React Navigation v7, featuring a root stack navigator, a bottom tab navigator with 7 tabs (Home, Contacts, Inbox, Calendar, Tasks, Memories, Settings), and a central floating action button for the Chat modal. Each tab contains its own native stack navigator for nested views. State management combines TanStack React Query for server state and caching, `useState` for local component state, and AsyncStorage for persistent local data. The styling enforces a dark-mode theme with gradient accents (indigo→purple, purple→pink) using `expo-linear-gradient` and `Reanimated` for smooth animations. Key UI components include custom themed elements, gradient text, and specialized cards for contacts, memories, and chat bubbles, along with a `VoiceInputButton` for voice-to-text.
+The frontend is built with Expo SDK 54 and React Native 0.81, utilizing React 19 architecture with the React Compiler. Navigation is managed by React Navigation v7, featuring a root stack navigator, a bottom tab navigator with 5 tabs (Home, Contacts, Comms, Calendar, Tasks), with Settings and Chat accessible from header icons. Each tab contains its own native stack navigator for nested views. State management combines TanStack React Query for server state and caching, `useState` for local component state, and AsyncStorage for persistent local data. The styling enforces a dark-mode theme with gradient accents (indigo→purple, purple→pink) using `expo-linear-gradient` and `Reanimated` for smooth animations. Key UI components include custom themed elements, gradient text, and specialized cards for contacts, memories, and chat bubbles, along with a `VoiceInputButton` for voice-to-text.
 
 ### Backend Architecture
 The backend is an Express.js server, featuring a minimal `/api` route structure and dynamic CORS configuration. It employs an interface-based storage abstraction (`IStorage`) currently using in-memory storage (`MemStorage`) but designed for migration to PostgreSQL with Drizzle ORM. The Drizzle ORM schema is defined in `shared/schema.ts` with Zod validation. Path aliases (`@/*` for client and `@shared/*` for shared code) are configured for streamlined development.
@@ -22,7 +22,7 @@ Client-side data is persisted using AsyncStorage with namespaced keys, storing d
 - **Communications Hub:** Elevated as primary communications interface with three tabs (SMS, Voice, Chat), replacing the old Inbox. SMS tab shows conversations with navigation to detail screens, Voice tab shows call history with details, Chat tab links to ZEKE AI chat.
 - **Contacts:** Alphabetical list with search, contact cards showing avatar, name, relationship, quick actions (call, message), color-coded by access level, and contact detail view with interaction history.
 - **SMS Screens:** Chat-style conversation view with bubbles and date separators, and a modal for composing new SMS messages with character count.
-- **Calendar:** Timeline view for daily events with current time indicator, event details, and voice input for adding events.
+- **Calendar:** Full CRUD operations across all Google Calendars with dedicated ZEKE calendar support. Timeline view showing daily events color-coded by calendar source, calendar filter chips, all-day events section, add/edit/delete event modals with calendar selection, current time indicator, and voice input for adding events.
 - **Tasks:** Filterable task lists (All, Pending, Completed) grouped by urgency, with priority indicators, completion toggles, and voice input for adding tasks.
 - **Memories:** Filterable (All, Starred), date-grouped memory cards with star toggles and swipe actions.
 - **Settings:** Device configuration, preference toggles, and app information.
@@ -50,11 +50,13 @@ Client-side data is persisted using AsyncStorage with namespaced keys, storing d
 - Client-side API adapter functions in `client/lib/zeke-api-adapter.ts` for Twilio data fetching with TypeScript interfaces for SMS conversations, messages, and call records.
 
 ### Google Calendar Integration
-- **Google Calendar**: Independent Google Calendar integration via Replit connector for real-time calendar sync. Server-side service layer in `server/google-calendar.ts` manages authentication using Replit's secure connector API. API endpoints include:
-  - `GET /api/calendar/today` - Fetch today's calendar events
+- **Google Calendar**: Independent Google Calendar integration via Replit connector for real-time calendar sync with full CRUD operations. Server-side service layer in `server/google-calendar.ts` manages authentication using Replit's secure connector API. API endpoints include:
+  - `GET /api/calendar/today` - Fetch today's calendar events with calendar metadata (name, color)
   - `GET /api/calendar/upcoming` - Fetch upcoming events (next 7 days)
-  - `GET /api/calendar/calendars` - List user's calendars
-  - `POST /api/calendar/events` - Create new calendar event
+  - `GET /api/calendar/calendars` - List user's calendars with colors
+  - `GET /api/calendar/zeke` - Get or create dedicated ZEKE calendar
+  - `POST /api/calendar/events` - Create new calendar event in any calendar
+  - `PATCH /api/calendar/events/:id` - Update calendar event
   - `DELETE /api/calendar/events/:id` - Delete calendar event
 - Client uses `getLocalApiUrl()` from `client/lib/query-client.ts` to ensure calendar API calls always route to the local backend where the Google Calendar connector is configured.
 
