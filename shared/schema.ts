@@ -132,3 +132,72 @@ export type ChatSession = typeof chatSessions.$inferSelect;
 
 export type InsertChatMessage = z.infer<typeof insertChatMessageSchema>;
 export type ChatMessage = typeof chatMessages.$inferSelect;
+
+export const locations = pgTable("locations", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: varchar("user_id"),
+  latitude: text("latitude").notNull(),
+  longitude: text("longitude").notNull(),
+  altitude: text("altitude"),
+  accuracy: text("accuracy"),
+  heading: text("heading"),
+  speed: text("speed"),
+  city: text("city"),
+  region: text("region"),
+  country: text("country"),
+  street: text("street"),
+  postalCode: text("postal_code"),
+  formattedAddress: text("formatted_address"),
+  isStarred: boolean("is_starred").default(false).notNull(),
+  label: text("label"),
+  recordedAt: timestamp("recorded_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const starredPlaces = pgTable("starred_places", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: varchar("user_id"),
+  name: text("name").notNull(),
+  latitude: text("latitude").notNull(),
+  longitude: text("longitude").notNull(),
+  city: text("city"),
+  region: text("region"),
+  country: text("country"),
+  formattedAddress: text("formatted_address"),
+  icon: text("icon"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const locationsRelations = relations(locations, ({ one }) => ({
+  user: one(users, {
+    fields: [locations.userId],
+    references: [users.id],
+  }),
+}));
+
+export const starredPlacesRelations = relations(starredPlaces, ({ one }) => ({
+  user: one(users, {
+    fields: [starredPlaces.userId],
+    references: [users.id],
+  }),
+}));
+
+export const insertLocationSchema = createInsertSchema(locations).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertStarredPlaceSchema = createInsertSchema(starredPlaces).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertLocation = z.infer<typeof insertLocationSchema>;
+export type LocationRecord = typeof locations.$inferSelect;
+
+export type InsertStarredPlace = z.infer<typeof insertStarredPlaceSchema>;
+export type StarredPlace = typeof starredPlaces.$inferSelect;

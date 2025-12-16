@@ -18,7 +18,15 @@ The backend is an Express.js server, featuring a minimal `/api` route structure 
 Client-side data is persisted using AsyncStorage with namespaced keys, storing devices, memories, chat messages, and settings. Server-side, Drizzle ORM is configured for PostgreSQL, with an in-memory fallback. The shared schema includes a `users` table.
 
 ### Feature Specifications
-- **Home Screen (Command Center):** Dynamic greeting with "ZEKE Command Center" subtitle, Quick Action Widgets (Call, Message, Record, Command buttons with gradient backgrounds), GPS Status card with live location tracking, Activity Timeline showing recent ZEKE actions, connection status, stats grid, and device management.
+- **Home Screen (Command Center):** Dynamic greeting with "ZEKE Command Center" subtitle, Quick Action Widgets (Call, Message, Record, Command buttons with gradient backgrounds), GPS Status card with live location tracking (tappable to navigate to full Location screen), Activity Timeline showing recent ZEKE actions, connection status, stats grid, and device management.
+- **Location Module:** Full geo-location system optimized for Android Pixel 8 with real-time GPS tracking using expo-location. Features include:
+  - Current location display with reverse geocoding (city, region, country)
+  - Location history tracking with local storage
+  - Starred places management for frequently visited locations
+  - Permission handling with settings navigation for denied permissions
+  - Distance calculations between current location and starred places
+  - Battery-optimized tracking with configurable accuracy settings
+  - API endpoints for location sync with ZEKE backend (`/api/location/*`)
 - **Communications Hub (Comms):** Unified communications interface with four tabs (SMS, Voice, Chat, Contacts). SMS tab shows conversations with navigation to detail screens, Voice tab shows call history with details, Chat tab links to ZEKE AI chat, and Contacts tab provides searchable contact list with quick call/message actions. Contacts are color-coded by access level (Family, Close Friend, Friend, Acquaintance), with detail views accessible from the Comms stack.
 - **SMS Screens:** Chat-style conversation view with bubbles and date separators, and a modal for composing new SMS messages with character count.
 - **Calendar:** Full CRUD operations across all Google Calendars with dedicated ZEKE calendar support. Timeline view showing daily events color-coded by calendar source, calendar filter chips, all-day events section, add/edit/delete event modals with calendar selection, current time indicator, and voice input for adding events.

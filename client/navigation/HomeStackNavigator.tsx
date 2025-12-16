@@ -8,6 +8,7 @@ import DataExportScreen from "@/screens/DataExportScreen";
 import AnalyticsScreen from "@/screens/AnalyticsScreen";
 import BluetoothConnectionScreen from "@/screens/BluetoothConnectionScreen";
 import LiveCaptureScreen from "@/screens/LiveCaptureScreen";
+import LocationScreen from "@/screens/LocationScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { ZekeHeaderTitle, ZekeHeaderButtons } from "@/components/ZekeHeader";
 
@@ -20,6 +21,7 @@ export type HomeStackParamList = {
   Analytics: undefined;
   BluetoothConnection: undefined;
   LiveCapture: undefined;
+  Location: undefined;
 };
 
 const Stack = createNativeStackNavigator<HomeStackParamList>();
@@ -85,6 +87,13 @@ export default function HomeStackNavigator() {
         component={LiveCaptureScreen}
         options={{
           headerTitle: "Live Capture",
+        }}
+      />
+      <Stack.Screen
+        name="Location"
+        component={LocationScreen}
+        options={{
+          headerTitle: "Location",
         }}
       />
     </Stack.Navigator>

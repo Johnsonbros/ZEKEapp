@@ -19,6 +19,7 @@ import { GradientText } from "@/components/GradientText";
 import { DeviceCard, DeviceInfo } from "@/components/DeviceCard";
 import { PulsingDot } from "@/components/PulsingDot";
 import { useTheme } from "@/hooks/useTheme";
+import { useLocation } from "@/hooks/useLocation";
 import { Spacing, Colors, BorderRadius, Gradients } from "@/constants/theme";
 import { queryClient, getApiUrl, isZekeSyncMode } from "@/lib/query-client";
 import { 
@@ -153,6 +154,16 @@ export default function HomeScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<HomeScreenNavigationProp>();
   const isSyncMode = isZekeSyncMode();
+
+  const {
+    location,
+    geocoded,
+    lastUpdated,
+    isLoading: isLocationLoading,
+    permissionStatus,
+    requestPermission,
+    refreshLocation,
+  } = useLocation();
 
   const handleUploadPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -339,24 +350,67 @@ export default function HomeScreen() {
           />
         </View>
 
-        <View style={[styles.monitoringCard, { backgroundColor: theme.backgroundDefault }]}>
+        <Pressable 
+          style={[styles.monitoringCard, { backgroundColor: theme.backgroundDefault }]}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            navigation.navigate('Location');
+          }}
+        >
           <View style={styles.monitoringHeader}>
             <View style={styles.monitoringTitleRow}>
               <Feather name="map-pin" size={18} color={Colors.dark.primary} />
               <ThemedText type="h4" style={{ marginLeft: Spacing.sm }}>Location Tracking</ThemedText>
             </View>
             <View style={styles.statusIndicator}>
-              <PulsingDot color={Colors.dark.success} size={8} />
-              <ThemedText type="caption" style={{ marginLeft: Spacing.xs, color: Colors.dark.success }}>Active</ThemedText>
+              {isLocationLoading ? (
+                <ActivityIndicator size="small" color={Colors.dark.primary} />
+              ) : permissionStatus === 'granted' && location ? (
+                <>
+                  <PulsingDot color={Colors.dark.success} size={8} />
+                  <ThemedText type="caption" style={{ marginLeft: Spacing.xs, color: Colors.dark.success }}>Active</ThemedText>
+                </>
+              ) : permissionStatus === 'denied' ? (
+                <ThemedText type="caption" style={{ color: Colors.dark.error }}>Denied</ThemedText>
+              ) : (
+                <ThemedText type="caption" style={{ color: Colors.dark.warning }}>Tap to Enable</ThemedText>
+              )}
             </View>
           </View>
           <View style={styles.locationInfo}>
-            <ThemedText type="body">San Francisco, CA</ThemedText>
-            <ThemedText type="caption" secondary style={{ marginTop: Spacing.xs }}>
-              Last updated: 2 min ago
-            </ThemedText>
+            {permissionStatus === 'granted' && geocoded ? (
+              <>
+                <ThemedText type="body">{geocoded.formattedAddress}</ThemedText>
+                <ThemedText type="caption" secondary style={{ marginTop: Spacing.xs }}>
+                  Last updated: {lastUpdated || 'Just now'}
+                </ThemedText>
+              </>
+            ) : permissionStatus === 'granted' && location ? (
+              <>
+                <ThemedText type="body">
+                  {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
+                </ThemedText>
+                <ThemedText type="caption" secondary style={{ marginTop: Spacing.xs }}>
+                  Last updated: {lastUpdated || 'Just now'}
+                </ThemedText>
+              </>
+            ) : permissionStatus === 'denied' ? (
+              <>
+                <ThemedText type="body">Location access denied</ThemedText>
+                <ThemedText type="caption" secondary style={{ marginTop: Spacing.xs }}>
+                  {Platform.OS !== 'web' ? 'Tap to open settings' : 'Enable location in browser'}
+                </ThemedText>
+              </>
+            ) : (
+              <>
+                <ThemedText type="body">Enable location access</ThemedText>
+                <ThemedText type="caption" secondary style={{ marginTop: Spacing.xs }}>
+                  Tap to allow ZEKE to track your location
+                </ThemedText>
+              </>
+            )}
           </View>
-        </View>
+        </Pressable>
 
         <View style={[styles.monitoringCard, { backgroundColor: theme.backgroundDefault }]}>
           <View style={styles.monitoringHeader}>
