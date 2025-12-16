@@ -96,14 +96,19 @@ async function ensureGitConfig() {
 
 const EXCLUDED_FOLDERS = ['android'];
 
-async function removeExcludedFolders(repoPath: string): Promise<void> {
-  for (const folder of EXCLUDED_FOLDERS) {
-    const folderPath = path.join(repoPath, folder);
-    if (fs.existsSync(folderPath)) {
-      fs.rmSync(folderPath, { recursive: true, force: true });
-      console.log(`[GitHub] Removed excluded folder: ${folder}`);
-    }
+async function setupSparseCheckout(repoPath: string): Promise<void> {
+  const sparseFile = path.join(repoPath, '.git', 'info', 'sparse-checkout');
+  const sparseDir = path.dirname(sparseFile);
+  
+  if (!fs.existsSync(sparseDir)) {
+    fs.mkdirSync(sparseDir, { recursive: true });
   }
+  
+  const patterns = ['/*', ...EXCLUDED_FOLDERS.map(f => `!/${f}`)];
+  fs.writeFileSync(sparseFile, patterns.join('\n') + '\n');
+  
+  await execFileAsync('git', ['-C', repoPath, 'config', 'core.sparseCheckout', 'true']);
+  console.log(`[GitHub] Sparse checkout configured to exclude: ${EXCLUDED_FOLDERS.join(', ')}`);
 }
 
 async function pullFromGitHub(owner: string, repo: string, branch: string, targetDir: string): Promise<string> {
@@ -120,15 +125,16 @@ async function pullFromGitHub(owner: string, repo: string, branch: string, targe
   try {
     if (!fs.existsSync(gitDir)) {
       console.log(`[GitHub] Cloning ${owner}/${repo} to ${repoPath}`);
-      await execFileAsync('git', ['clone', '--branch', branch, cloneUrl, repoPath]);
-      await removeExcludedFolders(repoPath);
+      await execFileAsync('git', ['clone', '--no-checkout', '--branch', branch, cloneUrl, repoPath]);
+      await setupSparseCheckout(repoPath);
+      await execFileAsync('git', ['-C', repoPath, 'checkout', branch]);
       return `Cloned ${owner}/${repo} (${branch}) to ${targetDir} (excluded: ${EXCLUDED_FOLDERS.join(', ')})`;
     } else {
       console.log(`[GitHub] Pulling latest changes for ${owner}/${repo}`);
       await execFileAsync('git', ['-C', repoPath, 'remote', 'set-url', 'origin', cloneUrl]);
+      await setupSparseCheckout(repoPath);
       await execFileAsync('git', ['-C', repoPath, 'fetch', 'origin']);
-      await execFileAsync('git', ['-C', repoPath, 'reset', '--hard', `origin/${branch}`]);
-      await removeExcludedFolders(repoPath);
+      await execFileAsync('git', ['-C', repoPath, 'read-tree', '-mu', `origin/${branch}`]);
       return `Pulled latest from ${owner}/${repo} (${branch}) (excluded: ${EXCLUDED_FOLDERS.join(', ')})`;
     }
   } catch (error: any) {
