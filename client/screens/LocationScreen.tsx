@@ -1103,6 +1103,7 @@ export default function LocationScreen() {
   );
 
   const renderAddGeofenceModal = () => (
+    <>
     <Modal
       visible={showAddGeofenceModal}
       animationType="slide"
@@ -1383,6 +1384,7 @@ export default function LocationScreen() {
         </KeyboardAwareScrollViewCompat>
       </View>
     </Modal>
+  </>
   );
 
   return (
