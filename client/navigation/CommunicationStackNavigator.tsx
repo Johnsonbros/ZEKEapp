@@ -1,11 +1,11 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import CommunicationLogScreen from "@/screens/CommunicationLogScreen";
+import CommunicationsHubScreen from "@/screens/CommunicationsHubScreen";
 import SmsConversationScreen from "@/screens/SmsConversationScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 
 export type CommunicationStackParamList = {
-  CommunicationLog: undefined;
+  CommunicationsHub: undefined;
   SmsConversation: {
     conversationId?: string;
     contactId?: string;
@@ -22,10 +22,10 @@ export default function CommunicationStackNavigator() {
   return (
     <Stack.Navigator screenOptions={screenOptions}>
       <Stack.Screen
-        name="CommunicationLog"
-        component={CommunicationLogScreen}
+        name="CommunicationsHub"
+        component={CommunicationsHubScreen}
         options={{
-          headerTitle: "Inbox",
+          headerTitle: "Communications",
         }}
       />
       <Stack.Screen

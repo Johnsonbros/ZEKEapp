@@ -93,9 +93,9 @@ export default function MainTabNavigator() {
           name="InboxTab"
           component={CommunicationStackNavigator}
           options={{
-            title: "Inbox",
+            title: "Comms",
             tabBarIcon: ({ color, size }) => (
-              <Feather name="message-circle" size={size} color={color} />
+              <Feather name="phone" size={size} color={color} />
             ),
           }}
         />

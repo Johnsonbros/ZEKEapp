@@ -1,8 +1,42 @@
 import { WebSocketServer, WebSocket } from "ws";
 import type { Server } from "node:http";
+import type { IncomingMessage } from "node:http";
 import OpenAI, { toFile } from "openai";
+import { z } from "zod";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+export type ZekeSyncMessageType = 'sms' | 'voice' | 'activity' | 'device_status' | 'notification';
+
+export interface ZekeSyncMessage {
+  type: ZekeSyncMessageType;
+  action: 'created' | 'updated' | 'deleted' | 'status_change';
+  data?: unknown;
+  timestamp: string;
+}
+
+const zekeSyncMessageSchema = z.object({
+  type: z.enum(['sms', 'voice', 'activity', 'device_status', 'notification']),
+  action: z.enum(['created', 'updated', 'deleted', 'status_change']),
+  data: z.unknown().optional(),
+  timestamp: z.string().optional(),
+});
+
+const zekeSyncClients = new Set<WebSocket>();
+
+export function broadcastZekeSync(message: ZekeSyncMessage): void {
+  const messageStr = JSON.stringify(message);
+  zekeSyncClients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(messageStr);
+    }
+  });
+  console.log(`[ZEKE Sync] Broadcast to ${zekeSyncClients.size} clients:`, message.type, message.action);
+}
+
+export function getZekeSyncClientCount(): number {
+  return zekeSyncClients.size;
+}
 
 const AUDIO_SAMPLE_RATE = 16000;
 const AUDIO_CHANNELS = 1;
@@ -217,16 +251,84 @@ function cleanupSession(ws: WebSocket): void {
   }
 }
 
-export function setupWebSocketServer(server: Server): WebSocketServer {
+function setupZekeSyncWebSocket(server: Server): WebSocketServer {
+  const wss = new WebSocketServer({ 
+    server,
+    path: "/ws/zeke",
+  });
+
+  console.log("ZEKE Sync WebSocket server initialized at /ws/zeke");
+
+  wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
+    console.log("[ZEKE Sync] Client connected from:", req.socket.remoteAddress);
+    zekeSyncClients.add(ws);
+
+    ws.send(JSON.stringify({
+      type: 'notification',
+      action: 'created',
+      data: { message: 'Connected to ZEKE sync' },
+      timestamp: new Date().toISOString(),
+    }));
+
+    // TODO: Implement token-based authentication for production use
+    // Currently only validating message structure, not authenticating clients
+    ws.on("message", (data: Buffer | string) => {
+      try {
+        const messageStr = typeof data === "string" ? data : data.toString();
+        const rawMessage = JSON.parse(messageStr);
+        console.log("[ZEKE Sync] Received message:", rawMessage);
+        
+        const validationResult = zekeSyncMessageSchema.safeParse(rawMessage);
+        
+        if (!validationResult.success) {
+          console.error("[ZEKE Sync] Validation failed:", validationResult.error.format());
+          ws.send(JSON.stringify({ 
+            type: 'error', 
+            message: 'Invalid message format' 
+          }));
+          return;
+        }
+        
+        const message = validationResult.data;
+        broadcastZekeSync({
+          type: message.type,
+          action: message.action,
+          data: message.data,
+          timestamp: message.timestamp || new Date().toISOString(),
+        });
+      } catch (error) {
+        console.error("[ZEKE Sync] Message parse error:", error);
+        ws.send(JSON.stringify({ 
+          type: 'error', 
+          message: 'Invalid message format' 
+        }));
+      }
+    });
+
+    ws.on("close", () => {
+      console.log("[ZEKE Sync] Client disconnected");
+      zekeSyncClients.delete(ws);
+    });
+
+    ws.on("error", (error: Error) => {
+      console.error("[ZEKE Sync] WebSocket error:", error);
+      zekeSyncClients.delete(ws);
+    });
+  });
+
+  return wss;
+}
+
+function setupAudioWebSocket(server: Server): WebSocketServer {
   const wss = new WebSocketServer({ 
     server,
     path: "/ws/audio",
   });
 
-  console.log("WebSocket server initialized at /ws/audio");
+  console.log("Audio WebSocket server initialized at /ws/audio");
 
   wss.on("connection", (ws: WebSocket) => {
-    console.log("WebSocket client connected");
+    console.log("Audio WebSocket client connected");
 
     ws.on("message", async (data: Buffer | string) => {
       try {
@@ -276,15 +378,20 @@ export function setupWebSocketServer(server: Server): WebSocketServer {
     });
 
     ws.on("close", () => {
-      console.log("WebSocket client disconnected");
+      console.log("Audio WebSocket client disconnected");
       cleanupSession(ws);
     });
 
-    ws.on("error", (error) => {
-      console.error("WebSocket error:", error);
+    ws.on("error", (error: Error) => {
+      console.error("Audio WebSocket error:", error);
       cleanupSession(ws);
     });
   });
 
   return wss;
+}
+
+export function setupWebSocketServer(server: Server): WebSocketServer {
+  setupZekeSyncWebSocket(server);
+  return setupAudioWebSocket(server);
 }

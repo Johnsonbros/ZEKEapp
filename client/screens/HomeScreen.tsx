@@ -1,5 +1,5 @@
 import React, { useCallback } from "react";
-import { View, ScrollView, StyleSheet, RefreshControl, Pressable, ActivityIndicator } from "react-native";
+import { View, ScrollView, StyleSheet, RefreshControl, Pressable, ActivityIndicator, Alert, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
@@ -7,9 +7,12 @@ import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, CompositeNavigationProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import type { HomeStackParamList } from "@/navigation/HomeStackNavigator";
+import type { MainTabParamList } from "@/navigation/MainTabNavigator";
+import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 
 import { ThemedText } from "@/components/ThemedText";
 import { GradientText } from "@/components/GradientText";
@@ -70,7 +73,13 @@ function mapApiDeviceToDeviceInfo(device: ApiDevice): DeviceInfo {
   };
 }
 
-type HomeScreenNavigationProp = NativeStackNavigationProp<HomeStackParamList, 'Home'>;
+type HomeScreenNavigationProp = CompositeNavigationProp<
+  NativeStackNavigationProp<HomeStackParamList, 'Home'>,
+  CompositeNavigationProp<
+    BottomTabNavigationProp<MainTabParamList>,
+    NativeStackNavigationProp<RootStackParamList>
+  >
+>;
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -90,6 +99,53 @@ function formatEventTime(startTime: string, endTime?: string): string {
   return timeStr;
 }
 
+interface QuickActionButtonProps {
+  icon: keyof typeof Feather.glyphMap;
+  label: string;
+  gradientColors: readonly [string, string];
+  onPress: () => void;
+}
+
+function QuickActionButton({ icon, label, gradientColors, onPress }: QuickActionButtonProps) {
+  const handlePress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    onPress();
+  };
+
+  return (
+    <Pressable
+      onPress={handlePress}
+      style={({ pressed }) => [styles.quickActionButton, { opacity: pressed ? 0.8 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] }]}
+    >
+      <LinearGradient
+        colors={gradientColors}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.quickActionGradient}
+      >
+        <View style={styles.quickActionIconContainer}>
+          <Feather name={icon} size={24} color="#FFFFFF" />
+        </View>
+        <ThemedText type="small" style={styles.quickActionLabel}>{label}</ThemedText>
+      </LinearGradient>
+    </Pressable>
+  );
+}
+
+interface ActivityItem {
+  id: string;
+  action: string;
+  timestamp: string;
+  icon: keyof typeof Feather.glyphMap;
+}
+
+const mockActivities: ActivityItem[] = [
+  { id: '1', action: 'Sent SMS to Sarah', timestamp: '2 min ago', icon: 'message-circle' },
+  { id: '2', action: 'Recorded 5 min meeting', timestamp: '15 min ago', icon: 'mic' },
+  { id: '3', action: 'Added task: Review proposal', timestamp: '1 hr ago', icon: 'check-square' },
+  { id: '4', action: 'Synced calendar events', timestamp: '2 hr ago', icon: 'calendar' },
+];
+
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
@@ -101,6 +157,62 @@ export default function HomeScreen() {
   const handleUploadPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     navigation.navigate('AudioUpload');
+  };
+
+  const handleCallPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (Platform.OS === 'web') {
+      const goToComms = window.confirm('Voice Calling\n\nTo make calls directly from ZEKE, you\'ll need to set up Twilio integration for VoIP calling.\n\nIn the meantime, you can view your call history and contacts in the Communications tab.\n\nClick OK to go to Communications.');
+      if (goToComms) {
+        navigation.navigate('InboxTab');
+      }
+    } else {
+      Alert.alert(
+        'Voice Calling',
+        'To make calls directly from ZEKE, you\'ll need to set up Twilio integration for VoIP calling.\n\nIn the meantime, you can view your call history and contacts in the Communications tab.',
+        [
+          { text: 'Go to Comms', onPress: () => navigation.navigate('InboxTab') },
+          { text: 'Cancel', style: 'cancel' },
+        ]
+      );
+    }
+  };
+
+  const handleMessagePress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    navigation.navigate('SmsCompose');
+  };
+
+  const handleRecordPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (Platform.OS === 'web') {
+      const uploadAudio = window.confirm('Audio Recording\n\nZEKE supports two ways to capture audio:\n\n1. Connect an Omi or Limitless device for continuous recording\n\n2. Upload existing audio files for transcription\n\nClick OK to upload audio.');
+      if (uploadAudio) {
+        navigation.navigate('AudioUpload');
+      }
+    } else {
+      Alert.alert(
+        'Audio Recording',
+        'ZEKE supports two ways to capture audio:\n\n1. Connect an Omi or Limitless device for continuous recording\n\n2. Upload existing audio files for transcription',
+        [
+          { text: 'Upload Audio', onPress: () => navigation.navigate('AudioUpload') },
+          { text: 'Cancel', style: 'cancel' },
+        ]
+      );
+    }
+  };
+
+  const handleCommandPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (Platform.OS === 'web') {
+      window.alert('Voice Commands\n\nComing soon! Voice commands will let you:\n\n• Add tasks and calendar events\n• Send messages hands-free\n• Search your memories\n• Control ZEKE settings\n\nStay tuned for updates!');
+    } else {
+      Alert.alert(
+        'Voice Commands',
+        'Coming soon! Voice commands will let you:\n\n• Add tasks and calendar events\n• Send messages hands-free\n• Search your memories\n• Control ZEKE settings\n\nStay tuned for updates!',
+        [{ text: 'Got it' }]
+      );
+    }
   };
 
   const { data: connectionStatus } = useQuery({
@@ -188,14 +300,92 @@ export default function HomeScreen() {
       }
     >
       <View style={styles.headerSection}>
+        <View style={styles.greetingSection}>
+          <GradientText type="h2" colors={Gradients.primary}>
+            {getGreeting()}{isSyncMode && dashboardSummary?.userName ? `, ${dashboardSummary.userName}` : ''}
+          </GradientText>
+          <ThemedText type="body" secondary style={{ marginTop: Spacing.xs }}>
+            ZEKE Command Center
+          </ThemedText>
+        </View>
+
+        <View style={styles.sectionHeader}>
+          <ThemedText type="h4">Quick Actions</ThemedText>
+        </View>
+        <View style={styles.quickActionsGrid}>
+          <QuickActionButton
+            icon="phone"
+            label="Call"
+            gradientColors={['#6366F1', '#8B5CF6']}
+            onPress={handleCallPress}
+          />
+          <QuickActionButton
+            icon="message-circle"
+            label="Message"
+            gradientColors={['#8B5CF6', '#A855F7']}
+            onPress={handleMessagePress}
+          />
+          <QuickActionButton
+            icon="mic"
+            label="Record"
+            gradientColors={['#EC4899', '#F472B6']}
+            onPress={handleRecordPress}
+          />
+          <QuickActionButton
+            icon="terminal"
+            label="Command"
+            gradientColors={['#10B981', '#34D399']}
+            onPress={handleCommandPress}
+          />
+        </View>
+
+        <View style={[styles.monitoringCard, { backgroundColor: theme.backgroundDefault }]}>
+          <View style={styles.monitoringHeader}>
+            <View style={styles.monitoringTitleRow}>
+              <Feather name="map-pin" size={18} color={Colors.dark.primary} />
+              <ThemedText type="h4" style={{ marginLeft: Spacing.sm }}>Location Tracking</ThemedText>
+            </View>
+            <View style={styles.statusIndicator}>
+              <PulsingDot color={Colors.dark.success} size={8} />
+              <ThemedText type="caption" style={{ marginLeft: Spacing.xs, color: Colors.dark.success }}>Active</ThemedText>
+            </View>
+          </View>
+          <View style={styles.locationInfo}>
+            <ThemedText type="body">San Francisco, CA</ThemedText>
+            <ThemedText type="caption" secondary style={{ marginTop: Spacing.xs }}>
+              Last updated: 2 min ago
+            </ThemedText>
+          </View>
+        </View>
+
+        <View style={[styles.monitoringCard, { backgroundColor: theme.backgroundDefault }]}>
+          <View style={styles.monitoringHeader}>
+            <View style={styles.monitoringTitleRow}>
+              <Feather name="activity" size={18} color={Colors.dark.accent} />
+              <ThemedText type="h4" style={{ marginLeft: Spacing.sm }}>Activity Timeline</ThemedText>
+            </View>
+          </View>
+          {mockActivities.map((activity, index) => (
+            <View 
+              key={activity.id} 
+              style={[
+                styles.activityItem, 
+                index === mockActivities.length - 1 ? { marginBottom: 0 } : null
+              ]}
+            >
+              <View style={[styles.activityIconContainer, { backgroundColor: `${Colors.dark.primary}20` }]}>
+                <Feather name={activity.icon} size={14} color={Colors.dark.primary} />
+              </View>
+              <View style={styles.activityContent}>
+                <ThemedText type="small" numberOfLines={1}>{activity.action}</ThemedText>
+                <ThemedText type="caption" secondary>{activity.timestamp}</ThemedText>
+              </View>
+            </View>
+          ))}
+        </View>
+
         {isSyncMode ? (
           <>
-            <View style={styles.greetingSection}>
-              <GradientText type="h2" colors={Gradients.primary}>
-                {getGreeting()}{dashboardSummary?.userName ? `, ${dashboardSummary.userName}` : ''}
-              </GradientText>
-            </View>
-
             <View style={styles.statsGrid}>
               <View style={[styles.statCard, { backgroundColor: theme.backgroundDefault }]}>
                 <View style={[styles.statIconContainer, { backgroundColor: 'rgba(99, 102, 241, 0.2)' }]}>
@@ -268,17 +458,8 @@ export default function HomeScreen() {
           </>
         ) : (
           <>
-            <View style={styles.greetingSection}>
-              <GradientText type="h2" colors={Gradients.primary}>
-                {getGreeting()}
-              </GradientText>
-              <ThemedText type="body" secondary style={{ marginTop: Spacing.xs }}>
-                Your AI companion is ready
-              </ThemedText>
-            </View>
-
             <View style={styles.sectionHeader}>
-              <ThemedText type="h3">Connected Devices</ThemedText>
+              <ThemedText type="h4">Connected Devices</ThemedText>
               {devices.length > 0 && (
                 <View style={styles.deviceCount}>
                   <View
@@ -382,17 +563,88 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.md,
+    marginTop: Spacing.md,
   },
   deviceCount: {
     flexDirection: "row",
     alignItems: "center",
+  },
+  quickActionsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginHorizontal: -Spacing.xs,
+    marginBottom: Spacing.lg,
+  },
+  quickActionButton: {
+    width: "48%",
+    marginHorizontal: "1%",
+    marginBottom: Spacing.sm,
+  },
+  quickActionGradient: {
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 90,
+  },
+  quickActionIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing.sm,
+  },
+  quickActionLabel: {
+    color: "#FFFFFF",
+    fontWeight: "600",
+  },
+  monitoringCard: {
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.md,
+  },
+  monitoringHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  monitoringTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  statusIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  locationInfo: {
+    marginTop: Spacing.xs,
+  },
+  activityItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  activityIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: Spacing.sm,
+  },
+  activityContent: {
+    flex: 1,
   },
   statsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     marginHorizontal: -Spacing.xs,
     marginBottom: Spacing.lg,
+    marginTop: Spacing.md,
   },
   statCard: {
     width: "48%",
