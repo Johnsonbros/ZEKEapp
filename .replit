@@ -53,5 +53,5 @@ ensurePreviewReachable = "/status"
 [userenv]
 
 [userenv.shared]
-EXPO_PUBLIC_ZEKE_BACKEND_URL = "https://zekeassistant.aisyncservice.repl.co"
+EXPO_PUBLIC_ZEKE_BACKEND_URL = "https://zekeai.replit.app"
 
