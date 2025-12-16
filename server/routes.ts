@@ -988,6 +988,73 @@ Return at most ${Math.min(limit, 10)} results. Only include memories with releva
   });
 
   // =========================================
+  // Google Calendar Routes
+  // =========================================
+
+  app.get("/api/calendar/today", async (_req, res) => {
+    try {
+      const { getTodayEvents } = await import("./google-calendar");
+      const events = await getTodayEvents();
+      res.json(events);
+    } catch (error: any) {
+      console.error("[Google Calendar] Error fetching today's events:", error);
+      if (error.message?.includes('not connected')) {
+        return res.status(503).json({ error: "Google Calendar not connected" });
+      }
+      res.status(500).json({ error: "Failed to fetch calendar events" });
+    }
+  });
+
+  app.get("/api/calendar/upcoming", async (req, res) => {
+    try {
+      const days = parseInt(req.query.days as string) || 7;
+      const limit = parseInt(req.query.limit as string) || 50;
+      const { getUpcomingEvents } = await import("./google-calendar");
+      const events = await getUpcomingEvents(days);
+      res.json(events.slice(0, limit));
+    } catch (error: any) {
+      console.error("[Google Calendar] Error fetching upcoming events:", error);
+      if (error.message?.includes('not connected')) {
+        return res.status(503).json({ error: "Google Calendar not connected" });
+      }
+      res.status(500).json({ error: "Failed to fetch calendar events" });
+    }
+  });
+
+  app.get("/api/calendar/events", async (req, res) => {
+    try {
+      const { timeMin, timeMax, calendarId } = req.query;
+      const { getEvents } = await import("./google-calendar");
+      const events = await getEvents(
+        timeMin as string | undefined,
+        timeMax as string | undefined,
+        (calendarId as string) || 'primary'
+      );
+      res.json(events);
+    } catch (error: any) {
+      console.error("[Google Calendar] Error fetching events:", error);
+      if (error.message?.includes('not connected')) {
+        return res.status(503).json({ error: "Google Calendar not connected" });
+      }
+      res.status(500).json({ error: "Failed to fetch calendar events" });
+    }
+  });
+
+  app.get("/api/calendar/calendars", async (_req, res) => {
+    try {
+      const { getCalendarList } = await import("./google-calendar");
+      const calendars = await getCalendarList();
+      res.json(calendars);
+    } catch (error: any) {
+      console.error("[Google Calendar] Error fetching calendar list:", error);
+      if (error.message?.includes('not connected')) {
+        return res.status(503).json({ error: "Google Calendar not connected" });
+      }
+      res.status(500).json({ error: "Failed to fetch calendar list" });
+    }
+  });
+
+  // =========================================
   // Deepgram Configuration Status Endpoint (secure - no API key exposed)
   // =========================================
   
