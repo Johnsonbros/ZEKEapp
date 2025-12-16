@@ -1054,6 +1054,109 @@ Return at most ${Math.min(limit, 10)} results. Only include memories with releva
     }
   });
 
+  app.get("/api/calendar/zeke", async (_req, res) => {
+    try {
+      const { getOrCreateZekeCalendar } = await import("./google-calendar");
+      const zekeCalendar = await getOrCreateZekeCalendar();
+      res.json(zekeCalendar);
+    } catch (error: any) {
+      console.error("[Google Calendar] Error getting ZEKE calendar:", error);
+      if (error.message?.includes('not connected')) {
+        return res.status(503).json({ error: "Google Calendar not connected" });
+      }
+      res.status(500).json({ error: "Failed to get ZEKE calendar" });
+    }
+  });
+
+  app.post("/api/calendar/events", async (req, res) => {
+    try {
+      const { title, startTime, endTime, description, location, calendarId } = req.body;
+      
+      if (!title || !startTime) {
+        return res.status(400).json({ error: "Title and startTime are required" });
+      }
+      
+      const { createEvent } = await import("./google-calendar");
+      const event = await createEvent({
+        title,
+        startTime,
+        endTime,
+        description,
+        location,
+        calendarId,
+      });
+      res.status(201).json(event);
+    } catch (error: any) {
+      console.error("[Google Calendar] Error creating event:", error);
+      if (error.message?.includes('not connected')) {
+        return res.status(503).json({ error: "Google Calendar not connected" });
+      }
+      res.status(500).json({ error: "Failed to create event" });
+    }
+  });
+
+  app.patch("/api/calendar/events/:eventId", async (req, res) => {
+    try {
+      const { eventId } = req.params;
+      const { calendarId, title, startTime, endTime, description, location } = req.body;
+      
+      let targetCalendarId = calendarId;
+      
+      // If no calendarId provided, try to find the event
+      if (!targetCalendarId) {
+        const { findEventCalendarId } = await import("./google-calendar");
+        targetCalendarId = await findEventCalendarId(eventId);
+        if (!targetCalendarId) {
+          return res.status(404).json({ error: "Event not found" });
+        }
+      }
+      
+      const { updateEvent } = await import("./google-calendar");
+      const event = await updateEvent(eventId, targetCalendarId, {
+        title,
+        startTime,
+        endTime,
+        description,
+        location,
+      });
+      res.json(event);
+    } catch (error: any) {
+      console.error("[Google Calendar] Error updating event:", error);
+      if (error.message?.includes('not connected')) {
+        return res.status(503).json({ error: "Google Calendar not connected" });
+      }
+      res.status(500).json({ error: "Failed to update event" });
+    }
+  });
+
+  app.delete("/api/calendar/events/:eventId", async (req, res) => {
+    try {
+      const { eventId } = req.params;
+      const { calendarId } = req.query;
+      
+      let targetCalendarId = calendarId as string;
+      
+      // If no calendarId provided, try to find the event
+      if (!targetCalendarId) {
+        const { findEventCalendarId } = await import("./google-calendar");
+        targetCalendarId = await findEventCalendarId(eventId) || '';
+        if (!targetCalendarId) {
+          return res.status(404).json({ error: "Event not found" });
+        }
+      }
+      
+      const { deleteEvent } = await import("./google-calendar");
+      await deleteEvent(eventId, targetCalendarId);
+      res.status(204).send();
+    } catch (error: any) {
+      console.error("[Google Calendar] Error deleting event:", error);
+      if (error.message?.includes('not connected')) {
+        return res.status(503).json({ error: "Google Calendar not connected" });
+      }
+      res.status(500).json({ error: "Failed to delete event" });
+    }
+  });
+
   // =========================================
   // Deepgram Configuration Status Endpoint (secure - no API key exposed)
   // =========================================

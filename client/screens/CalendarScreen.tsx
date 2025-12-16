@@ -27,26 +27,18 @@ import { queryClient } from "@/lib/query-client";
 import {
   getTodayEvents,
   createCalendarEvent,
+  updateCalendarEvent,
   deleteCalendarEvent,
+  getCalendarList,
+  getZekeCalendar,
   chatWithZeke,
   type ZekeEvent,
+  type ZekeCalendar,
 } from "@/lib/zeke-api-adapter";
 
 const HOUR_HEIGHT = 60;
 const TIMELINE_START_HOUR = 6;
 const TIMELINE_END_HOUR = 23;
-
-const EVENT_COLORS = [
-  Colors.dark.primary,
-  Colors.dark.secondary,
-  Colors.dark.accent,
-  Colors.dark.success,
-  Colors.dark.warning,
-];
-
-function getEventColor(index: number): string {
-  return EVENT_COLORS[index % EVENT_COLORS.length];
-}
 
 function formatTime(dateString: string): string {
   const date = new Date(dateString);
@@ -94,27 +86,35 @@ function getCurrentTimePosition(): number {
 
 interface EventCardProps {
   event: ZekeEvent;
-  colorIndex: number;
-  onDelete: (id: string) => void;
+  onPress: (event: ZekeEvent) => void;
+  onDelete: (event: ZekeEvent) => void;
   theme: any;
 }
 
-function EventCard({ event, colorIndex, onDelete, theme }: EventCardProps) {
-  const color = getEventColor(colorIndex);
+function EventCard({ event, onPress, onDelete, theme }: EventCardProps) {
+  const color = event.color || Colors.dark.primary;
   const top = getEventPosition(event.startTime);
   const height = getEventHeight(event.startTime, event.endTime);
+
+  const handlePress = () => {
+    onPress(event);
+  };
 
   const handleLongPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
-      "Delete Event",
-      `Remove "${event.title}" from your calendar?`,
+      "Event Options",
+      `"${event.title}"${event.calendarName ? ` (${event.calendarName})` : ""}`,
       [
         { text: "Cancel", style: "cancel" },
         {
+          text: "Edit",
+          onPress: () => onPress(event),
+        },
+        {
           text: "Delete",
           style: "destructive",
-          onPress: () => onDelete(event.id),
+          onPress: () => onDelete(event),
         },
       ]
     );
@@ -122,6 +122,7 @@ function EventCard({ event, colorIndex, onDelete, theme }: EventCardProps) {
 
   return (
     <Pressable
+      onPress={handlePress}
       onLongPress={handleLongPress}
       style={[
         styles.eventCard,
@@ -134,10 +135,19 @@ function EventCard({ event, colorIndex, onDelete, theme }: EventCardProps) {
       ]}
     >
       <View style={styles.eventContent}>
-        <ThemedText style={[styles.eventTime, { color }]} numberOfLines={1}>
-          {formatTime(event.startTime)}
-          {event.endTime ? ` - ${formatTime(event.endTime)}` : ""}
-        </ThemedText>
+        <View style={styles.eventHeader}>
+          <ThemedText style={[styles.eventTime, { color }]} numberOfLines={1}>
+            {formatTime(event.startTime)}
+            {event.endTime ? ` - ${formatTime(event.endTime)}` : ""}
+          </ThemedText>
+          {event.calendarName ? (
+            <View style={[styles.calendarBadge, { backgroundColor: `${color}40` }]}>
+              <ThemedText style={[styles.calendarBadgeText, { color }]} numberOfLines={1}>
+                {event.calendarName}
+              </ThemedText>
+            </View>
+          ) : null}
+        </View>
         <ThemedText style={styles.eventTitle} numberOfLines={2}>
           {event.title}
         </ThemedText>
@@ -164,11 +174,15 @@ export default function CalendarScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const { theme } = useTheme();
 
-  const [isAddModalVisible, setIsAddModalVisible] = useState(false);
-  const [newEventTitle, setNewEventTitle] = useState("");
-  const [newEventStartTime, setNewEventStartTime] = useState("");
-  const [newEventEndTime, setNewEventEndTime] = useState("");
-  const [newEventLocation, setNewEventLocation] = useState("");
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<ZekeEvent | null>(null);
+  const [eventTitle, setEventTitle] = useState("");
+  const [eventStartTime, setEventStartTime] = useState("");
+  const [eventEndTime, setEventEndTime] = useState("");
+  const [eventLocation, setEventLocation] = useState("");
+  const [eventDescription, setEventDescription] = useState("");
+  const [selectedCalendarId, setSelectedCalendarId] = useState<string>("primary");
+  const [filterCalendarId, setFilterCalendarId] = useState<string | null>(null);
   const [isProcessingVoice, setIsProcessingVoice] = useState(false);
 
   const {
@@ -181,31 +195,66 @@ export default function CalendarScreen() {
     queryFn: getTodayEvents,
   });
 
+  const { data: calendars = [] } = useQuery<ZekeCalendar[]>({
+    queryKey: ["calendar-list"],
+    queryFn: getCalendarList,
+  });
+
+  const { data: zekeCalendar } = useQuery<ZekeCalendar | null>({
+    queryKey: ["zeke-calendar"],
+    queryFn: getZekeCalendar,
+  });
+
   const addMutation = useMutation({
     mutationFn: (data: {
       title: string;
       startTime: string;
       endTime?: string;
       location?: string;
+      calendarId?: string;
+      description?: string;
     }) =>
       createCalendarEvent(
         data.title,
         data.startTime,
         data.endTime,
-        data.location
+        data.location,
+        data.calendarId,
+        data.description
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["calendar-events-today"] });
-      setIsAddModalVisible(false);
-      resetForm();
+      queryClient.invalidateQueries({ queryKey: ["calendar-list"] });
+      closeModal();
     },
     onError: () => {
       Alert.alert("Error", "Failed to add event. Please try again.");
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: (data: {
+      eventId: string;
+      updates: {
+        title?: string;
+        startTime?: string;
+        endTime?: string;
+        location?: string;
+        description?: string;
+        calendarId?: string;
+      };
+    }) => updateCalendarEvent(data.eventId, data.updates),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["calendar-events-today"] });
+      closeModal();
+    },
+    onError: () => {
+      Alert.alert("Error", "Failed to update event. Please try again.");
+    },
+  });
+
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => deleteCalendarEvent(id),
+    mutationFn: (event: ZekeEvent) => deleteCalendarEvent(event.id, event.calendarId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["calendar-events-today"] });
     },
@@ -215,32 +264,59 @@ export default function CalendarScreen() {
   });
 
   const resetForm = () => {
-    setNewEventTitle("");
-    setNewEventStartTime("");
-    setNewEventEndTime("");
-    setNewEventLocation("");
+    setEventTitle("");
+    setEventStartTime("");
+    setEventEndTime("");
+    setEventLocation("");
+    setEventDescription("");
+    setSelectedCalendarId("primary");
+    setEditingEvent(null);
   };
 
-  const handleAddEvent = () => {
-    if (!newEventTitle.trim()) {
+  const closeModal = () => {
+    setIsModalVisible(false);
+    resetForm();
+  };
+
+  const openAddModal = () => {
+    resetForm();
+    if (zekeCalendar) {
+      setSelectedCalendarId(zekeCalendar.id);
+    }
+    setIsModalVisible(true);
+  };
+
+  const openEditModal = (event: ZekeEvent) => {
+    setEditingEvent(event);
+    setEventTitle(event.title);
+    setEventStartTime(formatTimeForInput(event.startTime));
+    setEventEndTime(event.endTime ? formatTimeForInput(event.endTime) : "");
+    setEventLocation(event.location || "");
+    setEventDescription(event.description || "");
+    setSelectedCalendarId(event.calendarId || "primary");
+    setIsModalVisible(true);
+  };
+
+  const handleSaveEvent = () => {
+    if (!eventTitle.trim()) {
       Alert.alert("Error", "Please enter an event title.");
       return;
     }
-    if (!newEventStartTime.trim()) {
+    if (!eventStartTime.trim()) {
       Alert.alert("Error", "Please enter a start time (e.g., 2:00 PM).");
       return;
     }
 
     const today = new Date();
-    const startTimeDate = parseTimeString(newEventStartTime, today);
+    const startTimeDate = parseTimeString(eventStartTime, today);
     if (!startTimeDate) {
       Alert.alert("Error", "Invalid start time format. Use format like '2:00 PM' or '14:00'.");
       return;
     }
 
     let endTimeDate: Date | undefined;
-    if (newEventEndTime.trim()) {
-      const parsedEndTime = parseTimeString(newEventEndTime, today);
+    if (eventEndTime.trim()) {
+      const parsedEndTime = parseTimeString(eventEndTime, today);
       if (!parsedEndTime) {
         Alert.alert("Error", "Invalid end time format. Use format like '3:00 PM' or '15:00'.");
         return;
@@ -248,17 +324,33 @@ export default function CalendarScreen() {
       endTimeDate = parsedEndTime;
     }
 
-    addMutation.mutate({
-      title: newEventTitle.trim(),
-      startTime: startTimeDate.toISOString(),
-      endTime: endTimeDate?.toISOString(),
-      location: newEventLocation.trim() || undefined,
-    });
+    if (editingEvent) {
+      updateMutation.mutate({
+        eventId: editingEvent.id,
+        updates: {
+          title: eventTitle.trim(),
+          startTime: startTimeDate.toISOString(),
+          endTime: endTimeDate?.toISOString(),
+          location: eventLocation.trim() || undefined,
+          description: eventDescription.trim() || undefined,
+          calendarId: selectedCalendarId || editingEvent.calendarId,
+        },
+      });
+    } else {
+      addMutation.mutate({
+        title: eventTitle.trim(),
+        startTime: startTimeDate.toISOString(),
+        endTime: endTimeDate?.toISOString(),
+        location: eventLocation.trim() || undefined,
+        calendarId: selectedCalendarId,
+        description: eventDescription.trim() || undefined,
+      });
+    }
   };
 
-  const handleDelete = useCallback(
-    (id: string) => {
-      deleteMutation.mutate(id);
+  const handleDeleteEvent = useCallback(
+    (event: ZekeEvent) => {
+      deleteMutation.mutate(event);
     },
     [deleteMutation]
   );
@@ -285,16 +377,48 @@ export default function CalendarScreen() {
     }
   };
 
+  function formatTimeForInput(dateString: string): string {
+    const date = new Date(dateString);
+    const hours = date.getHours();
+    const minutes = date.getMinutes();
+    const period = hours >= 12 ? "PM" : "AM";
+    const hour12 = hours % 12 || 12;
+    return `${hour12}:${minutes.toString().padStart(2, "0")} ${period}`;
+  }
+
   const handleRefresh = useCallback(() => {
     refetch();
   }, [refetch]);
 
+  const filteredEvents = useMemo(() => {
+    if (!filterCalendarId) return events;
+    return events.filter(e => e.calendarId === filterCalendarId);
+  }, [events, filterCalendarId]);
+
+  const { allDayEvents, timedEvents } = useMemo(() => {
+    const allDay: ZekeEvent[] = [];
+    const timed: ZekeEvent[] = [];
+    
+    for (const event of filteredEvents) {
+      if (event.allDay) {
+        allDay.push(event);
+      } else {
+        timed.push(event);
+      }
+    }
+    
+    allDay.sort((a, b) => a.title.localeCompare(b.title));
+    timed.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+    
+    return { allDayEvents: allDay, timedEvents: timed };
+  }, [filteredEvents]);
+
   const sortedEvents = useMemo(() => {
-    return [...events].sort(
+    return [...filteredEvents].sort(
       (a, b) =>
         new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
     );
-  }, [events]);
+  }, [filteredEvents]);
 
   const currentTimePosition = getCurrentTimePosition();
 
@@ -321,7 +445,7 @@ export default function CalendarScreen() {
         </View>
         <View style={styles.actionRow}>
           <Pressable
-            onPress={() => setIsAddModalVisible(true)}
+            onPress={openAddModal}
             style={[styles.addButton, { backgroundColor: Colors.dark.primary }]}
           >
             <Feather name="plus" size={20} color="#fff" />
@@ -338,6 +462,58 @@ export default function CalendarScreen() {
             )}
           </View>
         </View>
+
+        {calendars.length > 0 ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.calendarFilters}
+          >
+            <Pressable
+              onPress={() => setFilterCalendarId(null)}
+              style={[
+                styles.calendarChip,
+                {
+                  backgroundColor: !filterCalendarId ? Colors.dark.primary : theme.backgroundSecondary,
+                  borderColor: !filterCalendarId ? Colors.dark.primary : theme.border,
+                },
+              ]}
+            >
+              <ThemedText
+                style={[
+                  styles.calendarChipText,
+                  { color: !filterCalendarId ? "#fff" : theme.textSecondary },
+                ]}
+              >
+                All Calendars
+              </ThemedText>
+            </Pressable>
+            {calendars.map((cal) => (
+              <Pressable
+                key={cal.id}
+                onPress={() => setFilterCalendarId(filterCalendarId === cal.id ? null : cal.id)}
+                style={[
+                  styles.calendarChip,
+                  {
+                    backgroundColor: filterCalendarId === cal.id ? `${cal.color}` : theme.backgroundSecondary,
+                    borderColor: filterCalendarId === cal.id ? cal.color : theme.border,
+                  },
+                ]}
+              >
+                <View style={[styles.calendarDot, { backgroundColor: cal.color }]} />
+                <ThemedText
+                  style={[
+                    styles.calendarChipText,
+                    { color: filterCalendarId === cal.id ? "#fff" : theme.text },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {cal.name}
+                </ThemedText>
+              </Pressable>
+            ))}
+          </ScrollView>
+        ) : null}
       </View>
 
       {isLoading ? (
@@ -371,6 +547,54 @@ export default function CalendarScreen() {
             />
           }
         >
+          {allDayEvents.length > 0 ? (
+            <View style={styles.allDaySection}>
+              <ThemedText type="small" style={[styles.allDaySectionTitle, { color: theme.textSecondary }]}>
+                All-Day Events
+              </ThemedText>
+              {allDayEvents.map((event) => {
+                const color = event.color || Colors.dark.primary;
+                return (
+                  <Pressable
+                    key={event.id}
+                    onPress={() => openEditModal(event)}
+                    onLongPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      Alert.alert(
+                        "Event Options",
+                        `"${event.title}"${event.calendarName ? ` (${event.calendarName})` : ""}`,
+                        [
+                          { text: "Cancel", style: "cancel" },
+                          { text: "Edit", onPress: () => openEditModal(event) },
+                          { text: "Delete", style: "destructive", onPress: () => handleDeleteEvent(event) },
+                        ]
+                      );
+                    }}
+                    style={[
+                      styles.allDayEventCard,
+                      {
+                        backgroundColor: `${color}20`,
+                        borderLeftColor: color,
+                      },
+                    ]}
+                  >
+                    <View style={styles.allDayEventContent}>
+                      <ThemedText style={styles.allDayEventTitle} numberOfLines={1}>
+                        {event.title}
+                      </ThemedText>
+                      {event.calendarName ? (
+                        <View style={[styles.calendarBadge, { backgroundColor: `${color}40` }]}>
+                          <ThemedText style={[styles.calendarBadgeText, { color }]} numberOfLines={1}>
+                            {event.calendarName}
+                          </ThemedText>
+                        </View>
+                      ) : null}
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
           <View style={[styles.timeline, { height: timelineHeight }]}>
             {Array.from(
               { length: TIMELINE_END_HOUR - TIMELINE_START_HOUR + 1 },
@@ -426,12 +650,12 @@ export default function CalendarScreen() {
             ) : null}
 
             <View style={styles.eventsContainer}>
-              {sortedEvents.map((event, index) => (
+              {timedEvents.map((event) => (
                 <EventCard
                   key={event.id}
                   event={event}
-                  colorIndex={index}
-                  onDelete={handleDelete}
+                  onPress={openEditModal}
+                  onDelete={handleDeleteEvent}
                   theme={theme}
                 />
               ))}
@@ -441,29 +665,29 @@ export default function CalendarScreen() {
       )}
 
       <Modal
-        visible={isAddModalVisible}
+        visible={isModalVisible}
         animationType="slide"
         presentationStyle="pageSheet"
-        onRequestClose={() => setIsAddModalVisible(false)}
+        onRequestClose={closeModal}
       >
         <View
           style={[styles.modalContainer, { backgroundColor: theme.backgroundRoot }]}
         >
           <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
-            <Pressable onPress={() => setIsAddModalVisible(false)}>
+            <Pressable onPress={closeModal}>
               <ThemedText style={{ color: Colors.dark.primary }}>
                 Cancel
               </ThemedText>
             </Pressable>
-            <ThemedText type="h4">Add Event</ThemedText>
-            <Pressable onPress={handleAddEvent} disabled={addMutation.isPending}>
-              {addMutation.isPending ? (
+            <ThemedText type="h4">{editingEvent ? "Edit Event" : "Add Event"}</ThemedText>
+            <Pressable onPress={handleSaveEvent} disabled={addMutation.isPending || updateMutation.isPending}>
+              {(addMutation.isPending || updateMutation.isPending) ? (
                 <ActivityIndicator size="small" color={Colors.dark.primary} />
               ) : (
                 <ThemedText
                   style={{ color: Colors.dark.primary, fontWeight: "600" }}
                 >
-                  Add
+                  {editingEvent ? "Save" : "Add"}
                 </ThemedText>
               )}
             </Pressable>
@@ -485,11 +709,50 @@ export default function CalendarScreen() {
                   ]}
                   placeholder="e.g., Team Meeting"
                   placeholderTextColor={theme.textSecondary}
-                  value={newEventTitle}
-                  onChangeText={setNewEventTitle}
+                  value={eventTitle}
+                  onChangeText={setEventTitle}
                   autoFocus
                 />
               </View>
+
+              {calendars.length > 0 ? (
+                <View style={styles.inputGroup}>
+                  <ThemedText type="small" style={styles.inputLabel}>
+                    Calendar
+                  </ThemedText>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.calendarPickerRow}
+                  >
+                    {calendars.map((cal) => (
+                      <Pressable
+                        key={cal.id}
+                        onPress={() => setSelectedCalendarId(cal.id)}
+                        style={[
+                          styles.calendarPickerChip,
+                          {
+                            backgroundColor: selectedCalendarId === cal.id ? cal.color : theme.backgroundSecondary,
+                            borderColor: selectedCalendarId === cal.id ? cal.color : theme.border,
+                          },
+                        ]}
+                      >
+                        <View style={[styles.calendarDot, { backgroundColor: selectedCalendarId === cal.id ? "#fff" : cal.color }]} />
+                        <ThemedText
+                          style={[
+                            styles.calendarChipText,
+                            { color: selectedCalendarId === cal.id ? "#fff" : theme.text },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {cal.name}
+                        </ThemedText>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+              ) : null}
+
               <View style={styles.inputRow}>
                 <View style={[styles.inputGroup, { flex: 1 }]}>
                   <ThemedText type="small" style={styles.inputLabel}>
@@ -506,8 +769,8 @@ export default function CalendarScreen() {
                     ]}
                     placeholder="e.g., 2:00 PM"
                     placeholderTextColor={theme.textSecondary}
-                    value={newEventStartTime}
-                    onChangeText={setNewEventStartTime}
+                    value={eventStartTime}
+                    onChangeText={setEventStartTime}
                   />
                 </View>
                 <View style={{ width: Spacing.md }} />
@@ -526,8 +789,8 @@ export default function CalendarScreen() {
                     ]}
                     placeholder="e.g., 3:00 PM"
                     placeholderTextColor={theme.textSecondary}
-                    value={newEventEndTime}
-                    onChangeText={setNewEventEndTime}
+                    value={eventEndTime}
+                    onChangeText={setEventEndTime}
                   />
                 </View>
               </View>
@@ -546,10 +809,47 @@ export default function CalendarScreen() {
                   ]}
                   placeholder="e.g., Conference Room A"
                   placeholderTextColor={theme.textSecondary}
-                  value={newEventLocation}
-                  onChangeText={setNewEventLocation}
+                  value={eventLocation}
+                  onChangeText={setEventLocation}
                 />
               </View>
+              <View style={styles.inputGroup}>
+                <ThemedText type="small" style={styles.inputLabel}>
+                  Description
+                </ThemedText>
+                <TextInput
+                  style={[
+                    styles.input,
+                    styles.textArea,
+                    {
+                      backgroundColor: theme.backgroundSecondary,
+                      color: theme.text,
+                      borderColor: theme.border,
+                    },
+                  ]}
+                  placeholder="Add notes or description..."
+                  placeholderTextColor={theme.textSecondary}
+                  value={eventDescription}
+                  onChangeText={setEventDescription}
+                  multiline
+                  numberOfLines={3}
+                />
+              </View>
+
+              {editingEvent ? (
+                <Pressable
+                  onPress={() => {
+                    closeModal();
+                    handleDeleteEvent(editingEvent);
+                  }}
+                  style={[styles.deleteButton, { backgroundColor: `${Colors.dark.error}15` }]}
+                >
+                  <Feather name="trash-2" size={18} color={Colors.dark.error} />
+                  <ThemedText style={{ color: Colors.dark.error, fontWeight: "600" }}>
+                    Delete Event
+                  </ThemedText>
+                </Pressable>
+              ) : null}
             </View>
           </KeyboardAwareScrollViewCompat>
         </View>
@@ -743,7 +1043,101 @@ const styles = StyleSheet.create({
     fontSize: 16,
     borderWidth: 1,
   },
+  textArea: {
+    height: 80,
+    paddingTop: Spacing.md,
+    textAlignVertical: "top",
+  },
   inputRow: {
     flexDirection: "row",
+  },
+  calendarFilters: {
+    paddingVertical: Spacing.xs,
+    gap: Spacing.sm,
+  },
+  calendarChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    gap: Spacing.xs,
+  },
+  calendarChipText: {
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  calendarDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  calendarPickerRow: {
+    gap: Spacing.sm,
+    paddingVertical: Spacing.xs,
+  },
+  calendarPickerChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    gap: Spacing.xs,
+  },
+  deleteButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.sm,
+    marginTop: Spacing.md,
+  },
+  eventHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: Spacing.sm,
+  },
+  calendarBadge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+  },
+  calendarBadgeText: {
+    fontSize: 9,
+    fontWeight: "600",
+  },
+  allDaySection: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    gap: Spacing.sm,
+  },
+  allDaySectionTitle: {
+    fontSize: 12,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: Spacing.xs,
+  },
+  allDayEventCard: {
+    borderLeftWidth: 3,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    marginBottom: Spacing.xs,
+  },
+  allDayEventContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: Spacing.sm,
+  },
+  allDayEventTitle: {
+    fontSize: 14,
+    fontWeight: "500",
+    flex: 1,
   },
 });

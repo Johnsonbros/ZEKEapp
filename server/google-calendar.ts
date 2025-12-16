@@ -96,6 +96,11 @@ export async function getEvents(
   try {
     const calendar = await getCalendarClient();
     
+    const calendars = await getCalendarList();
+    const calendarInfo = calendars.find(c => c.id === calendarId) || 
+      (calendarId === 'primary' ? calendars.find(c => c.primary) : null) ||
+      { name: 'Primary', color: '#4285F4' };
+    
     const now = new Date();
     const defaultTimeMin = timeMin || now.toISOString();
     const defaultTimeMax = timeMax || new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -123,8 +128,8 @@ export async function getEvents(
         endTime: endDateTime,
         allDay: isAllDay,
         calendarId,
-        calendarName: 'Primary',
-        color: event.colorId ? getEventColor(event.colorId) : '#4285F4',
+        calendarName: calendarInfo.name,
+        color: event.colorId ? getEventColor(event.colorId) : calendarInfo.color,
       };
     });
     
@@ -224,4 +229,225 @@ function getEventColor(colorId: string): string {
     '11': '#D50000',
   };
   return colors[colorId] || '#4285F4';
+}
+
+const ZEKE_CALENDAR_NAME = 'ZEKE';
+const ZEKE_CALENDAR_COLOR = '#8E24AA'; // Purple color for ZEKE calendar
+
+export async function getOrCreateZekeCalendar(): Promise<CalendarListItem> {
+  try {
+    const calendars = await getCalendarList();
+    const existingZeke = calendars.find(cal => cal.name === ZEKE_CALENDAR_NAME);
+    
+    if (existingZeke) {
+      return {
+        id: existingZeke.id,
+        name: existingZeke.name,
+        color: existingZeke.color || ZEKE_CALENDAR_COLOR,
+        primary: existingZeke.primary,
+      };
+    }
+    
+    // Create new ZEKE calendar
+    const calendar = await getCalendarClient();
+    const response = await calendar.calendars.insert({
+      requestBody: {
+        summary: ZEKE_CALENDAR_NAME,
+        description: 'ZEKE AI Assistant calendar for AI-generated events and reminders',
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      }
+    });
+    
+    // Set the calendar color and get the updated calendar info
+    let calendarColor = ZEKE_CALENDAR_COLOR;
+    if (response.data.id) {
+      const updateResponse = await calendar.calendarList.update({
+        calendarId: response.data.id,
+        requestBody: {
+          backgroundColor: ZEKE_CALENDAR_COLOR,
+          foregroundColor: '#FFFFFF',
+        }
+      });
+      calendarColor = updateResponse.data.backgroundColor || ZEKE_CALENDAR_COLOR;
+    }
+    
+    return {
+      id: response.data.id || '',
+      name: ZEKE_CALENDAR_NAME,
+      color: calendarColor,
+      primary: false,
+    };
+  } catch (error) {
+    console.error('[Google Calendar] Error creating ZEKE calendar:', error);
+    throw error;
+  }
+}
+
+export interface CreateEventParams {
+  title: string;
+  startTime: string;
+  endTime?: string;
+  description?: string;
+  location?: string;
+  calendarId?: string;
+}
+
+export async function createEvent(params: CreateEventParams): Promise<CalendarEvent> {
+  try {
+    const calendar = await getCalendarClient();
+    const targetCalendarId = params.calendarId || 'primary';
+    
+    const startDate = new Date(params.startTime);
+    const endDate = params.endTime ? new Date(params.endTime) : new Date(startDate.getTime() + 60 * 60 * 1000); // Default 1 hour
+    
+    const response = await calendar.events.insert({
+      calendarId: targetCalendarId,
+      requestBody: {
+        summary: params.title,
+        description: params.description,
+        location: params.location,
+        start: {
+          dateTime: startDate.toISOString(),
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        },
+        end: {
+          dateTime: endDate.toISOString(),
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        },
+      },
+    });
+    
+    // Get calendar info for the response
+    const calendars = await getCalendarList();
+    const calendarInfo = calendars.find(c => c.id === targetCalendarId) || { name: 'Unknown', color: '#4285F4' };
+    
+    return {
+      id: response.data.id || '',
+      title: response.data.summary || params.title,
+      description: response.data.description || null,
+      location: response.data.location || null,
+      startTime: response.data.start?.dateTime || params.startTime,
+      endTime: response.data.end?.dateTime || '',
+      allDay: false,
+      calendarId: targetCalendarId,
+      calendarName: calendarInfo.name,
+      color: calendarInfo.color,
+    };
+  } catch (error) {
+    console.error('[Google Calendar] Error creating event:', error);
+    throw error;
+  }
+}
+
+export interface UpdateEventParams {
+  title?: string;
+  startTime?: string;
+  endTime?: string;
+  description?: string;
+  location?: string;
+}
+
+export async function updateEvent(
+  eventId: string,
+  calendarId: string,
+  params: UpdateEventParams
+): Promise<CalendarEvent> {
+  try {
+    const calendar = await getCalendarClient();
+    
+    // First get the existing event
+    const existing = await calendar.events.get({
+      calendarId,
+      eventId,
+    });
+    
+    const requestBody: any = {
+      summary: params.title ?? existing.data.summary,
+      description: params.description ?? existing.data.description,
+      location: params.location ?? existing.data.location,
+    };
+    
+    if (params.startTime) {
+      requestBody.start = {
+        dateTime: new Date(params.startTime).toISOString(),
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      };
+    } else {
+      requestBody.start = existing.data.start;
+    }
+    
+    if (params.endTime) {
+      requestBody.end = {
+        dateTime: new Date(params.endTime).toISOString(),
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      };
+    } else {
+      requestBody.end = existing.data.end;
+    }
+    
+    const response = await calendar.events.update({
+      calendarId,
+      eventId,
+      requestBody,
+    });
+    
+    const calendars = await getCalendarList();
+    const calendarInfo = calendars.find(c => c.id === calendarId) || { name: 'Unknown', color: '#4285F4' };
+    
+    return {
+      id: response.data.id || eventId,
+      title: response.data.summary || '',
+      description: response.data.description || null,
+      location: response.data.location || null,
+      startTime: response.data.start?.dateTime || response.data.start?.date || '',
+      endTime: response.data.end?.dateTime || response.data.end?.date || '',
+      allDay: !response.data.start?.dateTime,
+      calendarId,
+      calendarName: calendarInfo.name,
+      color: calendarInfo.color,
+    };
+  } catch (error) {
+    console.error('[Google Calendar] Error updating event:', error);
+    throw error;
+  }
+}
+
+export async function deleteEvent(eventId: string, calendarId: string): Promise<void> {
+  try {
+    const calendar = await getCalendarClient();
+    
+    await calendar.events.delete({
+      calendarId,
+      eventId,
+    });
+    
+    console.log(`[Google Calendar] Deleted event ${eventId} from calendar ${calendarId}`);
+  } catch (error) {
+    console.error('[Google Calendar] Error deleting event:', error);
+    throw error;
+  }
+}
+
+export async function findEventCalendarId(eventId: string): Promise<string | null> {
+  try {
+    const calendars = await getCalendarList();
+    const calendar = await getCalendarClient();
+    
+    for (const cal of calendars) {
+      try {
+        await calendar.events.get({
+          calendarId: cal.id,
+          eventId,
+        });
+        return cal.id;
+      } catch {
+        // Event not in this calendar, continue
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('[Google Calendar] Error finding event calendar:', error);
+    return null;
+  }
 }

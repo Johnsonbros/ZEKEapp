@@ -47,6 +47,17 @@ export interface ZekeEvent {
   endTime?: string;
   location?: string;
   description?: string;
+  calendarId?: string;
+  calendarName?: string;
+  color?: string;
+  allDay?: boolean;
+}
+
+export interface ZekeCalendar {
+  id: string;
+  name: string;
+  color: string;
+  primary: boolean;
 }
 
 export interface ZekeTask {
@@ -658,9 +669,50 @@ export async function createCalendarEvent(
   title: string,
   startTime: string,
   endTime?: string,
-  location?: string
+  location?: string,
+  calendarId?: string,
+  description?: string
 ): Promise<ZekeEvent> {
-  const res = await apiRequest('POST', '/api/calendar', { title, startTime, endTime, location });
+  const baseUrl = getLocalApiUrl();
+  const url = new URL('/api/calendar/events', baseUrl);
+  
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ title, startTime, endTime, location, calendarId, description }),
+  });
+  
+  if (!res.ok) {
+    throw new Error(`Failed to create event: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function updateCalendarEvent(
+  eventId: string,
+  updates: {
+    title?: string;
+    startTime?: string;
+    endTime?: string;
+    location?: string;
+    description?: string;
+    calendarId?: string;
+  }
+): Promise<ZekeEvent> {
+  const baseUrl = getLocalApiUrl();
+  const url = new URL(`/api/calendar/events/${eventId}`, baseUrl);
+  
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(updates),
+  });
+  
+  if (!res.ok) {
+    throw new Error(`Failed to update event: ${res.statusText}`);
+  }
   return res.json();
 }
 
@@ -684,6 +736,55 @@ export async function getUpcomingEvents(limit: number = 10): Promise<ZekeEvent[]
   }
 }
 
-export async function deleteCalendarEvent(id: string): Promise<void> {
-  await apiRequest('DELETE', `/api/calendar/${id}`);
+export async function deleteCalendarEvent(id: string, calendarId?: string): Promise<void> {
+  const baseUrl = getLocalApiUrl();
+  const url = new URL(`/api/calendar/events/${id}`, baseUrl);
+  if (calendarId) {
+    url.searchParams.set('calendarId', calendarId);
+  }
+  
+  const res = await fetch(url, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  
+  if (!res.ok) {
+    throw new Error(`Failed to delete event: ${res.statusText}`);
+  }
+}
+
+export async function getCalendarList(): Promise<ZekeCalendar[]> {
+  const baseUrl = getLocalApiUrl();
+  const url = new URL('/api/calendar/calendars', baseUrl);
+  
+  try {
+    const res = await fetch(url, { 
+      credentials: 'include',
+      signal: AbortSignal.timeout(10000)
+    });
+    if (!res.ok) {
+      return [];
+    }
+    return res.json();
+  } catch {
+    return [];
+  }
+}
+
+export async function getZekeCalendar(): Promise<ZekeCalendar | null> {
+  const baseUrl = getLocalApiUrl();
+  const url = new URL('/api/calendar/zeke', baseUrl);
+  
+  try {
+    const res = await fetch(url, { 
+      credentials: 'include',
+      signal: AbortSignal.timeout(10000)
+    });
+    if (!res.ok) {
+      return null;
+    }
+    return res.json();
+  } catch {
+    return null;
+  }
 }
