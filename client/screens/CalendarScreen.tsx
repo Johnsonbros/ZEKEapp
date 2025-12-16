@@ -44,8 +44,16 @@ const CALENDAR_NAME_MAP: Record<string, string> = {
   "krazedrecords@gmail.com": "Nate",
 };
 
+const CALENDARS_TO_EXCLUDE = [
+  "Venture Café Cambridge",
+];
+
 function getCalendarDisplayName(calendarName: string): string {
   return CALENDAR_NAME_MAP[calendarName] || calendarName;
+}
+
+function shouldShowCalendar(calendarName: string): boolean {
+  return !CALENDARS_TO_EXCLUDE.includes(calendarName);
 }
 
 function formatTime(dateString: string): string {
@@ -467,8 +475,9 @@ export default function CalendarScreen() {
   }, [refetch]);
 
   const filteredEvents = useMemo(() => {
-    if (!filterCalendarId) return events;
-    return events.filter(e => e.calendarId === filterCalendarId);
+    let result = events.filter(e => e.calendarName && shouldShowCalendar(e.calendarName));
+    if (!filterCalendarId) return result;
+    return result.filter(e => e.calendarId === filterCalendarId);
   }, [events, filterCalendarId]);
 
   const { allDayEvents, timedEvents } = useMemo(() => {
@@ -564,7 +573,7 @@ export default function CalendarScreen() {
                 All Calendars
               </ThemedText>
             </Pressable>
-            {calendars.map((cal) => (
+            {calendars.filter((cal) => shouldShowCalendar(cal.name)).map((cal) => (
               <Pressable
                 key={cal.id}
                 onPress={() => setFilterCalendarId(filterCalendarId === cal.id ? null : cal.id)}
