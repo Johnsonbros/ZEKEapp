@@ -1251,3 +1251,99 @@ export async function getGeofencesFromBackend(): Promise<Geofence[]> {
     return [];
   }
 }
+
+export interface GeofenceTriggerEvent {
+  id: string;
+  geofenceId: string;
+  event: 'enter' | 'exit';
+  timestamp: string;
+  latitude: number;
+  longitude: number;
+  synced: boolean;
+}
+
+const GEOFENCE_EVENTS_STORAGE_KEY = '@zeke/geofence-events';
+
+export async function saveGeofenceTriggerEvent(event: GeofenceTriggerEvent): Promise<void> {
+  try {
+    const AsyncStorage = await getAsyncStorage();
+    const existing = await getGeofenceTriggerEvents();
+    existing.unshift(event);
+    const trimmed = existing.slice(0, 100);
+    await AsyncStorage.setItem(GEOFENCE_EVENTS_STORAGE_KEY, JSON.stringify(trimmed));
+  } catch (error) {
+    console.error('Error saving geofence trigger event:', error);
+  }
+}
+
+export async function getGeofenceTriggerEvents(): Promise<GeofenceTriggerEvent[]> {
+  try {
+    const AsyncStorage = await getAsyncStorage();
+    const data = await AsyncStorage.getItem(GEOFENCE_EVENTS_STORAGE_KEY);
+    return data ? JSON.parse(data) : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function markTriggerEventsSynced(eventIds: string[]): Promise<void> {
+  try {
+    const AsyncStorage = await getAsyncStorage();
+    const events = await getGeofenceTriggerEvents();
+    const updated = events.map(e => 
+      eventIds.includes(e.id) ? { ...e, synced: true } : e
+    );
+    await AsyncStorage.setItem(GEOFENCE_EVENTS_STORAGE_KEY, JSON.stringify(updated));
+  } catch (error) {
+    console.error('Error marking events synced:', error);
+  }
+}
+
+export async function syncTriggerEventsToBackend(): Promise<{ synced: number }> {
+  const baseUrl = getApiUrl();
+  const url = new URL('/api/geofence-events', baseUrl);
+  
+  try {
+    const events = await getGeofenceTriggerEvents();
+    const unsyncedEvents = events.filter(e => !e.synced);
+    
+    if (unsyncedEvents.length === 0) {
+      return { synced: 0 };
+    }
+    
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ events: unsyncedEvents }),
+      signal: createTimeoutSignal(10000),
+    });
+    
+    if (!res.ok) {
+      return { synced: 0 };
+    }
+    
+    const contentType = res.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      return { synced: 0 };
+    }
+    
+    const data = await res.json();
+    const syncedCount = data.synced || unsyncedEvents.length;
+    
+    await markTriggerEventsSynced(unsyncedEvents.map(e => e.id));
+    
+    return { synced: syncedCount };
+  } catch {
+    return { synced: 0 };
+  }
+}
+
+export async function clearGeofenceTriggerEvents(): Promise<void> {
+  try {
+    const AsyncStorage = await getAsyncStorage();
+    await AsyncStorage.removeItem(GEOFENCE_EVENTS_STORAGE_KEY);
+  } catch (error) {
+    console.error('Error clearing geofence events:', error);
+  }
+}

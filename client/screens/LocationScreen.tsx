@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from "react";
-import { View, ScrollView, StyleSheet, Pressable, ActivityIndicator, Alert, Platform, RefreshControl, Modal, TextInput } from "react-native";
+import { View, ScrollView, StyleSheet, Pressable, ActivityIndicator, Alert, Platform, RefreshControl, Modal, TextInput, Switch } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { Feather } from "@expo/vector-icons";
@@ -13,6 +13,7 @@ import { FloatingActionButton } from "@/components/FloatingActionButton";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useTheme } from "@/hooks/useTheme";
 import { useLocation } from "@/hooks/useLocation";
+import { useGeofenceMonitor } from "@/hooks/useGeofenceMonitor";
 import { Spacing, Colors, BorderRadius, Gradients } from "@/constants/theme";
 import { 
   getLocationHistory, 
@@ -78,6 +79,28 @@ export default function LocationScreen() {
     stopTracking,
     openSettings,
   } = useLocation();
+
+  const [monitoringEnabled, setMonitoringEnabled] = useState(false);
+  
+  const {
+    isMonitoring,
+    nearbyGeofences,
+    lastTrigger,
+    hasNotificationPermission,
+    requestPermission: requestNotificationPermission,
+  } = useGeofenceMonitor(monitoringEnabled && permissionStatus === 'granted');
+
+  const handleToggleMonitoring = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (!monitoringEnabled) {
+      if (!hasNotificationPermission) {
+        await requestNotificationPermission();
+      }
+      setMonitoringEnabled(true);
+    } else {
+      setMonitoringEnabled(false);
+    }
+  }, [monitoringEnabled, hasNotificationPermission, requestNotificationPermission]);
 
   const loadHistory = useCallback(async () => {
     setIsLoadingHistory(true);
@@ -662,6 +685,91 @@ export default function LocationScreen() {
 
   const renderGeofences = () => (
     <View style={styles.sectionContent}>
+      <View style={[styles.card, { backgroundColor: theme.backgroundDefault }]}>
+        <View style={styles.cardHeader}>
+          <View style={styles.cardTitleRow}>
+            <Feather name="radio" size={20} color={isMonitoring ? Colors.dark.success : theme.textSecondary} />
+            <ThemedText type="h4" style={{ marginLeft: Spacing.sm }}>Geofence Monitoring</ThemedText>
+          </View>
+          <View style={styles.statusBadge}>
+            {isMonitoring ? (
+              <>
+                <PulsingDot color={Colors.dark.success} size={8} />
+                <ThemedText type="caption" style={{ marginLeft: Spacing.xs, color: Colors.dark.success }}>
+                  Active
+                </ThemedText>
+              </>
+            ) : (
+              <ThemedText type="caption" secondary>
+                Inactive
+              </ThemedText>
+            )}
+          </View>
+        </View>
+
+        <View style={styles.monitoringToggleRow}>
+          <View style={{ flex: 1 }}>
+            <ThemedText type="body">Enable Monitoring</ThemedText>
+            <ThemedText type="caption" secondary style={{ marginTop: 2 }}>
+              Get notified when entering or leaving geofences
+            </ThemedText>
+          </View>
+          <Switch
+            value={monitoringEnabled}
+            onValueChange={handleToggleMonitoring}
+            trackColor={{ false: theme.border, true: Colors.dark.primary }}
+            thumbColor={monitoringEnabled ? Colors.dark.success : theme.textSecondary}
+            disabled={permissionStatus !== 'granted'}
+          />
+        </View>
+
+        {lastTrigger ? (
+          <View style={[styles.lastTriggerCard, { backgroundColor: `${Colors.dark.primary}10` }]}>
+            <Feather 
+              name={lastTrigger.event === 'enter' ? 'log-in' : 'log-out'} 
+              size={16} 
+              color={Colors.dark.primary} 
+            />
+            <View style={{ marginLeft: Spacing.sm, flex: 1 }}>
+              <ThemedText type="small">
+                {lastTrigger.event === 'enter' ? 'Entered' : 'Left'} {lastTrigger.geofenceName}
+              </ThemedText>
+              <ThemedText type="caption" secondary>
+                {new Date(lastTrigger.timestamp).toLocaleTimeString()}
+              </ThemedText>
+            </View>
+          </View>
+        ) : null}
+
+        {nearbyGeofences.length > 0 ? (
+          <View style={{ marginTop: Spacing.md }}>
+            <ThemedText type="caption" secondary style={{ marginBottom: Spacing.xs }}>
+              Nearby Geofences ({nearbyGeofences.length})
+            </ThemedText>
+            {nearbyGeofences.slice(0, 3).map(({ geofence, distance }) => (
+              <View key={geofence.id} style={styles.nearbyGeofenceItem}>
+                <Feather name="target" size={14} color={theme.textSecondary} />
+                <ThemedText type="small" style={{ marginLeft: Spacing.xs, flex: 1 }} numberOfLines={1}>
+                  {geofence.name}
+                </ThemedText>
+                <ThemedText type="caption" style={{ color: Colors.dark.primary }}>
+                  {distance < 1000 ? `${Math.round(distance)}m` : `${(distance / 1000).toFixed(1)}km`}
+                </ThemedText>
+              </View>
+            ))}
+          </View>
+        ) : null}
+
+        <View style={[styles.infoCard, { backgroundColor: `${Colors.dark.warning}10`, marginTop: Spacing.md }]}>
+          <View style={styles.infoRow}>
+            <Feather name="info" size={14} color={Colors.dark.warning} />
+            <ThemedText type="caption" style={{ marginLeft: Spacing.sm, flex: 1, color: Colors.dark.warning }}>
+              Background monitoring requires a native build. In Expo Go, monitoring only works while the app is open.
+            </ThemedText>
+          </View>
+        </View>
+      </View>
+
       {isLoadingGeofences ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.dark.primary} />
@@ -1193,5 +1301,24 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.sm,
     borderWidth: 1,
+  },
+  monitoringToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.dark.border,
+    marginBottom: Spacing.md,
+  },
+  lastTriggerCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.md,
+    borderRadius: BorderRadius.sm,
+  },
+  nearbyGeofenceItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.xs,
   },
 });
