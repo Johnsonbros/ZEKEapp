@@ -72,23 +72,19 @@ Zeke/
 
 The mobile app needs to connect to the Zeke backend instead of its current server.
 
-### 3.1 Update API Client
+### 3.1 Configure API Connection (No Code Changes Needed!)
 
-Edit `mobile/lib/query-client.ts` to use the Zeke API endpoints:
+The mobile app already supports connecting to your Zeke backend via environment variables. Simply set:
 
-```typescript
-// Update the API base URL configuration
-export function getApiUrl(): string {
-  // For development, use the Zeke backend URL
-  if (__DEV__) {
-    return 'https://your-zeke-dev-url.replit.app';
-  }
-  // For production
-  return process.env.EXPO_PUBLIC_DOMAIN 
-    ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` 
-    : 'https://your-zeke-production-url.com';
-}
+```bash
+# In your Zeke repository, add to your .env file:
+EXPO_PUBLIC_ZEKE_BACKEND_URL=https://your-zeke-backend.replit.app
+
+# Or for local development:
+EXPO_PUBLIC_DOMAIN=your-local-domain:5000
 ```
+
+The mobile app's `query-client.ts` automatically checks for `EXPO_PUBLIC_ZEKE_BACKEND_URL` first (for sync mode with external Zeke), then falls back to `EXPO_PUBLIC_DOMAIN` (for local backend).
 
 ### 3.2 Adapt API Endpoints
 
@@ -131,43 +127,54 @@ The mobile app currently uses these endpoints that need mapping to Zeke's API:
 
 ## Step 5: Update Package.json
 
-You'll need to merge the Expo dependencies into Zeke's package.json. Add these key dependencies:
+You'll need to merge the Expo dependencies into Zeke's package.json. 
+
+**Option A: Copy from source package.json**
+The most reliable approach is to copy the dependencies directly from the Expo project's `package.json` file, as versions must be compatible with each other.
+
+**Option B: Key dependencies (from current package.json)**
+These are the actual versions used in the Expo project:
 
 ```json
 {
   "dependencies": {
-    "expo": "~52.0.x",
-    "expo-audio": "~15.0.x",
-    "expo-blur": "~14.0.x",
-    "expo-camera": "~16.0.x",
-    "expo-constants": "~17.0.x",
-    "expo-document-picker": "~13.0.x",
-    "expo-file-system": "~18.0.x",
-    "expo-font": "~13.0.x",
-    "expo-haptics": "~14.0.x",
-    "expo-image": "~2.0.x",
-    "expo-linear-gradient": "~14.0.x",
-    "expo-linking": "~7.0.x",
-    "expo-location": "~18.0.x",
-    "expo-notifications": "~0.29.x",
-    "expo-print": "~14.0.x",
-    "expo-sharing": "~13.0.x",
-    "expo-splash-screen": "~0.29.x",
-    "expo-status-bar": "~2.0.x",
-    "expo-system-ui": "~4.0.x",
-    "expo-web-browser": "~14.0.x",
-    "@react-navigation/native": "^7.x",
-    "@react-navigation/native-stack": "^7.x",
-    "@react-navigation/bottom-tabs": "^7.x",
-    "@tanstack/react-query": "^5.x",
-    "react-native": "0.76.x",
-    "react-native-gesture-handler": "~2.20.x",
-    "react-native-reanimated": "~3.16.x",
-    "react-native-safe-area-context": "4.14.x",
-    "react-native-screens": "~4.4.x"
+    "expo": "^54.0.23",
+    "expo-audio": "^1.1.0",
+    "expo-blur": "^15.0.7",
+    "expo-constants": "~18.0.9",
+    "expo-document-picker": "^14.0.8",
+    "expo-file-system": "^19.0.21",
+    "expo-font": "~14.0.9",
+    "expo-glass-effect": "~0.1.6",
+    "expo-haptics": "~15.0.7",
+    "expo-image": "~3.0.10",
+    "expo-linear-gradient": "^15.0.8",
+    "expo-linking": "~8.0.8",
+    "expo-location": "^19.0.8",
+    "expo-notifications": "^0.32.15",
+    "expo-print": "^15.0.8",
+    "expo-sharing": "^14.0.8",
+    "expo-splash-screen": "~31.0.10",
+    "expo-status-bar": "~3.0.8",
+    "expo-system-ui": "~6.0.8",
+    "expo-web-browser": "~15.0.9",
+    "@react-navigation/native": "^7.1.8",
+    "@react-navigation/native-stack": "^7.3.16",
+    "@react-navigation/bottom-tabs": "^7.4.0",
+    "@react-navigation/elements": "^2.6.3",
+    "@tanstack/react-query": "^5.90.7",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-gesture-handler": "~2.28.0",
+    "react-native-reanimated": "~4.1.1",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
+    "react-native-keyboard-controller": "1.18.5"
   }
 }
 ```
+
+**Note:** Always refer to the Expo project's `package.json` for the complete and up-to-date dependency list.
 
 ---
 
