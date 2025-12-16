@@ -49,6 +49,15 @@ Client-side data is persisted using AsyncStorage with namespaced keys, storing d
   - `POST /api/twilio/webhook/voice` - Inbound voice webhook
 - Client-side API adapter functions in `client/lib/zeke-api-adapter.ts` for Twilio data fetching with TypeScript interfaces for SMS conversations, messages, and call records.
 
+### Google Calendar Integration
+- **Google Calendar**: Independent Google Calendar integration via Replit connector for real-time calendar sync. Server-side service layer in `server/google-calendar.ts` manages authentication using Replit's secure connector API. API endpoints include:
+  - `GET /api/calendar/today` - Fetch today's calendar events
+  - `GET /api/calendar/upcoming` - Fetch upcoming events (next 7 days)
+  - `GET /api/calendar/calendars` - List user's calendars
+  - `POST /api/calendar/events` - Create new calendar event
+  - `DELETE /api/calendar/events/:id` - Delete calendar event
+- Client uses `getLocalApiUrl()` from `client/lib/query-client.ts` to ensure calendar API calls always route to the local backend where the Google Calendar connector is configured.
+
 ### Third-Party Services
 - **Expo Services**: Utilized for splash screen, haptics, image handling, web browser, blur effects, and audio recording.
 - **React Navigation**: Core library for app navigation.

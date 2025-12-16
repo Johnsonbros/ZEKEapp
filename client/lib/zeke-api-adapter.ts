@@ -1,4 +1,4 @@
-import { getApiUrl, isZekeSyncMode, apiRequest } from "./query-client";
+import { getApiUrl, getLocalApiUrl, isZekeSyncMode, apiRequest } from "./query-client";
 
 export interface ZekeConversation {
   id: string;
@@ -533,20 +533,27 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
 }
 
 export async function getTodayEvents(): Promise<ZekeEvent[]> {
-  const baseUrl = getApiUrl();
+  // Always use local backend for Google Calendar integration
+  const baseUrl = getLocalApiUrl();
   const url = new URL('/api/calendar/today', baseUrl);
+  
+  console.log('[Calendar] Fetching events from:', url.toString());
   
   try {
     const res = await fetch(url, { 
       credentials: 'include',
-      signal: AbortSignal.timeout(5000)
+      signal: AbortSignal.timeout(10000)
     });
+    console.log('[Calendar] Response status:', res.status);
     if (!res.ok) {
+      console.log('[Calendar] Response not OK');
       return [];
     }
     const data = await res.json();
+    console.log('[Calendar] Fetched events count:', Array.isArray(data) ? data.length : (data.events?.length ?? 0));
     return data.events || data || [];
-  } catch {
+  } catch (error) {
+    console.error('[Calendar] Fetch error:', error);
     return [];
   }
 }

@@ -36,6 +36,23 @@ export function isZekeSyncMode(): boolean {
   return !!process.env.EXPO_PUBLIC_ZEKE_BACKEND_URL;
 }
 
+/**
+ * Gets the local backend URL (always uses EXPO_PUBLIC_DOMAIN, ignoring external ZEKE URL)
+ * Used for integrations that are only available on the local backend (e.g., Google Calendar, Twilio)
+ * @returns {string} The local API base URL
+ */
+export function getLocalApiUrl(): string {
+  let host = process.env.EXPO_PUBLIC_DOMAIN;
+
+  if (!host) {
+    throw new Error("EXPO_PUBLIC_DOMAIN is not set");
+  }
+
+  let url = new URL(`https://${host}`);
+
+  return url.href;
+}
+
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;

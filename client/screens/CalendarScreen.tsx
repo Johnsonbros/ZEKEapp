@@ -23,7 +23,7 @@ import { VoiceInputButton } from "@/components/VoiceInputButton";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, Colors, BorderRadius } from "@/constants/theme";
-import { queryClient, isZekeSyncMode } from "@/lib/query-client";
+import { queryClient } from "@/lib/query-client";
 import {
   getTodayEvents,
   createCalendarEvent,
@@ -163,7 +163,6 @@ export default function CalendarScreen() {
   const headerHeight = useHeaderHeight();
   const tabBarHeight = useBottomTabBarHeight();
   const { theme } = useTheme();
-  const isSyncMode = isZekeSyncMode();
 
   const [isAddModalVisible, setIsAddModalVisible] = useState(false);
   const [newEventTitle, setNewEventTitle] = useState("");
@@ -180,7 +179,6 @@ export default function CalendarScreen() {
   } = useQuery<ZekeEvent[]>({
     queryKey: ["calendar-events-today"],
     queryFn: getTodayEvents,
-    enabled: isSyncMode,
   });
 
   const addMutation = useMutation({
@@ -301,27 +299,6 @@ export default function CalendarScreen() {
   const currentTimePosition = getCurrentTimePosition();
 
   const timelineHeight = (TIMELINE_END_HOUR - TIMELINE_START_HOUR + 1) * HOUR_HEIGHT;
-
-  if (!isSyncMode) {
-    return (
-      <View
-        style={[
-          styles.container,
-          {
-            backgroundColor: theme.backgroundRoot,
-            paddingTop: headerHeight + Spacing.xl,
-            paddingBottom: tabBarHeight + Spacing.xl,
-          },
-        ]}
-      >
-        <EmptyState
-          icon="wifi-off"
-          title="Connection Required"
-          description="Calendar sync requires a connection to ZEKE. Please connect to ZEKE in Settings to access your calendar."
-        />
-      </View>
-    );
-  }
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
