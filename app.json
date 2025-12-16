@@ -40,7 +40,15 @@
           }
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": false,
+          "modes": ["peripheral", "central"],
+          "bluetoothAlwaysPermission": "Allow ZEKE AI to use Bluetooth to connect to your Limitless pendant and Omi wearable"
+        }
+      ]
     ],
     "experiments": {
       "reactCompiler": true
