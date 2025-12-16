@@ -932,3 +932,150 @@ export async function getRecentActivities(limit: number = 10): Promise<ActivityI
     return [];
   }
 }
+
+export interface LocationSample {
+  id: string;
+  latitude: number;
+  longitude: number;
+  altitude?: number | null;
+  accuracy?: number | null;
+  heading?: number | null;
+  speed?: number | null;
+  timestamp: number;
+  geocodedAddress?: string | null;
+  city?: string | null;
+  region?: string | null;
+  country?: string | null;
+  createdAt: string;
+}
+
+export interface StarredPlace {
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  altitude?: number | null;
+  geocodedAddress?: string | null;
+  city?: string | null;
+  region?: string | null;
+  country?: string | null;
+  icon?: string;
+  createdAt: string;
+}
+
+export async function syncLocationSamples(samples: LocationSample[]): Promise<{ synced: number }> {
+  const baseUrl = getApiUrl();
+  const url = new URL('/api/location/samples', baseUrl);
+  
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ samples }),
+      signal: createTimeoutSignal(10000),
+    });
+    
+    if (!res.ok) {
+      return { synced: 0 };
+    }
+    
+    const contentType = res.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      return { synced: 0 };
+    }
+    
+    const data = await res.json();
+    return { synced: data.synced || 0 };
+  } catch {
+    return { synced: 0 };
+  }
+}
+
+export async function getLocationSamplesFromBackend(since?: string, limit?: number): Promise<LocationSample[]> {
+  const baseUrl = getApiUrl();
+  const url = new URL('/api/location/samples', baseUrl);
+  
+  if (since) {
+    url.searchParams.set('since', since);
+  }
+  if (limit) {
+    url.searchParams.set('limit', limit.toString());
+  }
+  
+  try {
+    const res = await fetch(url, {
+      credentials: 'include',
+      signal: createTimeoutSignal(10000),
+    });
+    
+    if (!res.ok) {
+      return [];
+    }
+    
+    const contentType = res.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      return [];
+    }
+    
+    const data = await res.json();
+    return data.samples || data || [];
+  } catch {
+    return [];
+  }
+}
+
+export async function syncStarredPlaces(places: StarredPlace[]): Promise<{ synced: number }> {
+  const baseUrl = getApiUrl();
+  const url = new URL('/api/location/starred', baseUrl);
+  
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ places }),
+      signal: createTimeoutSignal(10000),
+    });
+    
+    if (!res.ok) {
+      return { synced: 0 };
+    }
+    
+    const contentType = res.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      return { synced: 0 };
+    }
+    
+    const data = await res.json();
+    return { synced: data.synced || 0 };
+  } catch {
+    return { synced: 0 };
+  }
+}
+
+export async function getStarredPlacesFromBackend(): Promise<StarredPlace[]> {
+  const baseUrl = getApiUrl();
+  const url = new URL('/api/location/starred', baseUrl);
+  
+  try {
+    const res = await fetch(url, {
+      credentials: 'include',
+      signal: createTimeoutSignal(10000),
+    });
+    
+    if (!res.ok) {
+      return [];
+    }
+    
+    const contentType = res.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      return [];
+    }
+    
+    const data = await res.json();
+    return data.places || data || [];
+  } catch {
+    return [];
+  }
+}
