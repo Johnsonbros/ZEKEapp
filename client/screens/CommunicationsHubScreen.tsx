@@ -293,7 +293,7 @@ function ChatPlaceholder({ onStartChat }: ChatPlaceholderProps) {
         Chat with ZEKE
       </ThemedText>
       <ThemedText type="body" secondary style={{ textAlign: "center", paddingHorizontal: Spacing.xl }}>
-        Your AI companion is ready to help. Ask about your memories, schedule meetings, or get insights from your recordings.
+        Direct connection with ZEKE. Ask about your memories, schedule meetings, or get insights from your recordings.
       </ThemedText>
       <Pressable
         onPress={onStartChat}
@@ -746,7 +746,7 @@ export default function CommunicationsHubScreen() {
             onPress={() => handleTabPress("voice")}
           />
           <TabButton
-            label="Chat"
+            label="ZEKE"
             isActive={activeTab === "chat"}
             onPress={() => handleTabPress("chat")}
           />
