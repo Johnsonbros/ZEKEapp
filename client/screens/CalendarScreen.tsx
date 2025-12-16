@@ -407,6 +407,7 @@ export default function CalendarScreen() {
   const [eventDescription, setEventDescription] = useState("");
   const [selectedCalendarId, setSelectedCalendarId] = useState<string>("primary");
   const [filterCalendarId, setFilterCalendarId] = useState<string | null>(null);
+  const [showCalendarFilter, setShowCalendarFilter] = useState(false);
   const [isProcessingVoice, setIsProcessingVoice] = useState(false);
 
   const weekDates = useMemo(() => getWeekDates(selectedDate), [selectedDate]);
@@ -722,55 +723,69 @@ export default function CalendarScreen() {
         </View>
 
         {calendars.length > 0 ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.calendarFilters}
-          >
+          <View>
             <Pressable
-              onPress={() => setFilterCalendarId(null)}
-              style={[
-                styles.calendarChip,
-                {
-                  backgroundColor: !filterCalendarId ? Colors.dark.primary : theme.backgroundSecondary,
-                  borderColor: !filterCalendarId ? Colors.dark.primary : theme.border,
-                },
-              ]}
+              onPress={() => setShowCalendarFilter(!showCalendarFilter)}
+              style={[styles.filterToggle, { backgroundColor: theme.backgroundSecondary }]}
             >
-              <ThemedText
-                style={[
-                  styles.calendarChipText,
-                  { color: !filterCalendarId ? "#fff" : theme.textSecondary },
-                ]}
-              >
-                All Calendars
+              <Feather name="filter" size={16} color={theme.textSecondary} />
+              <ThemedText style={[styles.filterToggleText, { color: theme.textSecondary }]}>
+                {filterCalendarId ? calendars.find(c => c.id === filterCalendarId)?.name || 'Filter' : 'All Calendars'}
               </ThemedText>
+              <Feather name={showCalendarFilter ? "chevron-up" : "chevron-down"} size={16} color={theme.textSecondary} />
             </Pressable>
-            {calendars.filter((cal) => shouldShowCalendar(cal.name)).map((cal) => (
-              <Pressable
-                key={cal.id}
-                onPress={() => setFilterCalendarId(filterCalendarId === cal.id ? null : cal.id)}
-                style={[
-                  styles.calendarChip,
-                  {
-                    backgroundColor: filterCalendarId === cal.id ? `${cal.color}` : theme.backgroundSecondary,
-                    borderColor: filterCalendarId === cal.id ? cal.color : theme.border,
-                  },
-                ]}
+            {showCalendarFilter ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.calendarFilters}
               >
-                <View style={[styles.calendarDot, { backgroundColor: cal.color }]} />
-                <ThemedText
+                <Pressable
+                  onPress={() => { setFilterCalendarId(null); setShowCalendarFilter(false); }}
                   style={[
-                    styles.calendarChipText,
-                    { color: filterCalendarId === cal.id ? "#fff" : theme.text },
+                    styles.calendarChip,
+                    {
+                      backgroundColor: !filterCalendarId ? Colors.dark.primary : theme.backgroundSecondary,
+                      borderColor: !filterCalendarId ? Colors.dark.primary : theme.border,
+                    },
                   ]}
-                  numberOfLines={1}
                 >
-                  {getCalendarDisplayName(cal.name)}
-                </ThemedText>
-              </Pressable>
-            ))}
-          </ScrollView>
+                  <ThemedText
+                    style={[
+                      styles.calendarChipText,
+                      { color: !filterCalendarId ? "#fff" : theme.textSecondary },
+                    ]}
+                  >
+                    All Calendars
+                  </ThemedText>
+                </Pressable>
+                {calendars.filter((cal) => shouldShowCalendar(cal.name)).map((cal) => (
+                  <Pressable
+                    key={cal.id}
+                    onPress={() => { setFilterCalendarId(filterCalendarId === cal.id ? null : cal.id); setShowCalendarFilter(false); }}
+                    style={[
+                      styles.calendarChip,
+                      {
+                        backgroundColor: filterCalendarId === cal.id ? `${cal.color}` : theme.backgroundSecondary,
+                        borderColor: filterCalendarId === cal.id ? cal.color : theme.border,
+                      },
+                    ]}
+                  >
+                    <View style={[styles.calendarDot, { backgroundColor: cal.color }]} />
+                    <ThemedText
+                      style={[
+                        styles.calendarChipText,
+                        { color: filterCalendarId === cal.id ? "#fff" : theme.text },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {getCalendarDisplayName(cal.name)}
+                    </ThemedText>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            ) : null}
+          </View>
         ) : null}
       </View>
 
@@ -1571,6 +1586,19 @@ const styles = StyleSheet.create({
   calendarFilters: {
     paddingVertical: Spacing.xs,
     gap: Spacing.sm,
+  },
+  filterToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    alignSelf: "flex-start",
+  },
+  filterToggleText: {
+    fontSize: 13,
+    fontWeight: "500",
   },
   calendarChip: {
     flexDirection: "row",
