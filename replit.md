@@ -18,9 +18,9 @@ The backend is an Express.js server, featuring a minimal `/api` route structure 
 Client-side data is persisted using AsyncStorage with namespaced keys, storing devices, memories, chat messages, and settings. Server-side, Drizzle ORM is configured for PostgreSQL, with an in-memory fallback. The shared schema includes a `users` table.
 
 ### Feature Specifications
-- **Home Screen:** Dynamic greeting, connection status, stats grid (Events, Tasks, Groceries, Memories), schedule/task previews, recent memories.
+- **Home Screen (Command Center):** Dynamic greeting with "ZEKE Command Center" subtitle, Quick Action Widgets (Call, Message, Record, Command buttons with gradient backgrounds), GPS Status card with live location tracking, Activity Timeline showing recent ZEKE actions, connection status, stats grid, and device management.
+- **Communications Hub:** Elevated as primary communications interface with three tabs (SMS, Voice, Chat), replacing the old Inbox. SMS tab shows conversations with navigation to detail screens, Voice tab shows call history with details, Chat tab links to ZEKE AI chat.
 - **Contacts:** Alphabetical list with search, contact cards showing avatar, name, relationship, quick actions (call, message), color-coded by access level, and contact detail view with interaction history.
-- **Communication Log (Inbox):** Unified view of SMS, Voice, and App Chat interactions with filter tabs, showing sender, message preview, timestamp, and source badges.
 - **SMS Screens:** Chat-style conversation view with bubbles and date separators, and a modal for composing new SMS messages with character count.
 - **Calendar:** Timeline view for daily events with current time indicator, event details, and voice input for adding events.
 - **Tasks:** Filterable task lists (All, Pending, Completed) grouped by urgency, with priority indicators, completion toggles, and voice input for adding tasks.
@@ -28,6 +28,7 @@ Client-side data is persisted using AsyncStorage with namespaced keys, storing d
 - **Settings:** Device configuration, preference toggles, and app information.
 - **Chat Screen:** Full-screen ZEKE AI chat with message history and keyboard-aware text input.
 - **Real-Time Transcription:** Integrates Deepgram via a secure WebSocket proxy for real-time transcription from BLE audio devices (Omi, Limitless), with a dedicated `LiveCaptureScreen` for display and saving to ZEKE.
+- **Real-Time WebSocket Sync:** Uses `/ws/zeke` endpoint for real-time updates between app and ZEKE backend. Client hook (`useZekeSync`) with auto-reconnect and React Query cache invalidation. `SyncStatus` component shows connection status with colored indicators. Messages validated with Zod schema.
 
 ## External Dependencies
 
