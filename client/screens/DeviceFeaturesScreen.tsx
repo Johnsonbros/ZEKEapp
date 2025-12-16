@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { Feather } from "@expo/vector-icons";
 import * as Contacts from "expo-contacts";
-import { Accelerometer, Gyroscope, Pedometer } from "expo-sensors";
+import { Accelerometer, Gyroscope, Pedometer, Barometer } from "expo-sensors";
 import * as Battery from "expo-battery";
 import * as Device from "expo-device";
 import NetInfo, { NetInfoState } from "@react-native-community/netinfo";
@@ -42,6 +42,7 @@ export default function DeviceFeaturesScreen() {
 
   const [accelerometerData, setAccelerometerData] = useState<SensorData>({ x: 0, y: 0, z: 0 });
   const [gyroscopeData, setGyroscopeData] = useState<SensorData>({ x: 0, y: 0, z: 0 });
+  const [barometerPressure, setBarometerPressure] = useState<number | null>(null);
   const [stepCount, setStepCount] = useState<number>(0);
   const [sensorsEnabled, setSensorsEnabled] = useState<boolean>(false);
 
@@ -201,12 +202,14 @@ export default function DeviceFeaturesScreen() {
     if (sensorsEnabled) {
       Accelerometer.removeAllListeners();
       Gyroscope.removeAllListeners();
+      Barometer.removeAllListeners();
       setSensorsEnabled(false);
     } else {
       setSensorsEnabled(true);
 
       Accelerometer.setUpdateInterval(500);
       Gyroscope.setUpdateInterval(500);
+      Barometer.setUpdateInterval(1000);
 
       Accelerometer.addListener((data) => {
         setAccelerometerData(data);
@@ -214,6 +217,10 @@ export default function DeviceFeaturesScreen() {
 
       Gyroscope.addListener((data) => {
         setGyroscopeData(data);
+      });
+
+      Barometer.addListener(({ pressure }) => {
+        setBarometerPressure(pressure);
       });
 
       const isAvailable = await Pedometer.isAvailableAsync();
@@ -379,6 +386,12 @@ export default function DeviceFeaturesScreen() {
                   <ThemedText type="caption" secondary>Gyroscope:</ThemedText>
                   <ThemedText type="small">
                     X: {formatSensorValue(gyroscopeData.x)} | Y: {formatSensorValue(gyroscopeData.y)} | Z: {formatSensorValue(gyroscopeData.z)}
+                  </ThemedText>
+                </View>
+                <View style={styles.sensorRow}>
+                  <ThemedText type="caption" secondary>Barometer:</ThemedText>
+                  <ThemedText type="small">
+                    {barometerPressure !== null ? `${barometerPressure.toFixed(2)} hPa` : "Not available"}
                   </ThemedText>
                 </View>
                 <View style={styles.sensorRow}>
