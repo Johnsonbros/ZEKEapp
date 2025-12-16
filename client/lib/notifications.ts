@@ -1,6 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import type { Geofence } from './zeke-api-adapter';
+import { getGroceryItems } from './zeke-api-adapter';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -69,14 +70,41 @@ export async function showGeofenceNotification(
 export async function showGroceryPromptNotification(
   geofence: Geofence
 ): Promise<void> {
+  let groceryItems: { id: string; name: string; isPurchased: boolean }[] = [];
+  let unpurchasedCount = 0;
+  let itemPreview = '';
+  
+  try {
+    groceryItems = await getGroceryItems();
+    const unpurchasedItems = groceryItems.filter(item => !item.isPurchased);
+    unpurchasedCount = unpurchasedItems.length;
+    
+    if (unpurchasedCount > 0) {
+      const previewItems = unpurchasedItems.slice(0, 3).map(item => item.name);
+      itemPreview = previewItems.join(', ');
+      if (unpurchasedCount > 3) {
+        itemPreview += ` +${unpurchasedCount - 3} more`;
+      }
+    }
+  } catch (error) {
+    console.log('[Notifications] Could not fetch grocery items:', error);
+  }
+  
+  const body = unpurchasedCount > 0
+    ? `You're near ${geofence.name}. You have ${unpurchasedCount} item${unpurchasedCount > 1 ? 's' : ''} to get: ${itemPreview}`
+    : `You're near ${geofence.name}. Your grocery list is empty!`;
+  
   await Notifications.scheduleNotificationAsync({
     content: {
       title: 'Grocery Reminder',
-      body: `You're near ${geofence.name}. Don't forget to check your grocery list!`,
+      body,
       data: {
         type: 'grocery_prompt',
         geofenceId: geofence.id,
         geofenceName: geofence.name,
+        screen: 'Grocery',
+        navigateTo: 'TasksTab',
+        unpurchasedCount,
       },
     },
     trigger: null,

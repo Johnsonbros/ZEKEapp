@@ -32,7 +32,12 @@ import {
   addGeofence,
   updateGeofence,
   deleteGeofence,
+  getLocationLists,
+  addLocationList,
+  updateLocationList,
+  deleteLocationList,
   type Geofence,
+  type LocationList,
 } from "@/lib/zeke-api-adapter";
 import {
   generateGeofenceId,
@@ -66,6 +71,14 @@ export default function LocationScreen() {
   const [manualLat, setManualLat] = useState('');
   const [manualLon, setManualLon] = useState('');
   
+  const [locationLists, setLocationLists] = useState<LocationList[]>([]);
+  const [isLoadingLists, setIsLoadingLists] = useState(false);
+  const [showAddListModal, setShowAddListModal] = useState(false);
+  const [selectedListId, setSelectedListId] = useState<string | undefined>(undefined);
+  const [newListName, setNewListName] = useState('');
+  const [newListRadius, setNewListRadius] = useState('500');
+  const [newListActionType, setNewListActionType] = useState<LocationList['actionType']>('notification');
+  
   const {
     location,
     geocoded,
@@ -93,14 +106,33 @@ export default function LocationScreen() {
   const handleToggleMonitoring = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     if (!monitoringEnabled) {
+      // First, ensure location permission is granted
+      if (permissionStatus !== 'granted') {
+        const granted = await requestPermission();
+        if (!granted) {
+          Alert.alert(
+            'Location Permission Required',
+            'Geofence monitoring requires location access. Please enable location permissions to use this feature.'
+          );
+          return;
+        }
+      }
+      // Then request notification permission
       if (!hasNotificationPermission) {
-        await requestNotificationPermission();
+        const notifGranted = await requestNotificationPermission();
+        if (!notifGranted) {
+          Alert.alert(
+            'Notifications Disabled',
+            'Geofence monitoring is enabled but you won\'t receive alerts. Enable notifications in Settings for the full experience.',
+            [{ text: 'OK' }]
+          );
+        }
       }
       setMonitoringEnabled(true);
     } else {
       setMonitoringEnabled(false);
     }
-  }, [monitoringEnabled, hasNotificationPermission, requestNotificationPermission]);
+  }, [monitoringEnabled, hasNotificationPermission, requestNotificationPermission, permissionStatus, requestPermission]);
 
   const loadHistory = useCallback(async () => {
     setIsLoadingHistory(true);
@@ -138,6 +170,18 @@ export default function LocationScreen() {
     }
   }, []);
 
+  const loadLocationLists = useCallback(async () => {
+    setIsLoadingLists(true);
+    try {
+      const lists = await getLocationLists();
+      setLocationLists(lists);
+    } catch (error) {
+      console.error('Error loading location lists:', error);
+    } finally {
+      setIsLoadingLists(false);
+    }
+  }, []);
+
   React.useEffect(() => {
     if (activeTab === 'history') {
       loadHistory();
@@ -145,8 +189,9 @@ export default function LocationScreen() {
       loadStarredPlaces();
     } else if (activeTab === 'geofences') {
       loadGeofences();
+      loadLocationLists();
     }
-  }, [activeTab, loadHistory, loadStarredPlaces, loadGeofences]);
+  }, [activeTab, loadHistory, loadStarredPlaces, loadGeofences, loadLocationLists]);
 
   const handleRefresh = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -170,6 +215,93 @@ export default function LocationScreen() {
     setManualLat('');
     setManualLon('');
     setEditingGeofence(null);
+    setSelectedListId(undefined);
+  }, []);
+
+  const resetListForm = useCallback(() => {
+    setNewListName('');
+    setNewListRadius('500');
+    setNewListActionType('notification');
+  }, []);
+
+  const getListById = useCallback((listId: string | undefined) => {
+    if (!listId) return null;
+    return locationLists.find(l => l.id === listId) || null;
+  }, [locationLists]);
+
+  const handleQuickAddAsGroceryStore = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setGeofenceActionType('grocery_prompt');
+    setGeofenceRadius('500');
+    setGeofenceTriggerOn('enter');
+    
+    const groceryList = locationLists.find(l => l.name.toLowerCase().includes('grocery'));
+    if (groceryList) {
+      setSelectedListId(groceryList.id);
+    }
+  }, [locationLists]);
+
+  const handleSaveLocationList = useCallback(async () => {
+    if (!newListName.trim()) {
+      Alert.alert('Error', 'Please enter a name for the list.');
+      return;
+    }
+
+    const radius = parseInt(newListRadius, 10);
+    if (isNaN(radius) || radius < 50) {
+      Alert.alert('Error', 'Please enter a valid default radius (minimum 50m).');
+      return;
+    }
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    try {
+      const newList: LocationList = {
+        id: `list_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        name: newListName.trim(),
+        defaultRadius: radius,
+        actionType: newListActionType,
+        isActive: true,
+        geofenceIds: [],
+        createdAt: new Date().toISOString(),
+      };
+      await addLocationList(newList);
+      setLocationLists(prev => [newList, ...prev]);
+      setShowAddListModal(false);
+      resetListForm();
+    } catch (error) {
+      console.error('Error saving location list:', error);
+      Alert.alert('Error', 'Failed to save location list. Please try again.');
+    }
+  }, [newListName, newListRadius, newListActionType, resetListForm]);
+
+  const handleDeleteLocationList = useCallback(async (list: LocationList) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    const confirmDelete = async () => {
+      try {
+        await deleteLocationList(list.id);
+        setLocationLists(prev => prev.filter(l => l.id !== list.id));
+      } catch (error) {
+        console.error('Error deleting location list:', error);
+        Alert.alert('Error', 'Failed to delete location list.');
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      if (window.confirm(`Delete list "${list.name}"?`)) {
+        await confirmDelete();
+      }
+    } else {
+      Alert.alert(
+        'Delete List',
+        `Delete "${list.name}"?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Delete', style: 'destructive', onPress: confirmDelete },
+        ]
+      );
+    }
   }, []);
 
   const handleOpenAddGeofence = useCallback(() => {
@@ -188,6 +320,7 @@ export default function LocationScreen() {
     setUseCurrentLocation(false);
     setManualLat(geofence.latitude.toString());
     setManualLon(geofence.longitude.toString());
+    setSelectedListId(geofence.listId);
     setShowAddGeofenceModal(true);
   }, []);
 
@@ -233,6 +366,7 @@ export default function LocationScreen() {
           radius,
           actionType: geofenceActionType,
           triggerOn: geofenceTriggerOn,
+          listId: selectedListId,
         });
         if (updated) {
           setGeofences(prev => prev.map(g => g.id === updated.id ? updated : g));
@@ -247,6 +381,7 @@ export default function LocationScreen() {
           triggerOn: geofenceTriggerOn,
           isActive: true,
           actionType: geofenceActionType,
+          listId: selectedListId,
           createdAt: new Date().toISOString(),
         };
         await addGeofence(newGeofence);
@@ -258,7 +393,7 @@ export default function LocationScreen() {
       console.error('Error saving geofence:', error);
       Alert.alert('Error', 'Failed to save geofence. Please try again.');
     }
-  }, [geofenceName, geofenceRadius, geofenceActionType, geofenceTriggerOn, useCurrentLocation, location, manualLat, manualLon, editingGeofence, resetGeofenceForm]);
+  }, [geofenceName, geofenceRadius, geofenceActionType, geofenceTriggerOn, useCurrentLocation, location, manualLat, manualLon, editingGeofence, resetGeofenceForm, selectedListId]);
 
   const handleDeleteGeofence = useCallback(async (geofence: Geofence) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -770,6 +905,91 @@ export default function LocationScreen() {
         </View>
       </View>
 
+      <View style={[styles.card, { backgroundColor: theme.backgroundDefault, marginTop: Spacing.md }]}>
+        <View style={styles.cardHeader}>
+          <View style={styles.cardTitleRow}>
+            <Feather name="folder" size={20} color={Colors.dark.accent} />
+            <ThemedText type="h4" style={{ marginLeft: Spacing.sm }}>Location Lists</ThemedText>
+          </View>
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setShowAddListModal(true);
+            }}
+            hitSlop={10}
+          >
+            <Feather name="plus" size={20} color={Colors.dark.primary} />
+          </Pressable>
+        </View>
+
+        {isLoadingLists ? (
+          <ActivityIndicator size="small" color={Colors.dark.primary} />
+        ) : locationLists.length === 0 ? (
+          <View style={{ paddingVertical: Spacing.md }}>
+            <ThemedText type="body" secondary style={{ textAlign: 'center' }}>
+              No location lists yet
+            </ThemedText>
+            <ThemedText type="caption" secondary style={{ textAlign: 'center', marginTop: Spacing.xs }}>
+              Create lists to group geofences (e.g., Grocery Stores)
+            </ThemedText>
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setNewListName('Grocery Stores');
+                setNewListRadius('500');
+                setNewListActionType('grocery_prompt');
+                setShowAddListModal(true);
+              }}
+              style={({ pressed }) => [
+                { 
+                  backgroundColor: `${Colors.dark.success}20`, 
+                  paddingVertical: Spacing.sm, 
+                  paddingHorizontal: Spacing.md,
+                  borderRadius: BorderRadius.sm,
+                  alignSelf: 'center',
+                  marginTop: Spacing.md,
+                  opacity: pressed ? 0.7 : 1,
+                },
+              ]}
+            >
+              <ThemedText type="small" style={{ color: Colors.dark.success }}>
+                Create Grocery Stores List
+              </ThemedText>
+            </Pressable>
+          </View>
+        ) : (
+          <View style={{ marginTop: Spacing.sm }}>
+            {locationLists.map((list) => (
+              <View
+                key={list.id}
+                style={[styles.nearbyGeofenceItem, { paddingVertical: Spacing.sm }]}
+              >
+                <Feather 
+                  name="folder" 
+                  size={16} 
+                  color={list.actionType === 'grocery_prompt' ? Colors.dark.success : Colors.dark.accent} 
+                />
+                <View style={{ flex: 1, marginLeft: Spacing.sm }}>
+                  <ThemedText type="small">{list.name}</ThemedText>
+                  <ThemedText type="caption" secondary>
+                    {getActionTypeLabel(list.actionType)} - {formatRadius(list.defaultRadius)}
+                  </ThemedText>
+                </View>
+                <ThemedText type="caption" secondary style={{ marginRight: Spacing.sm }}>
+                  {list.geofenceIds?.length || 0} places
+                </ThemedText>
+                <Pressable
+                  onPress={() => handleDeleteLocationList(list)}
+                  hitSlop={10}
+                >
+                  <Feather name="trash-2" size={16} color={Colors.dark.error} />
+                </Pressable>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+
       {isLoadingGeofences ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.dark.primary} />
@@ -811,6 +1031,7 @@ export default function LocationScreen() {
             const distance = location
               ? calculateDistanceToGeofence({ latitude: location.latitude, longitude: location.longitude }, geofence)
               : null;
+            const geofenceList = getListById(geofence.listId);
 
             return (
               <Pressable
@@ -826,6 +1047,11 @@ export default function LocationScreen() {
                 </View>
                 <View style={styles.geofenceContent}>
                   <ThemedText type="body" numberOfLines={1}>{geofence.name}</ThemedText>
+                  {geofenceList ? (
+                    <ThemedText type="caption" style={{ color: Colors.dark.success, marginTop: 2 }}>
+                      {geofenceList.name}
+                    </ThemedText>
+                  ) : null}
                   <View style={styles.geofenceMetaRow}>
                     <View style={[styles.geofenceBadge, { backgroundColor: `${Colors.dark.secondary}20` }]}>
                       <ThemedText type="caption" style={{ color: Colors.dark.secondary }}>
@@ -843,11 +1069,11 @@ export default function LocationScreen() {
                       </ThemedText>
                     </View>
                   </View>
-                  {distance !== null && (
+                  {distance !== null ? (
                     <ThemedText type="caption" style={{ color: Colors.dark.primary, marginTop: 4 }}>
                       {formatDistance(distance)} away
                     </ThemedText>
-                  )}
+                  ) : null}
                 </View>
                 <View style={styles.geofenceActions}>
                   <Pressable
@@ -907,6 +1133,32 @@ export default function LocationScreen() {
           style={{ flex: 1 }}
           contentContainerStyle={styles.modalContent}
         >
+          {!editingGeofence && location ? (
+            <Pressable
+              onPress={handleQuickAddAsGroceryStore}
+              style={({ pressed }) => [
+                {
+                  backgroundColor: `${Colors.dark.success}20`,
+                  paddingVertical: Spacing.md,
+                  paddingHorizontal: Spacing.lg,
+                  borderRadius: BorderRadius.md,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: Spacing.lg,
+                  borderWidth: 1,
+                  borderColor: Colors.dark.success,
+                  opacity: pressed ? 0.7 : 1,
+                },
+              ]}
+            >
+              <Feather name="shopping-cart" size={18} color={Colors.dark.success} />
+              <ThemedText type="body" style={{ marginLeft: Spacing.sm, color: Colors.dark.success, fontWeight: '600' }}>
+                Add as Grocery Store
+              </ThemedText>
+            </Pressable>
+          ) : null}
+
           <View style={styles.formGroup}>
             <ThemedText type="small" secondary style={styles.formLabel}>Name</ThemedText>
             <TextInput
@@ -1013,6 +1265,115 @@ export default function LocationScreen() {
                   ]}
                 >
                   <ThemedText type="small" style={{ color: geofenceActionType === option ? Colors.dark.accent : theme.textSecondary }}>
+                    {getActionTypeLabel(option)}
+                  </ThemedText>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
+          {locationLists.length > 0 ? (
+            <View style={styles.formGroup}>
+              <ThemedText type="small" secondary style={styles.formLabel}>Add to List (optional)</ThemedText>
+              <View style={styles.optionsRow}>
+                <Pressable
+                  onPress={() => setSelectedListId(undefined)}
+                  style={[
+                    styles.optionButton,
+                    { backgroundColor: !selectedListId ? `${Colors.dark.primary}20` : theme.backgroundDefault, borderColor: theme.border },
+                  ]}
+                >
+                  <ThemedText type="small" style={{ color: !selectedListId ? Colors.dark.primary : theme.textSecondary }}>
+                    None
+                  </ThemedText>
+                </Pressable>
+                {locationLists.map((list) => (
+                  <Pressable
+                    key={list.id}
+                    onPress={() => setSelectedListId(list.id)}
+                    style={[
+                      styles.optionButton,
+                      { backgroundColor: selectedListId === list.id ? `${Colors.dark.success}20` : theme.backgroundDefault, borderColor: theme.border },
+                    ]}
+                  >
+                    <ThemedText type="small" style={{ color: selectedListId === list.id ? Colors.dark.success : theme.textSecondary }}>
+                      {list.name}
+                    </ThemedText>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          ) : null}
+        </KeyboardAwareScrollViewCompat>
+      </View>
+    </Modal>
+
+    <Modal
+      visible={showAddListModal}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={() => {
+        setShowAddListModal(false);
+        resetListForm();
+      }}
+    >
+      <View style={[styles.modalContainer, { backgroundColor: theme.backgroundRoot }]}>
+        <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
+          <Pressable
+            onPress={() => {
+              setShowAddListModal(false);
+              resetListForm();
+            }}
+            hitSlop={10}
+          >
+            <ThemedText type="body" style={{ color: Colors.dark.primary }}>Cancel</ThemedText>
+          </Pressable>
+          <ThemedText type="h4">New Location List</ThemedText>
+          <Pressable onPress={handleSaveLocationList} hitSlop={10}>
+            <ThemedText type="body" style={{ color: Colors.dark.primary, fontWeight: '600' }}>Save</ThemedText>
+          </Pressable>
+        </View>
+
+        <KeyboardAwareScrollViewCompat
+          style={{ flex: 1 }}
+          contentContainerStyle={styles.modalContent}
+        >
+          <View style={styles.formGroup}>
+            <ThemedText type="small" secondary style={styles.formLabel}>List Name</ThemedText>
+            <TextInput
+              value={newListName}
+              onChangeText={setNewListName}
+              placeholder="e.g., Grocery Stores, Coffee Shops"
+              placeholderTextColor={theme.textSecondary}
+              style={[styles.textInput, { backgroundColor: theme.backgroundDefault, color: theme.text, borderColor: theme.border }]}
+            />
+          </View>
+
+          <View style={styles.formGroup}>
+            <ThemedText type="small" secondary style={styles.formLabel}>Default Radius (meters)</ThemedText>
+            <TextInput
+              value={newListRadius}
+              onChangeText={setNewListRadius}
+              placeholder="500"
+              placeholderTextColor={theme.textSecondary}
+              keyboardType="number-pad"
+              style={[styles.textInput, { backgroundColor: theme.backgroundDefault, color: theme.text, borderColor: theme.border }]}
+            />
+          </View>
+
+          <View style={styles.formGroup}>
+            <ThemedText type="small" secondary style={styles.formLabel}>Default Action Type</ThemedText>
+            <View style={styles.optionsRow}>
+              {(['notification', 'grocery_prompt', 'custom'] as const).map((option) => (
+                <Pressable
+                  key={option}
+                  onPress={() => setNewListActionType(option)}
+                  style={[
+                    styles.optionButton,
+                    { backgroundColor: newListActionType === option ? `${Colors.dark.accent}20` : theme.backgroundDefault, borderColor: theme.border },
+                  ]}
+                >
+                  <ThemedText type="small" style={{ color: newListActionType === option ? Colors.dark.accent : theme.textSecondary }}>
                     {getActionTypeLabel(option)}
                   </ThemedText>
                 </Pressable>
