@@ -2,6 +2,7 @@ import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import TasksScreen from "@/screens/TasksScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
+import { ZekeHeaderTitle, ZekeHeaderButtons } from "@/components/ZekeHeader";
 
 export type TasksStackParamList = {
   Tasks: undefined;
@@ -18,7 +19,9 @@ export default function TasksStackNavigator() {
         name="Tasks"
         component={TasksScreen}
         options={{
-          headerTitle: "Tasks",
+          headerTitle: "",
+          headerLeft: () => <ZekeHeaderTitle />,
+          headerRight: () => <ZekeHeaderButtons />,
         }}
       />
     </Stack.Navigator>

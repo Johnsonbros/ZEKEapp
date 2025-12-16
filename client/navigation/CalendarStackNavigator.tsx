@@ -2,6 +2,7 @@ import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import CalendarScreen from "@/screens/CalendarScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
+import { ZekeHeaderTitle, ZekeHeaderButtons } from "@/components/ZekeHeader";
 
 export type CalendarStackParamList = {
   Calendar: undefined;
@@ -18,7 +19,9 @@ export default function CalendarStackNavigator() {
         name="Calendar"
         component={CalendarScreen}
         options={{
-          headerTitle: "Calendar",
+          headerTitle: "",
+          headerLeft: () => <ZekeHeaderTitle />,
+          headerRight: () => <ZekeHeaderButtons />,
         }}
       />
     </Stack.Navigator>

@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import ContactsScreen from "@/screens/ContactsScreen";
 import ContactDetailScreen from "@/screens/ContactDetailScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
+import { ZekeHeaderTitle, ZekeHeaderButtons } from "@/components/ZekeHeader";
 
 export type ContactsStackParamList = {
   Contacts: undefined;
@@ -20,7 +21,9 @@ export default function ContactsStackNavigator() {
         name="Contacts"
         component={ContactsScreen}
         options={{
-          headerTitle: "Contacts",
+          headerTitle: "",
+          headerLeft: () => <ZekeHeaderTitle />,
+          headerRight: () => <ZekeHeaderButtons />,
         }}
       />
       <Stack.Screen

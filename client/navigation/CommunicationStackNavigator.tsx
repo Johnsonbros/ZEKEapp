@@ -9,6 +9,7 @@ import CommunicationsHubScreen from "@/screens/CommunicationsHubScreen";
 import SmsConversationScreen from "@/screens/SmsConversationScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
+import { ZekeHeaderTitle, ZekeHeaderButtons } from "@/components/ZekeHeader";
 import { Colors, Spacing } from "@/constants/theme";
 
 export type CommunicationStackParamList = {
@@ -23,33 +24,6 @@ export type CommunicationStackParamList = {
 
 const Stack = createNativeStackNavigator<CommunicationStackParamList>();
 
-type CommunicationsNavigationProp = CompositeNavigationProp<
-  NativeStackNavigationProp<CommunicationStackParamList>,
-  NativeStackNavigationProp<RootStackParamList>
->;
-
-function ComposeButton() {
-  const navigation = useNavigation<CommunicationsNavigationProp>();
-
-  const handlePress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    navigation.navigate("SmsCompose", {});
-  };
-
-  return (
-    <Pressable onPress={handlePress} style={headerStyles.button}>
-      <Feather name="edit" size={22} color={Colors.dark.text} />
-    </Pressable>
-  );
-}
-
-const headerStyles = StyleSheet.create({
-  button: {
-    padding: Spacing.sm,
-    marginRight: -Spacing.sm,
-  },
-});
-
 export default function CommunicationStackNavigator() {
   const screenOptions = useScreenOptions();
 
@@ -59,8 +33,9 @@ export default function CommunicationStackNavigator() {
         name="CommunicationsHub"
         component={CommunicationsHubScreen}
         options={{
-          headerTitle: "Communications",
-          headerRight: () => <ComposeButton />,
+          headerTitle: "",
+          headerLeft: () => <ZekeHeaderTitle />,
+          headerRight: () => <ZekeHeaderButtons />,
         }}
       />
       <Stack.Screen
