@@ -788,3 +788,111 @@ export async function getZekeCalendar(): Promise<ZekeCalendar | null> {
     return null;
   }
 }
+
+export interface ActivityItem {
+  id: string;
+  action: string;
+  timestamp: string;
+  icon: 'message-circle' | 'mic' | 'check-square' | 'calendar' | 'shopping-cart' | 'user';
+  rawDate: Date;
+}
+
+function getRelativeTime(date: Date): string {
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins} min ago`;
+  
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours} hr ago`;
+  
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return `${diffDays} days ago`;
+  
+  return date.toLocaleDateString();
+}
+
+export async function getRecentActivities(limit: number = 10): Promise<ActivityItem[]> {
+  const activities: ActivityItem[] = [];
+  
+  try {
+    const [memories, tasks, smsConversations, events] = await Promise.all([
+      getRecentMemories(5).catch(() => []),
+      getAllTasks().catch(() => []),
+      getTwilioConversations().catch(() => []),
+      getTodayEvents().catch(() => []),
+    ]);
+    
+    for (const memory of memories) {
+      const date = new Date(memory.createdAt);
+      const durationMin = Math.round((memory.duration || 0) / 60);
+      activities.push({
+        id: `memory-${memory.id}`,
+        action: durationMin > 0 
+          ? `Recorded ${durationMin} min ${memory.title || 'audio'}` 
+          : `Recorded: ${memory.title || 'audio memory'}`,
+        timestamp: getRelativeTime(date),
+        icon: 'mic',
+        rawDate: date,
+      });
+    }
+    
+    const recentTasks = tasks
+      .filter((t: ZekeTask) => t.status === 'completed' || t.createdAt)
+      .slice(0, 5);
+    
+    for (const task of recentTasks) {
+      const date = new Date(task.createdAt);
+      const isCompleted = task.status === 'completed';
+      activities.push({
+        id: `task-${task.id}`,
+        action: isCompleted 
+          ? `Completed: ${task.title}` 
+          : `Added task: ${task.title}`,
+        timestamp: getRelativeTime(date),
+        icon: 'check-square',
+        rawDate: date,
+      });
+    }
+    
+    for (const convo of smsConversations.slice(0, 5)) {
+      if (convo.messages && convo.messages.length > 0) {
+        const lastMsg = convo.messages[convo.messages.length - 1];
+        const date = new Date(lastMsg.dateCreated || lastMsg.dateSent || new Date());
+        const isOutbound = lastMsg.direction?.includes('outbound');
+        const contactName = convo.contactName || convo.phoneNumber || 'Unknown';
+        
+        activities.push({
+          id: `sms-${lastMsg.sid || convo.phoneNumber}`,
+          action: isOutbound 
+            ? `Sent SMS to ${contactName}` 
+            : `Received SMS from ${contactName}`,
+          timestamp: getRelativeTime(date),
+          icon: 'message-circle',
+          rawDate: date,
+        });
+      }
+    }
+    
+    for (const event of events.slice(0, 3)) {
+      const date = new Date(event.startTime);
+      activities.push({
+        id: `event-${event.id}`,
+        action: `Synced: ${event.title}`,
+        timestamp: getRelativeTime(date),
+        icon: 'calendar',
+        rawDate: date,
+      });
+    }
+    
+    activities.sort((a, b) => b.rawDate.getTime() - a.rawDate.getTime());
+    
+    return activities.slice(0, limit);
+  } catch (error) {
+    console.error('[Activities] Error fetching activities:', error);
+    return [];
+  }
+}
