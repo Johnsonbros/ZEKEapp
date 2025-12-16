@@ -313,14 +313,119 @@ export async function getSmsConversations(): Promise<ZekeContactConversation[]> 
   }
 }
 
-export async function sendSms(contactId: string, message: string): Promise<{ success: boolean; messageId?: string }> {
-  const res = await apiRequest('POST', '/api/twilio/sms/send', { contactId, message });
+export async function sendSms(to: string, message: string): Promise<{ sid: string; to: string; from: string; body: string; status: string }> {
+  const res = await apiRequest('POST', '/api/twilio/sms/send', { to, body: message });
   return res.json();
 }
 
-export async function initiateCall(contactId: string): Promise<{ success: boolean; callId?: string }> {
-  const res = await apiRequest('POST', '/api/twilio/call/initiate', { contactId });
+export async function initiateCall(to: string): Promise<{ sid: string; to: string; from: string; status: string }> {
+  const res = await apiRequest('POST', '/api/twilio/call/initiate', { to });
   return res.json();
+}
+
+export interface TwilioSmsConversation {
+  phoneNumber: string;
+  contactName: string | null;
+  lastMessage: string;
+  lastMessageTime: string;
+  unreadCount: number;
+  messages: TwilioSmsMessage[];
+}
+
+export interface TwilioSmsMessage {
+  sid: string;
+  to: string;
+  from: string;
+  body: string;
+  status: string;
+  direction: 'inbound' | 'outbound-api' | 'outbound-reply';
+  dateSent: string | null;
+  dateCreated: string;
+}
+
+export interface TwilioCallRecord {
+  sid: string;
+  to: string;
+  from: string;
+  status: string;
+  direction: 'inbound' | 'outbound-api' | 'outbound-dial';
+  duration: number;
+  startTime: string | null;
+  endTime: string | null;
+  dateCreated: string;
+}
+
+export async function getTwilioConversations(): Promise<TwilioSmsConversation[]> {
+  const baseUrl = getApiUrl();
+  const url = new URL('/api/twilio/sms/conversations', baseUrl);
+  
+  try {
+    const res = await fetch(url, { 
+      credentials: 'include',
+      signal: AbortSignal.timeout(10000)
+    });
+    if (!res.ok) {
+      return [];
+    }
+    return res.json();
+  } catch {
+    return [];
+  }
+}
+
+export async function getTwilioConversation(phoneNumber: string): Promise<TwilioSmsConversation | null> {
+  const baseUrl = getApiUrl();
+  const url = new URL(`/api/twilio/sms/conversation/${encodeURIComponent(phoneNumber)}`, baseUrl);
+  
+  try {
+    const res = await fetch(url, { 
+      credentials: 'include',
+      signal: AbortSignal.timeout(10000)
+    });
+    if (!res.ok) {
+      return null;
+    }
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function getTwilioCalls(): Promise<TwilioCallRecord[]> {
+  const baseUrl = getApiUrl();
+  const url = new URL('/api/twilio/calls', baseUrl);
+  
+  try {
+    const res = await fetch(url, { 
+      credentials: 'include',
+      signal: AbortSignal.timeout(10000)
+    });
+    if (!res.ok) {
+      return [];
+    }
+    return res.json();
+  } catch {
+    return [];
+  }
+}
+
+export async function getTwilioPhoneNumber(): Promise<string | null> {
+  const baseUrl = getApiUrl();
+  const url = new URL('/api/twilio/phone-number', baseUrl);
+  
+  try {
+    const res = await fetch(url, { 
+      credentials: 'include',
+      signal: AbortSignal.timeout(5000)
+    });
+    if (!res.ok) {
+      return null;
+    }
+    const data = await res.json();
+    return data.phoneNumber || null;
+  } catch {
+    return null;
+  }
 }
 
 export async function getHealthStatus(): Promise<{ status: string; connected: boolean }> {

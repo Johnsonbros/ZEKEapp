@@ -760,6 +760,234 @@ Return at most ${Math.min(limit, 10)} results. Only include memories with releva
   });
 
   // =========================================
+  // Twilio SMS Routes
+  // =========================================
+
+  app.get("/api/twilio/sms/conversations", async (_req, res) => {
+    try {
+      const { getSmsConversations } = await import("./twilio");
+      const conversations = await getSmsConversations();
+      res.json(conversations);
+    } catch (error) {
+      console.error("[Twilio] Error fetching conversations:", error);
+      res.status(500).json({ error: "Failed to fetch conversations" });
+    }
+  });
+
+  app.get("/api/twilio/sms/conversation/:phoneNumber", async (req, res) => {
+    try {
+      const { getConversation } = await import("./twilio");
+      const phoneNumber = decodeURIComponent(req.params.phoneNumber);
+      const conversation = await getConversation(phoneNumber);
+      
+      if (!conversation) {
+        return res.status(404).json({ error: "Conversation not found" });
+      }
+      
+      res.json(conversation);
+    } catch (error) {
+      console.error("[Twilio] Error fetching conversation:", error);
+      res.status(500).json({ error: "Failed to fetch conversation" });
+    }
+  });
+
+  app.post("/api/twilio/sms/send", async (req, res) => {
+    try {
+      const { to, body } = req.body;
+      
+      if (!to || !body) {
+        return res.status(400).json({ error: "Missing 'to' or 'body' field" });
+      }
+      
+      const { sendSms } = await import("./twilio");
+      const message = await sendSms(to, body);
+      
+      const { broadcastZekeSync } = await import("./websocket");
+      broadcastZekeSync({
+        type: 'sms',
+        action: 'created',
+        data: { message, direction: 'outbound' },
+        timestamp: new Date().toISOString()
+      });
+      
+      res.status(201).json(message);
+    } catch (error) {
+      console.error("[Twilio] Error sending SMS:", error);
+      res.status(500).json({ error: "Failed to send SMS" });
+    }
+  });
+
+  // =========================================
+  // Twilio Voice Routes
+  // =========================================
+
+  app.get("/api/twilio/calls", async (_req, res) => {
+    try {
+      const { getRecentCalls } = await import("./twilio");
+      const calls = await getRecentCalls();
+      res.json(calls);
+    } catch (error) {
+      console.error("[Twilio] Error fetching calls:", error);
+      res.status(500).json({ error: "Failed to fetch calls" });
+    }
+  });
+
+  app.get("/api/twilio/calls/:callSid", async (req, res) => {
+    try {
+      const { getCallDetails } = await import("./twilio");
+      const call = await getCallDetails(req.params.callSid);
+      
+      if (!call) {
+        return res.status(404).json({ error: "Call not found" });
+      }
+      
+      res.json(call);
+    } catch (error) {
+      console.error("[Twilio] Error fetching call:", error);
+      res.status(500).json({ error: "Failed to fetch call" });
+    }
+  });
+
+  app.post("/api/twilio/call/initiate", async (req, res) => {
+    try {
+      const { to } = req.body;
+      
+      if (!to) {
+        return res.status(400).json({ error: "Missing 'to' field" });
+      }
+      
+      const { initiateCall } = await import("./twilio");
+      const call = await initiateCall(to);
+      
+      const { broadcastZekeSync } = await import("./websocket");
+      broadcastZekeSync({
+        type: 'voice',
+        action: 'created',
+        data: { call, direction: 'outbound' },
+        timestamp: new Date().toISOString()
+      });
+      
+      res.status(201).json(call);
+    } catch (error) {
+      console.error("[Twilio] Error initiating call:", error);
+      res.status(500).json({ error: "Failed to initiate call" });
+    }
+  });
+
+  // =========================================
+  // Twilio Webhooks (for incoming calls/SMS)
+  // =========================================
+
+  app.post("/api/twilio/webhook/sms", async (req, res) => {
+    try {
+      const { From, To, Body, MessageSid, NumMedia } = req.body;
+      
+      console.log("[Twilio Webhook] Incoming SMS from", From, ":", Body);
+      
+      const { broadcastZekeSync } = await import("./websocket");
+      broadcastZekeSync({
+        type: 'sms',
+        action: 'created',
+        data: {
+          message: {
+            sid: MessageSid,
+            from: From,
+            to: To,
+            body: Body,
+            direction: 'inbound',
+            numMedia: NumMedia || '0',
+            dateCreated: new Date().toISOString()
+          }
+        },
+        timestamp: new Date().toISOString()
+      });
+      
+      res.type('text/xml');
+      res.send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+    } catch (error) {
+      console.error("[Twilio Webhook] SMS error:", error);
+      res.type('text/xml');
+      res.send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+    }
+  });
+
+  app.post("/api/twilio/webhook/voice", async (req, res) => {
+    try {
+      const { From, To, CallSid, CallStatus, Direction } = req.body;
+      
+      console.log("[Twilio Webhook] Incoming call from", From, "status:", CallStatus);
+      
+      const { broadcastZekeSync } = await import("./websocket");
+      broadcastZekeSync({
+        type: 'voice',
+        action: CallStatus === 'ringing' ? 'created' : 'status_change',
+        data: {
+          call: {
+            sid: CallSid,
+            from: From,
+            to: To,
+            status: CallStatus,
+            direction: Direction,
+            dateCreated: new Date().toISOString()
+          }
+        },
+        timestamp: new Date().toISOString()
+      });
+      
+      res.type('text/xml');
+      res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say>Hello! This is ZEKE. Please hold while we connect you.</Say>
+  <Play>http://com.twilio.music.ambient.s3.amazonaws.com/BustinLoose.mp3</Play>
+</Response>`);
+    } catch (error) {
+      console.error("[Twilio Webhook] Voice error:", error);
+      res.type('text/xml');
+      res.send('<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>');
+    }
+  });
+
+  app.post("/api/twilio/webhook/voice-status", async (req, res) => {
+    try {
+      const { CallSid, CallStatus, CallDuration, From, To } = req.body;
+      
+      console.log("[Twilio Webhook] Call status update:", CallSid, CallStatus, "duration:", CallDuration);
+      
+      const { broadcastZekeSync } = await import("./websocket");
+      broadcastZekeSync({
+        type: 'voice',
+        action: 'status_change',
+        data: {
+          call: {
+            sid: CallSid,
+            from: From,
+            to: To,
+            status: CallStatus,
+            duration: parseInt(CallDuration || '0', 10)
+          }
+        },
+        timestamp: new Date().toISOString()
+      });
+      
+      res.sendStatus(200);
+    } catch (error) {
+      console.error("[Twilio Webhook] Status error:", error);
+      res.sendStatus(200);
+    }
+  });
+
+  app.get("/api/twilio/phone-number", async (_req, res) => {
+    try {
+      const { getTwilioFromPhoneNumber } = await import("./twilio");
+      const phoneNumber = await getTwilioFromPhoneNumber();
+      res.json({ phoneNumber });
+    } catch (error) {
+      console.error("[Twilio] Error fetching phone number:", error);
+      res.status(500).json({ error: "Failed to fetch phone number" });
+    }
+  });
+
+  // =========================================
   // Deepgram Configuration Status Endpoint (secure - no API key exposed)
   // =========================================
   
