@@ -1079,3 +1079,175 @@ export async function getStarredPlacesFromBackend(): Promise<StarredPlace[]> {
     return [];
   }
 }
+
+export interface Geofence {
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  radius: number;
+  listId?: string;
+  triggerOn: 'enter' | 'exit' | 'both';
+  isActive: boolean;
+  actionType: 'notification' | 'grocery_prompt' | 'custom';
+  actionData?: any;
+  createdAt: string;
+}
+
+export interface LocationList {
+  id: string;
+  name: string;
+  description?: string;
+  defaultRadius: number;
+  actionType: 'notification' | 'grocery_prompt' | 'custom';
+  isActive: boolean;
+  geofenceIds: string[];
+  createdAt: string;
+}
+
+const GEOFENCE_STORAGE_KEY = '@zeke/geofences';
+const LOCATION_LISTS_STORAGE_KEY = '@zeke/location_lists';
+
+async function getAsyncStorage() {
+  const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+  return AsyncStorage;
+}
+
+export async function getGeofences(): Promise<Geofence[]> {
+  try {
+    const AsyncStorage = await getAsyncStorage();
+    const data = await AsyncStorage.getItem(GEOFENCE_STORAGE_KEY);
+    return data ? JSON.parse(data) : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function saveGeofences(geofences: Geofence[]): Promise<void> {
+  try {
+    const AsyncStorage = await getAsyncStorage();
+    await AsyncStorage.setItem(GEOFENCE_STORAGE_KEY, JSON.stringify(geofences));
+  } catch (error) {
+    console.error('Error saving geofences:', error);
+  }
+}
+
+export async function addGeofence(geofence: Geofence): Promise<Geofence> {
+  const geofences = await getGeofences();
+  geofences.unshift(geofence);
+  await saveGeofences(geofences);
+  return geofence;
+}
+
+export async function updateGeofence(id: string, updates: Partial<Geofence>): Promise<Geofence | null> {
+  const geofences = await getGeofences();
+  const index = geofences.findIndex(g => g.id === id);
+  if (index === -1) return null;
+  
+  geofences[index] = { ...geofences[index], ...updates };
+  await saveGeofences(geofences);
+  return geofences[index];
+}
+
+export async function deleteGeofence(id: string): Promise<void> {
+  const geofences = await getGeofences();
+  const filtered = geofences.filter(g => g.id !== id);
+  await saveGeofences(filtered);
+}
+
+export async function getLocationLists(): Promise<LocationList[]> {
+  try {
+    const AsyncStorage = await getAsyncStorage();
+    const data = await AsyncStorage.getItem(LOCATION_LISTS_STORAGE_KEY);
+    return data ? JSON.parse(data) : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function saveLocationLists(lists: LocationList[]): Promise<void> {
+  try {
+    const AsyncStorage = await getAsyncStorage();
+    await AsyncStorage.setItem(LOCATION_LISTS_STORAGE_KEY, JSON.stringify(lists));
+  } catch (error) {
+    console.error('Error saving location lists:', error);
+  }
+}
+
+export async function addLocationList(list: LocationList): Promise<LocationList> {
+  const lists = await getLocationLists();
+  lists.unshift(list);
+  await saveLocationLists(lists);
+  return list;
+}
+
+export async function updateLocationList(id: string, updates: Partial<LocationList>): Promise<LocationList | null> {
+  const lists = await getLocationLists();
+  const index = lists.findIndex(l => l.id === id);
+  if (index === -1) return null;
+  
+  lists[index] = { ...lists[index], ...updates };
+  await saveLocationLists(lists);
+  return lists[index];
+}
+
+export async function deleteLocationList(id: string): Promise<void> {
+  const lists = await getLocationLists();
+  const filtered = lists.filter(l => l.id !== id);
+  await saveLocationLists(filtered);
+}
+
+export async function syncGeofencesToBackend(geofences: Geofence[]): Promise<{ synced: number }> {
+  const baseUrl = getApiUrl();
+  const url = new URL('/api/geofences', baseUrl);
+  
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ geofences }),
+      signal: createTimeoutSignal(10000),
+    });
+    
+    if (!res.ok) {
+      return { synced: 0 };
+    }
+    
+    const contentType = res.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      return { synced: 0 };
+    }
+    
+    const data = await res.json();
+    return { synced: data.synced || 0 };
+  } catch {
+    return { synced: 0 };
+  }
+}
+
+export async function getGeofencesFromBackend(): Promise<Geofence[]> {
+  const baseUrl = getApiUrl();
+  const url = new URL('/api/geofences', baseUrl);
+  
+  try {
+    const res = await fetch(url, {
+      credentials: 'include',
+      signal: createTimeoutSignal(10000),
+    });
+    
+    if (!res.ok) {
+      return [];
+    }
+    
+    const contentType = res.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      return [];
+    }
+    
+    const data = await res.json();
+    return data.geofences || data || [];
+  } catch {
+    return [];
+  }
+}

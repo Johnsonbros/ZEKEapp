@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from "react";
-import { View, ScrollView, StyleSheet, Pressable, ActivityIndicator, Alert, Platform, RefreshControl } from "react-native";
+import { View, ScrollView, StyleSheet, Pressable, ActivityIndicator, Alert, Platform, RefreshControl, Modal, TextInput } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { Feather } from "@expo/vector-icons";
@@ -9,6 +9,8 @@ import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { GradientText } from "@/components/GradientText";
 import { PulsingDot } from "@/components/PulsingDot";
+import { FloatingActionButton } from "@/components/FloatingActionButton";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useTheme } from "@/hooks/useTheme";
 import { useLocation } from "@/hooks/useLocation";
 import { Spacing, Colors, BorderRadius, Gradients } from "@/constants/theme";
@@ -24,17 +26,44 @@ import {
   type LocationRecord,
   type StarredPlace,
 } from "@/lib/location";
+import {
+  getGeofences,
+  addGeofence,
+  updateGeofence,
+  deleteGeofence,
+  type Geofence,
+} from "@/lib/zeke-api-adapter";
+import {
+  generateGeofenceId,
+  calculateDistanceToGeofence,
+  formatRadius,
+  getActionTypeLabel,
+  getTriggerLabel,
+} from "@/lib/geofence";
+
+type TabType = 'current' | 'history' | 'starred' | 'geofences';
 
 export default function LocationScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
   const { theme } = useTheme();
   
-  const [activeTab, setActiveTab] = useState<'current' | 'history' | 'starred'>('current');
+  const [activeTab, setActiveTab] = useState<TabType>('current');
   const [locationHistory, setLocationHistory] = useState<LocationRecord[]>([]);
   const [starredPlaces, setStarredPlaces] = useState<StarredPlace[]>([]);
+  const [geofences, setGeofences] = useState<Geofence[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [isLoadingStarred, setIsLoadingStarred] = useState(false);
+  const [isLoadingGeofences, setIsLoadingGeofences] = useState(false);
+  const [showAddGeofenceModal, setShowAddGeofenceModal] = useState(false);
+  const [editingGeofence, setEditingGeofence] = useState<Geofence | null>(null);
+  const [geofenceName, setGeofenceName] = useState('');
+  const [geofenceRadius, setGeofenceRadius] = useState('500');
+  const [geofenceActionType, setGeofenceActionType] = useState<Geofence['actionType']>('notification');
+  const [geofenceTriggerOn, setGeofenceTriggerOn] = useState<Geofence['triggerOn']>('enter');
+  const [useCurrentLocation, setUseCurrentLocation] = useState(true);
+  const [manualLat, setManualLat] = useState('');
+  const [manualLon, setManualLon] = useState('');
   
   const {
     location,
@@ -74,13 +103,27 @@ export default function LocationScreen() {
     }
   }, []);
 
+  const loadGeofences = useCallback(async () => {
+    setIsLoadingGeofences(true);
+    try {
+      const fences = await getGeofences();
+      setGeofences(fences);
+    } catch (error) {
+      console.error('Error loading geofences:', error);
+    } finally {
+      setIsLoadingGeofences(false);
+    }
+  }, []);
+
   React.useEffect(() => {
     if (activeTab === 'history') {
       loadHistory();
     } else if (activeTab === 'starred') {
       loadStarredPlaces();
+    } else if (activeTab === 'geofences') {
+      loadGeofences();
     }
-  }, [activeTab, loadHistory, loadStarredPlaces]);
+  }, [activeTab, loadHistory, loadStarredPlaces, loadGeofences]);
 
   const handleRefresh = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -88,10 +131,152 @@ export default function LocationScreen() {
       await refreshLocation();
     } else if (activeTab === 'history') {
       await loadHistory();
-    } else {
+    } else if (activeTab === 'starred') {
       await loadStarredPlaces();
+    } else if (activeTab === 'geofences') {
+      await loadGeofences();
     }
-  }, [activeTab, refreshLocation, loadHistory, loadStarredPlaces]);
+  }, [activeTab, refreshLocation, loadHistory, loadStarredPlaces, loadGeofences]);
+
+  const resetGeofenceForm = useCallback(() => {
+    setGeofenceName('');
+    setGeofenceRadius('500');
+    setGeofenceActionType('notification');
+    setGeofenceTriggerOn('enter');
+    setUseCurrentLocation(true);
+    setManualLat('');
+    setManualLon('');
+    setEditingGeofence(null);
+  }, []);
+
+  const handleOpenAddGeofence = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    resetGeofenceForm();
+    setShowAddGeofenceModal(true);
+  }, [resetGeofenceForm]);
+
+  const handleEditGeofence = useCallback((geofence: Geofence) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setEditingGeofence(geofence);
+    setGeofenceName(geofence.name);
+    setGeofenceRadius(geofence.radius.toString());
+    setGeofenceActionType(geofence.actionType);
+    setGeofenceTriggerOn(geofence.triggerOn);
+    setUseCurrentLocation(false);
+    setManualLat(geofence.latitude.toString());
+    setManualLon(geofence.longitude.toString());
+    setShowAddGeofenceModal(true);
+  }, []);
+
+  const handleSaveGeofence = useCallback(async () => {
+    if (!geofenceName.trim()) {
+      Alert.alert('Error', 'Please enter a name for the geofence.');
+      return;
+    }
+
+    const radius = parseInt(geofenceRadius, 10);
+    if (isNaN(radius) || radius < 50) {
+      Alert.alert('Error', 'Please enter a valid radius (minimum 50m).');
+      return;
+    }
+
+    let lat: number;
+    let lon: number;
+
+    if (useCurrentLocation) {
+      if (!location) {
+        Alert.alert('Error', 'Current location not available. Please enable location or enter coordinates manually.');
+        return;
+      }
+      lat = location.latitude;
+      lon = location.longitude;
+    } else {
+      lat = parseFloat(manualLat);
+      lon = parseFloat(manualLon);
+      if (isNaN(lat) || isNaN(lon)) {
+        Alert.alert('Error', 'Please enter valid coordinates.');
+        return;
+      }
+    }
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    try {
+      if (editingGeofence) {
+        const updated = await updateGeofence(editingGeofence.id, {
+          name: geofenceName.trim(),
+          latitude: lat,
+          longitude: lon,
+          radius,
+          actionType: geofenceActionType,
+          triggerOn: geofenceTriggerOn,
+        });
+        if (updated) {
+          setGeofences(prev => prev.map(g => g.id === updated.id ? updated : g));
+        }
+      } else {
+        const newGeofence: Geofence = {
+          id: generateGeofenceId(),
+          name: geofenceName.trim(),
+          latitude: lat,
+          longitude: lon,
+          radius,
+          triggerOn: geofenceTriggerOn,
+          isActive: true,
+          actionType: geofenceActionType,
+          createdAt: new Date().toISOString(),
+        };
+        await addGeofence(newGeofence);
+        setGeofences(prev => [newGeofence, ...prev]);
+      }
+      setShowAddGeofenceModal(false);
+      resetGeofenceForm();
+    } catch (error) {
+      console.error('Error saving geofence:', error);
+      Alert.alert('Error', 'Failed to save geofence. Please try again.');
+    }
+  }, [geofenceName, geofenceRadius, geofenceActionType, geofenceTriggerOn, useCurrentLocation, location, manualLat, manualLon, editingGeofence, resetGeofenceForm]);
+
+  const handleDeleteGeofence = useCallback(async (geofence: Geofence) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    const confirmDelete = async () => {
+      try {
+        await deleteGeofence(geofence.id);
+        setGeofences(prev => prev.filter(g => g.id !== geofence.id));
+      } catch (error) {
+        console.error('Error deleting geofence:', error);
+        Alert.alert('Error', 'Failed to delete geofence.');
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      if (window.confirm(`Delete geofence "${geofence.name}"?`)) {
+        await confirmDelete();
+      }
+    } else {
+      Alert.alert(
+        'Delete Geofence',
+        `Delete "${geofence.name}"?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Delete', style: 'destructive', onPress: confirmDelete },
+        ]
+      );
+    }
+  }, []);
+
+  const handleToggleGeofenceActive = useCallback(async (geofence: Geofence) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      const updated = await updateGeofence(geofence.id, { isActive: !geofence.isActive });
+      if (updated) {
+        setGeofences(prev => prev.map(g => g.id === updated.id ? updated : g));
+      }
+    } catch (error) {
+      console.error('Error toggling geofence:', error);
+    }
+  }, []);
 
   const handleStarCurrentLocation = useCallback(async () => {
     if (!location || !geocoded) {
@@ -164,7 +349,7 @@ export default function LocationScreen() {
     }
   }, [isTracking, startTracking, stopTracking]);
 
-  const renderTabButton = (tab: 'current' | 'history' | 'starred', label: string, icon: keyof typeof Feather.glyphMap) => (
+  const renderTabButton = (tab: TabType, label: string, icon: keyof typeof Feather.glyphMap) => (
     <Pressable
       onPress={() => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -177,11 +362,11 @@ export default function LocationScreen() {
     >
       <Feather 
         name={icon} 
-        size={18} 
+        size={16} 
         color={activeTab === tab ? Colors.dark.primary : theme.textSecondary} 
       />
       <ThemedText 
-        type="small" 
+        type="caption" 
         style={[
           styles.tabLabel,
           { color: activeTab === tab ? Colors.dark.primary : theme.textSecondary }
@@ -475,43 +660,313 @@ export default function LocationScreen() {
     </View>
   );
 
-  return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: theme.backgroundRoot }}
-      contentContainerStyle={{
-        paddingTop: headerHeight + Spacing.xl,
-        paddingBottom: insets.bottom + Spacing.xl,
-        paddingHorizontal: Spacing.lg,
+  const renderGeofences = () => (
+    <View style={styles.sectionContent}>
+      {isLoadingGeofences ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.dark.primary} />
+          <ThemedText type="body" secondary style={{ marginTop: Spacing.md }}>
+            Loading geofences...
+          </ThemedText>
+        </View>
+      ) : geofences.length === 0 ? (
+        <View style={[styles.emptyCard, { backgroundColor: theme.backgroundDefault }]}>
+          <Feather name="target" size={48} color={theme.textSecondary} />
+          <ThemedText type="body" secondary style={{ marginTop: Spacing.md, textAlign: 'center' }}>
+            No geofences yet
+          </ThemedText>
+          <ThemedText type="caption" secondary style={{ marginTop: Spacing.xs, textAlign: 'center' }}>
+            Create geofences to trigger actions when you enter or leave locations.
+          </ThemedText>
+          <Pressable
+            onPress={handleOpenAddGeofence}
+            style={({ pressed }) => [
+              styles.enableButton,
+              { opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
+            <LinearGradient
+              colors={Gradients.primary}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.enableButtonGradient}
+            >
+              <ThemedText type="body" style={{ color: '#FFFFFF' }}>
+                Add Geofence
+              </ThemedText>
+            </LinearGradient>
+          </Pressable>
+        </View>
+      ) : (
+        <>
+          {geofences.map((geofence) => {
+            const distance = location
+              ? calculateDistanceToGeofence({ latitude: location.latitude, longitude: location.longitude }, geofence)
+              : null;
+
+            return (
+              <Pressable
+                key={geofence.id}
+                onPress={() => handleEditGeofence(geofence)}
+                style={({ pressed }) => [
+                  styles.geofenceItem,
+                  { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.9 : 1 },
+                ]}
+              >
+                <View style={[styles.geofenceIconContainer, { backgroundColor: geofence.isActive ? `${Colors.dark.primary}20` : `${theme.textSecondary}20` }]}>
+                  <Feather name="target" size={20} color={geofence.isActive ? Colors.dark.primary : theme.textSecondary} />
+                </View>
+                <View style={styles.geofenceContent}>
+                  <ThemedText type="body" numberOfLines={1}>{geofence.name}</ThemedText>
+                  <View style={styles.geofenceMetaRow}>
+                    <View style={[styles.geofenceBadge, { backgroundColor: `${Colors.dark.secondary}20` }]}>
+                      <ThemedText type="caption" style={{ color: Colors.dark.secondary }}>
+                        {formatRadius(geofence.radius)}
+                      </ThemedText>
+                    </View>
+                    <View style={[styles.geofenceBadge, { backgroundColor: `${Colors.dark.accent}20` }]}>
+                      <ThemedText type="caption" style={{ color: Colors.dark.accent }}>
+                        {getActionTypeLabel(geofence.actionType)}
+                      </ThemedText>
+                    </View>
+                    <View style={[styles.geofenceBadge, { backgroundColor: `${theme.textSecondary}20` }]}>
+                      <ThemedText type="caption" secondary>
+                        {getTriggerLabel(geofence.triggerOn)}
+                      </ThemedText>
+                    </View>
+                  </View>
+                  {distance !== null && (
+                    <ThemedText type="caption" style={{ color: Colors.dark.primary, marginTop: 4 }}>
+                      {formatDistance(distance)} away
+                    </ThemedText>
+                  )}
+                </View>
+                <View style={styles.geofenceActions}>
+                  <Pressable
+                    onPress={() => handleToggleGeofenceActive(geofence)}
+                    hitSlop={10}
+                    style={{ marginRight: Spacing.sm }}
+                  >
+                    <Feather
+                      name={geofence.isActive ? 'toggle-right' : 'toggle-left'}
+                      size={24}
+                      color={geofence.isActive ? Colors.dark.success : theme.textSecondary}
+                    />
+                  </Pressable>
+                  <Pressable
+                    onPress={() => handleDeleteGeofence(geofence)}
+                    hitSlop={10}
+                  >
+                    <Feather name="trash-2" size={18} color={Colors.dark.error} />
+                  </Pressable>
+                </View>
+              </Pressable>
+            );
+          })}
+        </>
+      )}
+    </View>
+  );
+
+  const renderAddGeofenceModal = () => (
+    <Modal
+      visible={showAddGeofenceModal}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={() => {
+        setShowAddGeofenceModal(false);
+        resetGeofenceForm();
       }}
-      scrollIndicatorInsets={{ bottom: insets.bottom }}
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl
-          refreshing={isLoading}
-          onRefresh={handleRefresh}
-          tintColor={Colors.dark.primary}
-        />
-      }
     >
-      <View style={styles.header}>
-        <GradientText type="h2" colors={Gradients.primary}>
-          Location
-        </GradientText>
-        <ThemedText type="body" secondary style={{ marginTop: Spacing.xs }}>
-          Track and manage your locations
-        </ThemedText>
-      </View>
+      <View style={[styles.modalContainer, { backgroundColor: theme.backgroundRoot }]}>
+        <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
+          <Pressable
+            onPress={() => {
+              setShowAddGeofenceModal(false);
+              resetGeofenceForm();
+            }}
+            hitSlop={10}
+          >
+            <ThemedText type="body" style={{ color: Colors.dark.primary }}>Cancel</ThemedText>
+          </Pressable>
+          <ThemedText type="h4">{editingGeofence ? 'Edit Geofence' : 'Add Geofence'}</ThemedText>
+          <Pressable onPress={handleSaveGeofence} hitSlop={10}>
+            <ThemedText type="body" style={{ color: Colors.dark.primary, fontWeight: '600' }}>Save</ThemedText>
+          </Pressable>
+        </View>
 
-      <View style={[styles.tabContainer, { backgroundColor: theme.backgroundDefault }]}>
-        {renderTabButton('current', 'Current', 'navigation')}
-        {renderTabButton('history', 'History', 'clock')}
-        {renderTabButton('starred', 'Starred', 'star')}
-      </View>
+        <KeyboardAwareScrollViewCompat
+          style={{ flex: 1 }}
+          contentContainerStyle={styles.modalContent}
+        >
+          <View style={styles.formGroup}>
+            <ThemedText type="small" secondary style={styles.formLabel}>Name</ThemedText>
+            <TextInput
+              value={geofenceName}
+              onChangeText={setGeofenceName}
+              placeholder="e.g., Home, Office, Grocery Store"
+              placeholderTextColor={theme.textSecondary}
+              style={[styles.textInput, { backgroundColor: theme.backgroundDefault, color: theme.text, borderColor: theme.border }]}
+            />
+          </View>
 
-      {activeTab === 'current' && renderCurrentLocation()}
-      {activeTab === 'history' && renderLocationHistory()}
-      {activeTab === 'starred' && renderStarredPlaces()}
-    </ScrollView>
+          <View style={styles.formGroup}>
+            <ThemedText type="small" secondary style={styles.formLabel}>Location</ThemedText>
+            <View style={styles.locationToggle}>
+              <Pressable
+                onPress={() => setUseCurrentLocation(true)}
+                style={[
+                  styles.locationToggleButton,
+                  { backgroundColor: useCurrentLocation ? `${Colors.dark.primary}20` : theme.backgroundDefault, borderColor: theme.border },
+                ]}
+              >
+                <Feather name="navigation" size={16} color={useCurrentLocation ? Colors.dark.primary : theme.textSecondary} />
+                <ThemedText type="small" style={{ marginLeft: Spacing.xs, color: useCurrentLocation ? Colors.dark.primary : theme.textSecondary }}>
+                  Current
+                </ThemedText>
+              </Pressable>
+              <Pressable
+                onPress={() => setUseCurrentLocation(false)}
+                style={[
+                  styles.locationToggleButton,
+                  { backgroundColor: !useCurrentLocation ? `${Colors.dark.primary}20` : theme.backgroundDefault, borderColor: theme.border },
+                ]}
+              >
+                <Feather name="edit-3" size={16} color={!useCurrentLocation ? Colors.dark.primary : theme.textSecondary} />
+                <ThemedText type="small" style={{ marginLeft: Spacing.xs, color: !useCurrentLocation ? Colors.dark.primary : theme.textSecondary }}>
+                  Manual
+                </ThemedText>
+              </Pressable>
+            </View>
+            {!useCurrentLocation && (
+              <View style={styles.coordinateInputs}>
+                <TextInput
+                  value={manualLat}
+                  onChangeText={setManualLat}
+                  placeholder="Latitude"
+                  placeholderTextColor={theme.textSecondary}
+                  keyboardType="decimal-pad"
+                  style={[styles.textInput, styles.coordinateInput, { backgroundColor: theme.backgroundDefault, color: theme.text, borderColor: theme.border }]}
+                />
+                <TextInput
+                  value={manualLon}
+                  onChangeText={setManualLon}
+                  placeholder="Longitude"
+                  placeholderTextColor={theme.textSecondary}
+                  keyboardType="decimal-pad"
+                  style={[styles.textInput, styles.coordinateInput, { backgroundColor: theme.backgroundDefault, color: theme.text, borderColor: theme.border }]}
+                />
+              </View>
+            )}
+          </View>
+
+          <View style={styles.formGroup}>
+            <ThemedText type="small" secondary style={styles.formLabel}>Radius (meters)</ThemedText>
+            <TextInput
+              value={geofenceRadius}
+              onChangeText={setGeofenceRadius}
+              placeholder="500"
+              placeholderTextColor={theme.textSecondary}
+              keyboardType="number-pad"
+              style={[styles.textInput, { backgroundColor: theme.backgroundDefault, color: theme.text, borderColor: theme.border }]}
+            />
+          </View>
+
+          <View style={styles.formGroup}>
+            <ThemedText type="small" secondary style={styles.formLabel}>Trigger On</ThemedText>
+            <View style={styles.optionsRow}>
+              {(['enter', 'exit', 'both'] as const).map((option) => (
+                <Pressable
+                  key={option}
+                  onPress={() => setGeofenceTriggerOn(option)}
+                  style={[
+                    styles.optionButton,
+                    { backgroundColor: geofenceTriggerOn === option ? `${Colors.dark.primary}20` : theme.backgroundDefault, borderColor: theme.border },
+                  ]}
+                >
+                  <ThemedText type="small" style={{ color: geofenceTriggerOn === option ? Colors.dark.primary : theme.textSecondary }}>
+                    {getTriggerLabel(option)}
+                  </ThemedText>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.formGroup}>
+            <ThemedText type="small" secondary style={styles.formLabel}>Action Type</ThemedText>
+            <View style={styles.optionsRow}>
+              {(['notification', 'grocery_prompt', 'custom'] as const).map((option) => (
+                <Pressable
+                  key={option}
+                  onPress={() => setGeofenceActionType(option)}
+                  style={[
+                    styles.optionButton,
+                    { backgroundColor: geofenceActionType === option ? `${Colors.dark.accent}20` : theme.backgroundDefault, borderColor: theme.border },
+                  ]}
+                >
+                  <ThemedText type="small" style={{ color: geofenceActionType === option ? Colors.dark.accent : theme.textSecondary }}>
+                    {getActionTypeLabel(option)}
+                  </ThemedText>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        </KeyboardAwareScrollViewCompat>
+      </View>
+    </Modal>
+  );
+
+  return (
+    <View style={{ flex: 1, backgroundColor: theme.backgroundRoot }}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{
+          paddingTop: headerHeight + Spacing.xl,
+          paddingBottom: insets.bottom + Spacing.xl + 80,
+          paddingHorizontal: Spacing.lg,
+        }}
+        scrollIndicatorInsets={{ bottom: insets.bottom }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isLoading}
+            onRefresh={handleRefresh}
+            tintColor={Colors.dark.primary}
+          />
+        }
+      >
+        <View style={styles.header}>
+          <GradientText type="h2" colors={Gradients.primary}>
+            Location
+          </GradientText>
+          <ThemedText type="body" secondary style={{ marginTop: Spacing.xs }}>
+            Track and manage your locations
+          </ThemedText>
+        </View>
+
+        <View style={[styles.tabContainer, { backgroundColor: theme.backgroundDefault }]}>
+          {renderTabButton('current', 'Current', 'navigation')}
+          {renderTabButton('history', 'History', 'clock')}
+          {renderTabButton('starred', 'Starred', 'star')}
+          {renderTabButton('geofences', 'Fences', 'target')}
+        </View>
+
+        {activeTab === 'current' && renderCurrentLocation()}
+        {activeTab === 'history' && renderLocationHistory()}
+        {activeTab === 'starred' && renderStarredPlaces()}
+        {activeTab === 'geofences' && renderGeofences()}
+      </ScrollView>
+
+      {activeTab === 'geofences' && geofences.length > 0 && (
+        <FloatingActionButton
+          onPress={handleOpenAddGeofence}
+          icon="plus"
+          style={{ bottom: insets.bottom + Spacing.xl }}
+        />
+      )}
+
+      {renderAddGeofenceModal()}
+    </View>
   );
 }
 
@@ -645,5 +1100,98 @@ const styles = StyleSheet.create({
   },
   starredContent: {
     flex: 1,
+  },
+  geofenceItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.sm,
+  },
+  geofenceIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing.md,
+  },
+  geofenceContent: {
+    flex: 1,
+  },
+  geofenceMetaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: Spacing.xs,
+    gap: Spacing.xs,
+  },
+  geofenceBadge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.xs,
+  },
+  geofenceActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  modalContainer: {
+    flex: 1,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+  },
+  modalContent: {
+    padding: Spacing.lg,
+    paddingBottom: Spacing['3xl'],
+  },
+  formGroup: {
+    marginBottom: Spacing.lg,
+  },
+  formLabel: {
+    marginBottom: Spacing.sm,
+  },
+  textInput: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    fontSize: 16,
+  },
+  locationToggle: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  locationToggleButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+  },
+  coordinateInputs: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  coordinateInput: {
+    flex: 1,
+  },
+  optionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  optionButton: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
   },
 });
