@@ -1346,3 +1346,92 @@ export async function clearGeofenceTriggerEvents(): Promise<void> {
     console.error('Error clearing geofence events:', error);
   }
 }
+
+// Custom Lists types
+export interface ZekeList {
+  id: string;
+  name: string;
+  description?: string;
+  color?: string;
+  itemCount?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ZekeListItem {
+  id: string;
+  listId: string;
+  text: string;
+  checked: boolean;
+  order?: number;
+  createdAt: string;
+}
+
+export interface ZekeListWithItems extends ZekeList {
+  items: ZekeListItem[];
+}
+
+// Lists API functions
+export async function getLists(): Promise<ZekeList[]> {
+  const baseUrl = getApiUrl();
+  const url = new URL('/api/lists', baseUrl);
+  
+  try {
+    const res = await fetch(url, { 
+      credentials: 'include',
+      signal: createTimeoutSignal(5000)
+    });
+    if (!res.ok) return [];
+    return res.json();
+  } catch {
+    return [];
+  }
+}
+
+export async function getListWithItems(id: string): Promise<ZekeListWithItems | null> {
+  const baseUrl = getApiUrl();
+  const url = new URL(`/api/lists/${id}`, baseUrl);
+  
+  try {
+    const res = await fetch(url, { 
+      credentials: 'include',
+      signal: createTimeoutSignal(5000)
+    });
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function createList(name: string, description?: string, color?: string): Promise<ZekeList> {
+  const res = await apiRequest('POST', '/api/lists', { name, description, color });
+  return res.json();
+}
+
+export async function updateList(id: string, updates: Partial<ZekeList>): Promise<ZekeList> {
+  const res = await apiRequest('PATCH', `/api/lists/${id}`, updates);
+  return res.json();
+}
+
+export async function deleteList(id: string): Promise<void> {
+  await apiRequest('DELETE', `/api/lists/${id}`);
+}
+
+export async function addListItem(listId: string, text: string): Promise<ZekeListItem> {
+  const res = await apiRequest('POST', `/api/lists/${listId}/items`, { text });
+  return res.json();
+}
+
+export async function toggleListItem(listId: string, itemId: string): Promise<ZekeListItem> {
+  const res = await apiRequest('POST', `/api/lists/${listId}/items/${itemId}/toggle`, {});
+  return res.json();
+}
+
+export async function deleteListItem(listId: string, itemId: string): Promise<void> {
+  await apiRequest('DELETE', `/api/lists/${listId}/items/${itemId}`);
+}
+
+export async function clearCheckedItems(listId: string): Promise<void> {
+  await apiRequest('POST', `/api/lists/${listId}/clear-checked`, {});
+}
