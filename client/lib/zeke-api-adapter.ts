@@ -1,4 +1,4 @@
-import { getApiUrl, getLocalApiUrl, isZekeSyncMode, apiRequest } from "./query-client";
+import { getApiUrl, isZekeSyncMode, apiRequest } from "./query-client";
 
 function createTimeoutSignal(ms: number): AbortSignal {
   const controller = new AbortController();
@@ -553,7 +553,7 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
 }
 
 export async function getEventsForDateRange(startDate: Date, endDate: Date): Promise<ZekeEvent[]> {
-  const baseUrl = getLocalApiUrl();
+  const baseUrl = getApiUrl();
   const url = new URL('/api/calendar/events', baseUrl);
   url.searchParams.set('timeMin', startDate.toISOString());
   url.searchParams.set('timeMax', endDate.toISOString());
@@ -580,8 +580,7 @@ export async function getEventsForDateRange(startDate: Date, endDate: Date): Pro
 }
 
 export async function getTodayEvents(): Promise<ZekeEvent[]> {
-  // Always use local backend for Google Calendar integration
-  const baseUrl = getLocalApiUrl();
+  const baseUrl = getApiUrl();
   const url = new URL('/api/calendar/today', baseUrl);
   
   console.log('[Calendar] Fetching events from:', url.toString());
@@ -709,7 +708,7 @@ export async function createCalendarEvent(
   calendarId?: string,
   description?: string
 ): Promise<ZekeEvent> {
-  const baseUrl = getLocalApiUrl();
+  const baseUrl = getApiUrl();
   const url = new URL('/api/calendar/events', baseUrl);
   
   const res = await fetch(url, {
@@ -736,7 +735,7 @@ export async function updateCalendarEvent(
     calendarId?: string;
   }
 ): Promise<ZekeEvent> {
-  const baseUrl = getLocalApiUrl();
+  const baseUrl = getApiUrl();
   const url = new URL(`/api/calendar/events/${eventId}`, baseUrl);
   
   const res = await fetch(url, {
@@ -773,7 +772,7 @@ export async function getUpcomingEvents(limit: number = 10): Promise<ZekeEvent[]
 }
 
 export async function deleteCalendarEvent(id: string, calendarId?: string): Promise<void> {
-  const baseUrl = getLocalApiUrl();
+  const baseUrl = getApiUrl();
   const url = new URL(`/api/calendar/events/${id}`, baseUrl);
   if (calendarId) {
     url.searchParams.set('calendarId', calendarId);
@@ -790,7 +789,7 @@ export async function deleteCalendarEvent(id: string, calendarId?: string): Prom
 }
 
 export async function getCalendarList(): Promise<ZekeCalendar[]> {
-  const baseUrl = getLocalApiUrl();
+  const baseUrl = getApiUrl();
   const url = new URL('/api/calendar/calendars', baseUrl);
   
   try {
@@ -808,7 +807,7 @@ export async function getCalendarList(): Promise<ZekeCalendar[]> {
 }
 
 export async function getZekeCalendar(): Promise<ZekeCalendar | null> {
-  const baseUrl = getLocalApiUrl();
+  const baseUrl = getApiUrl();
   const url = new URL('/api/calendar/zeke', baseUrl);
   
   try {
