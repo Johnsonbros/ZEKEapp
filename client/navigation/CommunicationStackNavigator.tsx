@@ -1,8 +1,15 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { useNavigation, CompositeNavigationProp } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { HeaderButton } from "@react-navigation/elements";
+import { Feather } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import CommunicationsHubScreen from "@/screens/CommunicationsHubScreen";
 import SmsConversationScreen from "@/screens/SmsConversationScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
+import { RootStackParamList } from "@/navigation/RootStackNavigator";
+import { Colors } from "@/constants/theme";
 
 export type CommunicationStackParamList = {
   CommunicationsHub: undefined;
@@ -16,6 +23,26 @@ export type CommunicationStackParamList = {
 
 const Stack = createNativeStackNavigator<CommunicationStackParamList>();
 
+type CommunicationsNavigationProp = CompositeNavigationProp<
+  NativeStackNavigationProp<CommunicationStackParamList>,
+  NativeStackNavigationProp<RootStackParamList>
+>;
+
+function ComposeButton() {
+  const navigation = useNavigation<CommunicationsNavigationProp>();
+
+  const handlePress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    navigation.navigate("SmsCompose", {});
+  };
+
+  return (
+    <HeaderButton onPress={handlePress}>
+      <Feather name="edit" size={22} color={Colors.dark.text} />
+    </HeaderButton>
+  );
+}
+
 export default function CommunicationStackNavigator() {
   const screenOptions = useScreenOptions();
 
@@ -26,6 +53,7 @@ export default function CommunicationStackNavigator() {
         component={CommunicationsHubScreen}
         options={{
           headerTitle: "Communications",
+          headerRight: () => <ComposeButton />,
         }}
       />
       <Stack.Screen
