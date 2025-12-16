@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { View, FlatList, StyleSheet, Pressable, Platform, Alert, ActivityIndicator, RefreshControl } from "react-native";
+import React, { useState, useMemo } from "react";
+import { View, FlatList, StyleSheet, Pressable, Platform, Alert, ActivityIndicator, RefreshControl, TextInput } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
@@ -9,10 +9,11 @@ import { CompositeNavigationProp } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import { SearchBar } from "@/components/SearchBar";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, Colors, BorderRadius, Gradients } from "@/constants/theme";
 import { CommunicationStackParamList } from "@/navigation/CommunicationStackNavigator";
@@ -22,8 +23,11 @@ import {
   getTwilioConversations, 
   getTwilioCalls, 
   getTwilioPhoneNumber,
+  getContacts,
+  initiateCall,
   type TwilioSmsConversation,
-  type TwilioCallRecord 
+  type TwilioCallRecord,
+  type ZekeContact 
 } from "@/lib/zeke-api-adapter";
 
 type CommunicationNavigationProp = CompositeNavigationProp<
@@ -31,7 +35,7 @@ type CommunicationNavigationProp = CompositeNavigationProp<
   NativeStackNavigationProp<RootStackParamList>
 >;
 
-type TabType = "sms" | "voice" | "chat";
+type TabType = "sms" | "voice" | "chat" | "contacts";
 
 function formatTimestamp(dateString: string): string {
   const date = new Date(dateString);
@@ -311,22 +315,131 @@ function ChatPlaceholder({ onStartChat }: ChatPlaceholderProps) {
   );
 }
 
-function EmptyState({ type }: { type: 'sms' | 'voice' }) {
+function getContactInitials(contact: ZekeContact): string {
+  const first = contact.firstName?.charAt(0)?.toUpperCase() || "";
+  const last = contact.lastName?.charAt(0)?.toUpperCase() || "";
+  return first + last || "?";
+}
+
+function getContactFullName(contact: ZekeContact): string {
+  const parts = [contact.firstName, contact.middleName, contact.lastName].filter(Boolean);
+  return parts.join(" ") || "Unknown";
+}
+
+function getAccessLevelColor(accessLevel: ZekeContact["accessLevel"]): string {
+  switch (accessLevel) {
+    case "family":
+      return Colors.dark.accent;
+    case "close_friend":
+      return Colors.dark.primary;
+    case "friend":
+      return Colors.dark.secondary;
+    case "acquaintance":
+      return Colors.dark.warning;
+    default:
+      return Colors.dark.textSecondary;
+  }
+}
+
+function formatAccessLevel(accessLevel: ZekeContact["accessLevel"]): string {
+  switch (accessLevel) {
+    case "close_friend":
+      return "Close Friend";
+    case "family":
+      return "Family";
+    case "friend":
+      return "Friend";
+    case "acquaintance":
+      return "Acquaintance";
+    default:
+      return "";
+  }
+}
+
+interface ContactRowProps {
+  contact: ZekeContact;
+  onPress: () => void;
+  onCall: () => void;
+  onMessage: () => void;
+}
+
+function ContactRow({ contact, onPress, onCall, onMessage }: ContactRowProps) {
   const { theme } = useTheme();
+  const accessColor = getAccessLevelColor(contact.accessLevel);
+  const accessLabel = formatAccessLevel(contact.accessLevel);
+
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.row,
+        { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 },
+      ]}
+    >
+      <View style={[styles.avatar, { backgroundColor: accessColor }]}>
+        <ThemedText type="body" style={styles.avatarText}>
+          {getContactInitials(contact)}
+        </ThemedText>
+      </View>
+      <View style={styles.rowContent}>
+        <ThemedText type="body" style={{ fontWeight: "600" }}>
+          {getContactFullName(contact)}
+        </ThemedText>
+        {accessLabel ? (
+          <View style={[styles.accessBadge, { backgroundColor: accessColor + "30" }]}>
+            <ThemedText type="caption" style={{ color: accessColor }}>
+              {accessLabel}
+            </ThemedText>
+          </View>
+        ) : null}
+      </View>
+      <View style={styles.contactActions}>
+        {contact.phoneNumber ? (
+          <>
+            <Pressable
+              onPress={onCall}
+              hitSlop={8}
+              style={({ pressed }) => [styles.actionButton, { opacity: pressed ? 0.6 : 1 }]}
+            >
+              <Feather name="phone" size={20} color={Colors.dark.success} />
+            </Pressable>
+            <Pressable
+              onPress={onMessage}
+              hitSlop={8}
+              style={({ pressed }) => [styles.actionButton, { opacity: pressed ? 0.6 : 1 }]}
+            >
+              <Feather name="message-circle" size={20} color={Colors.dark.primary} />
+            </Pressable>
+          </>
+        ) : null}
+        <Feather name="chevron-right" size={20} color={theme.textSecondary} />
+      </View>
+    </Pressable>
+  );
+}
+
+function EmptyState({ type }: { type: 'sms' | 'voice' | 'contacts' }) {
+  const { theme } = useTheme();
+  const iconName = type === 'sms' ? 'message-square' : type === 'voice' ? 'phone' : 'users';
+  const title = type === 'sms' ? 'No SMS Conversations' : type === 'voice' ? 'No Voice Calls' : 'No Contacts';
+  const message = type === 'sms' 
+    ? 'Your SMS conversations will appear here once you start messaging.'
+    : type === 'voice' 
+    ? 'Your call history will appear here once you make or receive calls.'
+    : 'Your contacts will appear here once you add them.';
+  
   return (
     <View style={styles.emptyState}>
       <Feather 
-        name={type === 'sms' ? 'message-square' : 'phone'} 
+        name={iconName} 
         size={48} 
         color={theme.textSecondary} 
       />
       <ThemedText type="h4" style={{ marginTop: Spacing.lg, marginBottom: Spacing.sm }}>
-        {type === 'sms' ? 'No SMS Conversations' : 'No Voice Calls'}
+        {title}
       </ThemedText>
       <ThemedText type="body" secondary style={{ textAlign: 'center' }}>
-        {type === 'sms' 
-          ? 'Your SMS conversations will appear here once you start messaging.'
-          : 'Your call history will appear here once you make or receive calls.'}
+        {message}
       </ThemedText>
     </View>
   );
@@ -382,6 +495,51 @@ export default function CommunicationsHubScreen() {
     enabled: activeTab === 'voice',
   });
 
+  const { 
+    data: contacts = [], 
+    isLoading: isLoadingContacts,
+    refetch: refetchContacts,
+    isRefetching: isRefetchingContacts
+  } = useQuery<ZekeContact[]>({
+    queryKey: ['/api/contacts'],
+    queryFn: getContacts,
+    staleTime: 30000,
+    enabled: activeTab === 'contacts',
+  });
+
+  const [contactSearchQuery, setContactSearchQuery] = useState("");
+
+  const filteredContacts = useMemo(() => {
+    if (!contacts) return [];
+    if (!contactSearchQuery.trim()) return contacts;
+
+    const query = contactSearchQuery.toLowerCase();
+    return contacts.filter((c) => {
+      const fullName = getContactFullName(c).toLowerCase();
+      const email = c.email?.toLowerCase() || "";
+      const phone = c.phoneNumber || "";
+      return fullName.includes(query) || email.includes(query) || phone.includes(query);
+    });
+  }, [contacts, contactSearchQuery]);
+
+  const sortedContacts = useMemo(() => {
+    return [...filteredContacts].sort((a, b) => {
+      const nameA = (a.lastName || a.firstName || "").toLowerCase();
+      const nameB = (b.lastName || b.firstName || "").toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+  }, [filteredContacts]);
+
+  const callMutation = useMutation({
+    mutationFn: (contactId: string) => initiateCall(contactId),
+    onSuccess: () => {
+      Alert.alert("Call Initiated", "The call is being connected.");
+    },
+    onError: () => {
+      Alert.alert("Error", "Failed to initiate call. Please try again.");
+    },
+  });
+
   const handleTabPress = (tab: TabType) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setActiveTab(tab);
@@ -420,12 +578,33 @@ export default function CommunicationsHubScreen() {
     navigation.navigate("Chat");
   };
 
+  const handleContactPress = (contact: ZekeContact) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    navigation.navigate("ContactDetail", { contactId: contact.id.toString() });
+  };
+
+  const handleContactCall = (contact: ZekeContact) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (contact.phoneNumber) {
+      callMutation.mutate(contact.id.toString());
+    }
+  };
+
+  const handleContactMessage = (contact: ZekeContact) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (contact.phoneNumber) {
+      navigation.navigate("SmsConversation", { phoneNumber: contact.phoneNumber });
+    }
+  };
+
   const onRefresh = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (activeTab === 'sms') {
       await refetchSms();
     } else if (activeTab === 'voice') {
       await refetchCalls();
+    } else if (activeTab === 'contacts') {
+      await refetchContacts();
     }
   };
 
@@ -439,6 +618,15 @@ export default function CommunicationsHubScreen() {
       twilioPhoneNumber={twilioPhoneNumber ?? null} 
       onPress={() => handleVoicePress(item)} 
       onCallPress={() => handleCallPress(item)}
+    />
+  );
+
+  const renderContactItem = ({ item }: { item: ZekeContact }) => (
+    <ContactRow 
+      contact={item} 
+      onPress={() => handleContactPress(item)}
+      onCall={() => handleContactCall(item)}
+      onMessage={() => handleContactMessage(item)}
     />
   );
 
@@ -492,6 +680,46 @@ export default function CommunicationsHubScreen() {
         );
       case "chat":
         return <ChatPlaceholder onStartChat={handleStartChat} />;
+      case "contacts":
+        if (isLoadingContacts) {
+          return <LoadingState />;
+        }
+        if (sortedContacts.length === 0 && !contactSearchQuery) {
+          return <EmptyState type="contacts" />;
+        }
+        return (
+          <View style={styles.contactsContainer}>
+            <View style={styles.searchContainer}>
+              <SearchBar
+                value={contactSearchQuery}
+                onChangeText={setContactSearchQuery}
+                placeholder="Search contacts..."
+              />
+            </View>
+            {sortedContacts.length === 0 ? (
+              <View style={styles.noResults}>
+                <ThemedText type="body" secondary>
+                  No contacts match your search
+                </ThemedText>
+              </View>
+            ) : (
+              <FlatList
+                data={sortedContacts}
+                renderItem={renderContactItem}
+                keyExtractor={(item) => item.id.toString()}
+                contentContainerStyle={styles.listContent}
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                  <RefreshControl
+                    refreshing={isRefetchingContacts}
+                    onRefresh={onRefresh}
+                    tintColor={Colors.dark.primary}
+                  />
+                }
+              />
+            )}
+          </View>
+        );
     }
   };
 
@@ -521,6 +749,11 @@ export default function CommunicationsHubScreen() {
             label="Chat"
             isActive={activeTab === "chat"}
             onPress={() => handleTabPress("chat")}
+          />
+          <TabButton
+            label="Contacts"
+            isActive={activeTab === "contacts"}
+            onPress={() => handleTabPress("contacts")}
           />
         </View>
         <View style={styles.tabContent}>
@@ -652,6 +885,32 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
   },
   loadingState: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  accessBadge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+    alignSelf: "flex-start",
+  },
+  contactActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  actionButton: {
+    padding: Spacing.xs,
+  },
+  contactsContainer: {
+    flex: 1,
+  },
+  searchContainer: {
+    paddingHorizontal: Spacing.lg,
+    marginBottom: Spacing.md,
+  },
+  noResults: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",

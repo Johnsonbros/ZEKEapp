@@ -5,7 +5,6 @@ import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 
 import HomeStackNavigator from "@/navigation/HomeStackNavigator";
-import ContactsStackNavigator from "@/navigation/ContactsStackNavigator";
 import CommunicationStackNavigator from "@/navigation/CommunicationStackNavigator";
 import CalendarStackNavigator from "@/navigation/CalendarStackNavigator";
 import TasksStackNavigator from "@/navigation/TasksStackNavigator";
@@ -14,8 +13,7 @@ import { Colors } from "@/constants/theme";
 
 export type MainTabParamList = {
   HomeTab: undefined;
-  ContactsTab: undefined;
-  InboxTab: undefined;
+  CommsTab: undefined;
   CalendarTab: undefined;
   TasksTab: undefined;
 };
@@ -69,17 +67,7 @@ export default function MainTabNavigator() {
           }}
         />
         <Tab.Screen
-          name="ContactsTab"
-          component={ContactsStackNavigator}
-          options={{
-            title: "Contacts",
-            tabBarIcon: ({ color, size }) => (
-              <Feather name="users" size={size} color={color} />
-            ),
-          }}
-        />
-        <Tab.Screen
-          name="InboxTab"
+          name="CommsTab"
           component={CommunicationStackNavigator}
           options={{
             title: "Comms",

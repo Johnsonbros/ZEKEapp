@@ -7,6 +7,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import CommunicationsHubScreen from "@/screens/CommunicationsHubScreen";
 import SmsConversationScreen from "@/screens/SmsConversationScreen";
+import ContactDetailScreen from "@/screens/ContactDetailScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { ZekeHeaderTitle, ZekeHeaderButtons } from "@/components/ZekeHeader";
@@ -20,6 +21,7 @@ export type CommunicationStackParamList = {
     phoneNumber?: string;
   };
   ConversationDetail: { conversationId: string; type: "sms" | "voice" | "app" };
+  ContactDetail: { contactId: string };
 };
 
 const Stack = createNativeStackNavigator<CommunicationStackParamList>();
@@ -43,6 +45,13 @@ export default function CommunicationStackNavigator() {
         component={SmsConversationScreen}
         options={{
           headerTitle: "Conversation",
+        }}
+      />
+      <Stack.Screen
+        name="ContactDetail"
+        component={ContactDetailScreen}
+        options={{
+          headerTitle: "Contact",
         }}
       />
     </Stack.Navigator>

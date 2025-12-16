@@ -164,14 +164,14 @@ export default function HomeScreen() {
     if (Platform.OS === 'web') {
       const goToComms = window.confirm('Voice Calling\n\nTo make calls directly from ZEKE, you\'ll need to set up Twilio integration for VoIP calling.\n\nIn the meantime, you can view your call history and contacts in the Communications tab.\n\nClick OK to go to Communications.');
       if (goToComms) {
-        navigation.navigate('InboxTab');
+        navigation.navigate('CommsTab');
       }
     } else {
       Alert.alert(
         'Voice Calling',
         'To make calls directly from ZEKE, you\'ll need to set up Twilio integration for VoIP calling.\n\nIn the meantime, you can view your call history and contacts in the Communications tab.',
         [
-          { text: 'Go to Comms', onPress: () => navigation.navigate('InboxTab') },
+          { text: 'Go to Comms', onPress: () => navigation.navigate('CommsTab') },
           { text: 'Cancel', style: 'cancel' },
         ]
       );
@@ -180,7 +180,7 @@ export default function HomeScreen() {
 
   const handleMessagePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    navigation.navigate('SmsCompose');
+    navigation.navigate('SmsCompose', {});
   };
 
   const handleRecordPress = () => {

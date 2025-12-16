@@ -16,12 +16,12 @@ import { useTheme } from "@/hooks/useTheme";
 import { Spacing, Colors, BorderRadius } from "@/constants/theme";
 import { queryClient } from "@/lib/query-client";
 import { getContact, deleteContact, initiateCall, ZekeContact, ZekeContactConversation } from "@/lib/zeke-api-adapter";
-import { ContactsStackParamList } from "@/navigation/ContactsStackNavigator";
+import { CommunicationStackParamList } from "@/navigation/CommunicationStackNavigator";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 
-type ContactDetailRouteProp = RouteProp<ContactsStackParamList, "ContactDetail">;
+type ContactDetailRouteProp = RouteProp<CommunicationStackParamList, "ContactDetail">;
 type ContactDetailNavProp = CompositeNavigationProp<
-  NativeStackNavigationProp<ContactsStackParamList>,
+  NativeStackNavigationProp<CommunicationStackParamList>,
   NativeStackNavigationProp<RootStackParamList>
 >;
 
