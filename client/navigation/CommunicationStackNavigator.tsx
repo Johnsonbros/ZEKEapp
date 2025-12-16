@@ -1,15 +1,15 @@
 import React from "react";
+import { Pressable, StyleSheet } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useNavigation, CompositeNavigationProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { HeaderButton } from "@react-navigation/elements";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import CommunicationsHubScreen from "@/screens/CommunicationsHubScreen";
 import SmsConversationScreen from "@/screens/SmsConversationScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
-import { Colors } from "@/constants/theme";
+import { Colors, Spacing } from "@/constants/theme";
 
 export type CommunicationStackParamList = {
   CommunicationsHub: undefined;
@@ -37,11 +37,18 @@ function ComposeButton() {
   };
 
   return (
-    <HeaderButton onPress={handlePress}>
+    <Pressable onPress={handlePress} style={headerStyles.button}>
       <Feather name="edit" size={22} color={Colors.dark.text} />
-    </HeaderButton>
+    </Pressable>
   );
 }
+
+const headerStyles = StyleSheet.create({
+  button: {
+    padding: Spacing.sm,
+    marginRight: -Spacing.sm,
+  },
+});
 
 export default function CommunicationStackNavigator() {
   const screenOptions = useScreenOptions();
