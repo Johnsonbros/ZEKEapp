@@ -84,8 +84,71 @@ function getCurrentTimePosition(): number {
   return (totalMinutes / 60) * HOUR_HEIGHT;
 }
 
+interface EventWithLayout extends ZekeEvent {
+  column: number;
+  totalColumns: number;
+}
+
+function calculateEventLayout(events: ZekeEvent[]): EventWithLayout[] {
+  if (events.length === 0) return [];
+
+  const sortedEvents = [...events].sort(
+    (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+  );
+
+  const eventsWithLayout: EventWithLayout[] = [];
+
+  for (const event of sortedEvents) {
+    const startTime = new Date(event.startTime).getTime();
+    const endTime = event.endTime
+      ? new Date(event.endTime).getTime()
+      : startTime + 60 * 60 * 1000;
+
+    const overlappingEvents = eventsWithLayout.filter((e) => {
+      const eStart = new Date(e.startTime).getTime();
+      const eEnd = e.endTime
+        ? new Date(e.endTime).getTime()
+        : eStart + 60 * 60 * 1000;
+      return startTime < eEnd && endTime > eStart;
+    });
+
+    const usedColumns = new Set(overlappingEvents.map((e) => e.column));
+    let column = 0;
+    while (usedColumns.has(column)) {
+      column++;
+    }
+
+    eventsWithLayout.push({
+      ...event,
+      column,
+      totalColumns: 1,
+    });
+  }
+
+  for (let i = 0; i < eventsWithLayout.length; i++) {
+    const event = eventsWithLayout[i];
+    const startTime = new Date(event.startTime).getTime();
+    const endTime = event.endTime
+      ? new Date(event.endTime).getTime()
+      : startTime + 60 * 60 * 1000;
+
+    const overlappingEvents = eventsWithLayout.filter((e) => {
+      const eStart = new Date(e.startTime).getTime();
+      const eEnd = e.endTime
+        ? new Date(e.endTime).getTime()
+        : eStart + 60 * 60 * 1000;
+      return startTime < eEnd && endTime > eStart;
+    });
+
+    const maxColumn = Math.max(...overlappingEvents.map((e) => e.column));
+    event.totalColumns = maxColumn + 1;
+  }
+
+  return eventsWithLayout;
+}
+
 interface EventCardProps {
-  event: ZekeEvent;
+  event: EventWithLayout;
   onPress: (event: ZekeEvent) => void;
   onDelete: (event: ZekeEvent) => void;
   theme: any;
@@ -95,6 +158,9 @@ function EventCard({ event, onPress, onDelete, theme }: EventCardProps) {
   const color = event.color || Colors.dark.primary;
   const top = getEventPosition(event.startTime);
   const height = getEventHeight(event.startTime, event.endTime);
+
+  const columnWidth = 100 / event.totalColumns;
+  const leftPercent = event.column * columnWidth;
 
   const handlePress = () => {
     onPress(event);
@@ -129,6 +195,8 @@ function EventCard({ event, onPress, onDelete, theme }: EventCardProps) {
         {
           top,
           height,
+          left: `${leftPercent}%`,
+          width: `${columnWidth - 1}%`,
           backgroundColor: `${color}20`,
           borderLeftColor: color,
         },
@@ -650,7 +718,7 @@ export default function CalendarScreen() {
             ) : null}
 
             <View style={styles.eventsContainer}>
-              {timedEvents.map((event) => (
+              {calculateEventLayout(timedEvents).map((event) => (
                 <EventCard
                   key={event.id}
                   event={event}
@@ -991,12 +1059,10 @@ const styles = StyleSheet.create({
   },
   eventCard: {
     position: "absolute",
-    left: 0,
-    right: Spacing.sm,
     borderLeftWidth: 3,
     borderRadius: BorderRadius.sm,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
     overflow: "hidden",
   },
   eventContent: {
