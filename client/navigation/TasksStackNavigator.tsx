@@ -21,6 +21,13 @@ function TasksHeaderRight() {
   return (
     <View style={{ flexDirection: "row", alignItems: "center" }}>
       <Pressable
+        onPress={() => navigation.navigate("Grocery")}
+        style={{ marginRight: Spacing.md }}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
+        <Feather name="shopping-cart" size={22} color={Colors.dark.primary} />
+      </Pressable>
+      <Pressable
         onPress={() => navigation.navigate("Lists")}
         style={{ marginRight: Spacing.md }}
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
