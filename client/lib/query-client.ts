@@ -1,11 +1,19 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
-const ZEKE_SECRET = process.env.EXPO_PUBLIC_ZEKE_SECRET;
+let cachedDeviceToken: string | null = null;
+
+export function setDeviceToken(token: string | null): void {
+  cachedDeviceToken = token;
+}
+
+export function getDeviceToken(): string | null {
+  return cachedDeviceToken;
+}
 
 function getAuthHeaders(): Record<string, string> {
   const headers: Record<string, string> = {};
-  if (ZEKE_SECRET) {
-    headers['X-ZEKE-Secret'] = ZEKE_SECRET;
+  if (cachedDeviceToken) {
+    headers['X-ZEKE-Device-Token'] = cachedDeviceToken;
   }
   return headers;
 }

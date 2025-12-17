@@ -3,6 +3,7 @@ import type { Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupWebSocketServer } from "./websocket";
 import { authMiddleware, getAuthStatus, getLockedIPs, unlockIP } from "./auth-middleware";
+import { validateMasterSecret, registerDevice, listDevices, revokeAllDeviceTokens, isSecretConfigured } from "./device-auth";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -39,7 +40,7 @@ function setupCors(app: express.Application) {
         "Access-Control-Allow-Methods",
         "GET, POST, PUT, DELETE, OPTIONS, PATCH",
       );
-      res.header("Access-Control-Allow-Headers", "Content-Type, Accept, X-ZEKE-Secret, Authorization");
+      res.header("Access-Control-Allow-Headers", "Content-Type, Accept, X-ZEKE-Secret, X-ZEKE-Device-Token, Authorization");
       res.header("Access-Control-Allow-Credentials", "true");
     }
 
@@ -235,7 +236,11 @@ function setupErrorHandler(app: express.Application) {
 
   // Security status endpoints (public - for monitoring)
   app.get("/api/auth/status", (_req, res) => {
-    res.json(getAuthStatus());
+    res.json({
+      ...getAuthStatus(),
+      secretConfigured: isSecretConfigured(),
+      pairedDevices: listDevices().length
+    });
   });
 
   app.get("/api/auth/locked", (_req, res) => {
@@ -246,6 +251,77 @@ function setupErrorHandler(app: express.Application) {
     const ip = req.params.ip;
     const success = unlockIP(ip);
     res.json({ success, ip });
+  });
+
+  // Device pairing endpoint (public - validates master secret)
+  app.post("/api/auth/pair", (req, res) => {
+    const { secret, deviceName } = req.body;
+    
+    if (!secret || !deviceName) {
+      return res.status(400).json({ 
+        error: 'Missing required fields',
+        message: 'Both secret and deviceName are required'
+      });
+    }
+
+    if (!isSecretConfigured()) {
+      return res.status(503).json({ 
+        error: 'Service not configured',
+        message: 'Server security is not configured'
+      });
+    }
+
+    try {
+      if (!validateMasterSecret(secret)) {
+        return res.status(401).json({ 
+          error: 'Invalid secret',
+          message: 'The provided access key is incorrect'
+        });
+      }
+    } catch (e) {
+      return res.status(401).json({ 
+        error: 'Invalid secret',
+        message: 'The provided access key is incorrect'
+      });
+    }
+
+    const device = registerDevice(deviceName);
+    
+    res.status(201).json({
+      success: true,
+      deviceId: device.deviceId,
+      deviceToken: device.token,
+      message: 'Device paired successfully'
+    });
+  });
+
+  // Verify device token (public - for auth check)
+  app.post("/api/auth/verify", (req, res) => {
+    const deviceToken = req.headers['x-zeke-device-token'] as string;
+    
+    if (!deviceToken) {
+      return res.status(401).json({ valid: false, error: 'No token provided' });
+    }
+
+    const { validateDeviceToken } = require('./device-auth');
+    const device = validateDeviceToken(deviceToken);
+    
+    if (device) {
+      return res.json({ valid: true, deviceId: device.deviceId, deviceName: device.deviceName });
+    }
+    
+    return res.status(401).json({ valid: false, error: 'Invalid token' });
+  });
+
+  // List paired devices (requires auth)
+  app.get("/api/auth/devices", (_req, res) => {
+    res.json({ devices: listDevices() });
+  });
+
+  // Revoke all device tokens (requires auth)
+  app.post("/api/auth/revoke-all", (_req, res) => {
+    const count = revokeAllDeviceTokens();
+    res.json({ success: true, revokedCount: count });
   });
 
   configureExpoAndLanding(app);

@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
+import { validateDeviceToken, validateMasterSecret } from './device-auth';
 
 const ZEKE_SECRET = process.env.ZEKE_SHARED_SECRET;
 const LOCKOUT_THRESHOLD = 5;
@@ -17,6 +18,8 @@ const PUBLIC_ROUTES = [
   '/api/health',
   '/api/auth/status',
   '/api/auth/locked',
+  '/api/auth/pair',
+  '/api/auth/verify',
   '/api/zeke/health',
   '/api/zeke/security/status',
   '/api/omi/memory-trigger',
@@ -105,46 +108,55 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
     });
   }
 
-  const providedSecret = 
-    req.headers['x-zeke-secret'] as string ||
-    req.headers['authorization']?.replace('Bearer ', '') ||
-    req.query.secret as string;
+  const deviceToken = req.headers['x-zeke-device-token'] as string;
+  const masterSecret = req.headers['x-zeke-secret'] as string;
+  const bearerToken = req.headers['authorization']?.replace('Bearer ', '');
 
-  if (!providedSecret) {
-    const result = recordFailedAttempt(clientIP);
-    
-    console.warn(`[Auth] Missing secret from ${clientIP} - ${result.remainingAttempts} attempts remaining`);
-    
-    return res.status(401).json({
-      error: 'Authentication required',
-      message: 'Missing authentication credentials',
-      remainingAttempts: result.remainingAttempts
-    });
-  }
-
-  if (providedSecret !== ZEKE_SECRET) {
-    const result = recordFailedAttempt(clientIP);
-    
-    console.warn(`[Auth] Invalid secret from ${clientIP} - ${result.locked ? 'LOCKED OUT' : `${result.remainingAttempts} attempts remaining`}`);
-    
-    if (result.locked) {
-      return res.status(429).json({
-        error: 'Too many failed authentication attempts',
-        message: 'Access temporarily blocked. Try again in 15 minutes.',
-        retryAfter: 15
-      });
+  if (deviceToken) {
+    const device = validateDeviceToken(deviceToken);
+    if (device) {
+      clearFailedAttempts(clientIP);
+      (req as any).zekeDevice = device;
+      return next();
     }
-    
-    return res.status(401).json({
-      error: 'Invalid authentication',
-      message: 'Invalid credentials provided',
-      remainingAttempts: result.remainingAttempts
-    });
   }
 
-  clearFailedAttempts(clientIP);
+  if (bearerToken) {
+    const device = validateDeviceToken(bearerToken);
+    if (device) {
+      clearFailedAttempts(clientIP);
+      (req as any).zekeDevice = device;
+      return next();
+    }
+  }
+
+  if (masterSecret && ZEKE_SECRET) {
+    try {
+      if (validateMasterSecret(masterSecret)) {
+        clearFailedAttempts(clientIP);
+        return next();
+      }
+    } catch (e) {
+    }
+  }
+
+  const result = recordFailedAttempt(clientIP);
   
-  next();
+  console.warn(`[Auth] Invalid/missing credentials from ${clientIP} - ${result.locked ? 'LOCKED OUT' : `${result.remainingAttempts} attempts remaining`}`);
+  
+  if (result.locked) {
+    return res.status(429).json({
+      error: 'Too many failed authentication attempts',
+      message: 'Access temporarily blocked. Try again in 15 minutes.',
+      retryAfter: 15
+    });
+  }
+  
+  return res.status(401).json({
+    error: 'Authentication required',
+    message: 'Valid device token or master secret required',
+    remainingAttempts: result.remainingAttempts
+  });
 }
 
 export function getAuthStatus(): {
