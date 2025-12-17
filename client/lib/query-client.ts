@@ -1,5 +1,15 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
+const ZEKE_SECRET = process.env.EXPO_PUBLIC_ZEKE_SECRET;
+
+function getAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (ZEKE_SECRET) {
+    headers['X-ZEKE-Secret'] = ZEKE_SECRET;
+  }
+  return headers;
+}
+
 /**
  * Gets the base URL for the Express API server
  * Uses ZEKE_BACKEND_URL if set (for syncing with main ZEKE deployment)
@@ -70,9 +80,17 @@ export async function apiRequest(
   const baseUrl = getApiUrl();
   const url = new URL(route, baseUrl);
 
+  const headers: Record<string, string> = {
+    ...getAuthHeaders(),
+  };
+  
+  if (data) {
+    headers["Content-Type"] = "application/json";
+  }
+
   const res = await fetch(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    headers,
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
@@ -92,6 +110,7 @@ export const getQueryFn: <T>(options: {
 
     const res = await fetch(url, {
       credentials: "include",
+      headers: getAuthHeaders(),
     });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {

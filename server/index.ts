@@ -2,6 +2,7 @@ import express from "express";
 import type { Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupWebSocketServer } from "./websocket";
+import { authMiddleware, getAuthStatus, getLockedIPs, unlockIP } from "./auth-middleware";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -38,7 +39,7 @@ function setupCors(app: express.Application) {
         "Access-Control-Allow-Methods",
         "GET, POST, PUT, DELETE, OPTIONS, PATCH",
       );
-      res.header("Access-Control-Allow-Headers", "Content-Type, Accept");
+      res.header("Access-Control-Allow-Headers", "Content-Type, Accept, X-ZEKE-Secret, Authorization");
       res.header("Access-Control-Allow-Credentials", "true");
     }
 
@@ -228,6 +229,24 @@ function setupErrorHandler(app: express.Application) {
   setupCors(app);
   setupBodyParsing(app);
   setupRequestLogging(app);
+
+  // Authentication middleware - protects all /api/* routes
+  app.use(authMiddleware);
+
+  // Security status endpoints (public - for monitoring)
+  app.get("/api/auth/status", (_req, res) => {
+    res.json(getAuthStatus());
+  });
+
+  app.get("/api/auth/locked", (_req, res) => {
+    res.json({ lockedIPs: getLockedIPs() });
+  });
+
+  app.post("/api/auth/unlock/:ip", (req, res) => {
+    const ip = req.params.ip;
+    const success = unlockIP(ip);
+    res.json({ success, ip });
+  });
 
   configureExpoAndLanding(app);
 
