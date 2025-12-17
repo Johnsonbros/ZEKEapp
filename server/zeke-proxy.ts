@@ -1,5 +1,14 @@
 import type { Express, Request, Response } from "express";
 import type { IncomingHttpHeaders } from "http";
+import {
+  signRequest,
+  logCommunication,
+  hashBody,
+  isSecurityConfigured,
+  getSecurityStatus,
+  getCommunicationLogs,
+  generateRequestId,
+} from "./zeke-security";
 
 const ZEKE_BACKEND_URL = process.env.EXPO_PUBLIC_ZEKE_BACKEND_URL || "https://zekeai.replit.app";
 
@@ -18,6 +27,8 @@ interface ProxyResult {
   status: number;
   data?: any;
   error?: string;
+  requestId?: string;
+  latencyMs?: number;
 }
 
 function extractForwardHeaders(reqHeaders: IncomingHttpHeaders): Record<string, string> {
@@ -40,6 +51,25 @@ async function proxyToZeke(
   clientHeaders?: Record<string, string>
 ): Promise<ProxyResult> {
   const url = new URL(path, ZEKE_BACKEND_URL);
+  const startTime = Date.now();
+  const bodyStr = body ? JSON.stringify(body) : "";
+  
+  const securityHeaders = isSecurityConfigured() 
+    ? signRequest(method, path, bodyStr)
+    : { "X-Zeke-Request-Id": generateRequestId() } as any;
+  
+  const requestId = securityHeaders["X-Zeke-Request-Id"];
+  
+  logCommunication({
+    requestId,
+    timestamp: new Date().toISOString(),
+    method,
+    path,
+    direction: "outbound",
+    proxyId: securityHeaders["X-Zeke-Proxy-Id"] || "unsigned",
+    signatureValid: isSecurityConfigured(),
+    bodyHash: hashBody(bodyStr),
+  });
   
   try {
     const fetchOptions: RequestInit = {
@@ -47,17 +77,19 @@ async function proxyToZeke(
       headers: {
         "Content-Type": "application/json",
         ...clientHeaders,
+        ...securityHeaders,
       },
     };
     
     if (body && method !== "GET" && method !== "HEAD") {
-      fetchOptions.body = JSON.stringify(body);
+      fetchOptions.body = bodyStr;
     }
     
-    console.log(`[ZEKE Proxy] ${method} ${url.href}`);
+    console.log(`[ZEKE Proxy] ${method} ${url.href} [${requestId}]`);
     
     const response = await fetch(url.href, fetchOptions);
     const contentType = response.headers.get("content-type");
+    const latencyMs = Date.now() - startTime;
     
     let data;
     if (contentType?.includes("application/json")) {
@@ -66,19 +98,50 @@ async function proxyToZeke(
       data = await response.text();
     }
     
-    console.log(`[ZEKE Proxy] Response: ${response.status}`);
+    console.log(`[ZEKE Proxy] Response: ${response.status} [${requestId}] ${latencyMs}ms`);
+    
+    logCommunication({
+      requestId,
+      timestamp: new Date().toISOString(),
+      method,
+      path,
+      direction: "inbound",
+      status: response.status,
+      latencyMs,
+      proxyId: securityHeaders["X-Zeke-Proxy-Id"] || "unsigned",
+      signatureValid: true,
+    });
     
     return {
       success: response.ok,
       status: response.status,
       data,
+      requestId,
+      latencyMs,
     };
   } catch (error) {
-    console.error(`[ZEKE Proxy] Error:`, error);
+    const latencyMs = Date.now() - startTime;
+    console.error(`[ZEKE Proxy] Error [${requestId}]:`, error);
+    
+    logCommunication({
+      requestId,
+      timestamp: new Date().toISOString(),
+      method,
+      path,
+      direction: "inbound",
+      status: 503,
+      latencyMs,
+      proxyId: securityHeaders["X-Zeke-Proxy-Id"] || "unsigned",
+      signatureValid: false,
+      error: error instanceof Error ? error.message : "Connection failed",
+    });
+    
     return {
       success: false,
       status: 503,
       error: error instanceof Error ? error.message : "Connection failed",
+      requestId,
+      latencyMs,
     };
   }
 }
@@ -89,11 +152,40 @@ export function registerZekeProxyRoutes(app: Express): void {
   app.get("/api/zeke/health", async (req: Request, res: Response) => {
     const headers = extractForwardHeaders(req.headers);
     const result = await proxyToZeke("GET", "/api/health", undefined, headers);
+    const security = getSecurityStatus();
     res.json({
       proxy: "connected",
       backend: ZEKE_BACKEND_URL,
       backendStatus: result.success ? "connected" : "unreachable",
       backendResponse: result.data,
+      security: {
+        handshakeEnabled: security.configured,
+        proxyId: security.proxyId,
+        logsCount: security.logsCount,
+      },
+      requestId: result.requestId,
+      latencyMs: result.latencyMs,
+    });
+  });
+
+  app.get("/api/zeke/security/status", async (_req: Request, res: Response) => {
+    const security = getSecurityStatus();
+    res.json({
+      configured: security.configured,
+      proxyId: security.proxyId,
+      secretConfigured: security.secretConfigured,
+      logsCount: security.logsCount,
+      backend: ZEKE_BACKEND_URL,
+    });
+  });
+
+  app.get("/api/zeke/security/logs", async (req: Request, res: Response) => {
+    const limit = parseInt(req.query.limit as string) || 100;
+    const logs = getCommunicationLogs(Math.min(limit, 500));
+    res.json({
+      logs,
+      total: logs.length,
+      securityEnabled: isSecurityConfigured(),
     });
   });
 

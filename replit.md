@@ -27,6 +27,27 @@ These use Replit connectors and must stay on the local backend:
 - **Calendar**: `/api/calendar/*` (Google Calendar via Replit connector)
 - **Twilio**: `/api/twilio/*` (SMS/Voice via Replit connector)
 
+### Secure Handshake & Communication Logging
+The proxy includes HMAC-signed request authentication and comprehensive communication logging:
+
+**Security Features** (`server/zeke-security.ts`):
+- **HMAC Signing**: Requests signed with `ZEKE_SHARED_SECRET` using SHA-256
+- **Replay Prevention**: Nonce + timestamp validation (5-minute tolerance)
+- **Request IDs**: Every request gets a unique ID for tracing
+- **Audit Trail**: All communications logged with timestamps, latency, and status
+
+**Security Endpoints**:
+- `GET /api/zeke/security/status` - Check if handshake is configured
+- `GET /api/zeke/security/logs` - View communication audit trail
+
+**Configuration**:
+- Set `ZEKE_SHARED_SECRET` (min 32 chars) on both mobile app and ZEKE backend
+- Set `ZEKE_PROXY_ID` to identify this proxy (default: "zeke-mobile-proxy")
+
+**Backend Verification**:
+- Copy `server/zeke-backend-verification.ts.example` to ZEKE backend
+- Add `verifyZekeSignature` middleware to protected routes
+
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
