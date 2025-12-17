@@ -100,26 +100,52 @@ export default function ChatScreen() {
         const storedSessionId = await AsyncStorage.getItem(CHAT_SESSION_KEY);
         
         if (storedSessionId) {
-          const url = new URL(`/api/chat/sessions/${storedSessionId}/messages`, getApiUrl());
-          const res = await fetch(url.toString(), { credentials: 'include' });
-          if (res.ok) {
-            const contentType = res.headers.get('content-type');
-            if (contentType && contentType.includes('application/json')) {
-              setSessionId(storedSessionId);
-              setIsInitializing(false);
-              return;
+          try {
+            const url = new URL(`/api/chat/sessions/${storedSessionId}/messages`, getApiUrl());
+            const res = await fetch(url.toString(), { credentials: 'include' });
+            if (res.ok) {
+              const contentType = res.headers.get('content-type');
+              if (contentType && contentType.includes('application/json')) {
+                await res.json(); // Validate JSON can be parsed
+                setSessionId(storedSessionId);
+                setIsInitializing(false);
+                return;
+              }
             }
+          } catch (e) {
+            // Session doesn't exist or is invalid, create new one
           }
         }
         
-        const createRes = await apiRequest('POST', '/api/chat/sessions', { title: 'Chat with ZEKE' });
-        const contentType = createRes.headers.get('content-type');
-        if (!contentType || !contentType.includes('application/json')) {
-          throw new Error('Server returned non-JSON response');
+        try {
+          const createRes = await apiRequest('POST', '/api/chat/sessions', { title: 'Chat with ZEKE' });
+          const contentType = createRes.headers.get('content-type');
+          if (!contentType || !contentType.includes('application/json')) {
+            throw new Error('Server returned non-JSON response');
+          }
+          
+          // Parse JSON carefully to catch parse errors
+          let newSession: ApiChatSession;
+          try {
+            newSession = await createRes.json();
+          } catch (parseError) {
+            console.error('Failed to parse chat session response:', parseError);
+            throw new Error('Server response is invalid');
+          }
+          
+          if (!newSession.id) {
+            throw new Error('Invalid session response');
+          }
+          
+          await AsyncStorage.setItem(CHAT_SESSION_KEY, newSession.id);
+          setSessionId(newSession.id);
+        } catch (error) {
+          // If we get here, the API call failed with an exception
+          // This could be a network error or a parse error
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          console.error('Chat API error details:', errorMessage);
+          throw new Error('Failed to create chat session. Check your connection.');
         }
-        const newSession: ApiChatSession = await createRes.json();
-        await AsyncStorage.setItem(CHAT_SESSION_KEY, newSession.id);
-        setSessionId(newSession.id);
       }
     } catch (error) {
       console.error('Failed to initialize chat session:', error);
