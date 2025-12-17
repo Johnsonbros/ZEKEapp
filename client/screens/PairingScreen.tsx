@@ -6,7 +6,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Device from 'expo-device';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { Colors, Spacing, BorderRadius } from '@/constants/theme';
+import { Colors, Gradients, Spacing, BorderRadius } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 
 export function PairingScreen() {
@@ -42,10 +42,10 @@ export function PairingScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <View style={[styles.content, { paddingTop: insets.top + Spacing.xxl, paddingBottom: insets.bottom + Spacing.xl }]}>
+      <View style={[styles.content, { paddingTop: insets.top + Spacing["2xl"], paddingBottom: insets.bottom + Spacing.xl }]}>
         <View style={styles.header}>
           <LinearGradient
-            colors={[Colors.gradient.indigo.start, Colors.gradient.indigo.end]}
+            colors={Gradients.primary}
             style={styles.iconContainer}
           >
             <Feather name="shield" size={48} color={Colors.dark.text} />
@@ -86,7 +86,7 @@ export function PairingScreen() {
             disabled={isLoading}
           >
             <LinearGradient
-              colors={[Colors.gradient.purple.start, Colors.gradient.purple.end]}
+              colors={Gradients.accent}
               style={styles.buttonGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
