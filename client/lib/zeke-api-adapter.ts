@@ -217,8 +217,8 @@ export async function searchMemories(query: string): Promise<ZekeMemory[]> {
 }
 
 export async function getTasks(): Promise<ZekeTask[]> {
-  const baseUrl = getApiUrl();
-  const url = new URL('/api/tasks', baseUrl);
+  const baseUrl = getLocalApiUrl();
+  const url = new URL('/api/zeke/tasks', baseUrl);
   
   try {
     const res = await fetch(url, { 
@@ -226,18 +226,21 @@ export async function getTasks(): Promise<ZekeTask[]> {
       signal: createTimeoutSignal(5000)
     });
     if (!res.ok) {
+      console.log('[ZEKE Proxy] Tasks fetch failed:', res.status);
       return [];
     }
     const data = await res.json();
+    console.log('[ZEKE Proxy] Tasks fetched:', data.tasks?.length || 0);
     return data.tasks || data || [];
-  } catch {
+  } catch (error) {
+    console.error('[ZEKE Proxy] Tasks error:', error);
     return [];
   }
 }
 
 export async function getGroceryItems(): Promise<ZekeGroceryItem[]> {
-  const baseUrl = getApiUrl();
-  const url = new URL('/api/grocery', baseUrl);
+  const baseUrl = getLocalApiUrl();
+  const url = new URL('/api/zeke/grocery', baseUrl);
   
   try {
     const res = await fetch(url, { 
@@ -245,11 +248,14 @@ export async function getGroceryItems(): Promise<ZekeGroceryItem[]> {
       signal: createTimeoutSignal(5000)
     });
     if (!res.ok) {
+      console.log('[ZEKE Proxy] Grocery fetch failed:', res.status);
       return [];
     }
     const data = await res.json();
+    console.log('[ZEKE Proxy] Grocery items fetched:', data.items?.length || 0);
     return data.items || data || [];
-  } catch {
+  } catch (error) {
+    console.error('[ZEKE Proxy] Grocery error:', error);
     return [];
   }
 }
@@ -283,8 +289,8 @@ export async function getReminders(): Promise<ZekeReminder[]> {
 }
 
 export async function getContacts(): Promise<ZekeContact[]> {
-  const baseUrl = getApiUrl();
-  const url = new URL('/api/contacts', baseUrl);
+  const baseUrl = getLocalApiUrl();
+  const url = new URL('/api/zeke/contacts', baseUrl);
   
   try {
     const res = await fetch(url, { 
@@ -292,18 +298,21 @@ export async function getContacts(): Promise<ZekeContact[]> {
       signal: createTimeoutSignal(5000)
     });
     if (!res.ok) {
+      console.log('[ZEKE Proxy] Contacts fetch failed:', res.status);
       return [];
     }
     const data = await res.json();
+    console.log('[ZEKE Proxy] Contacts fetched:', data.contacts?.length || 0);
     return data.contacts || data || [];
-  } catch {
+  } catch (error) {
+    console.error('[ZEKE Proxy] Contacts error:', error);
     return [];
   }
 }
 
 export async function getContact(id: string): Promise<ZekeContact | null> {
-  const baseUrl = getApiUrl();
-  const url = new URL(`/api/contacts/${id}`, baseUrl);
+  const baseUrl = getLocalApiUrl();
+  const url = new URL(`/api/zeke/contacts/${id}`, baseUrl);
   
   try {
     const res = await fetch(url, { 
@@ -320,17 +329,45 @@ export async function getContact(id: string): Promise<ZekeContact | null> {
 }
 
 export async function createContact(data: Partial<ZekeContact>): Promise<ZekeContact> {
-  const res = await apiRequest('POST', '/api/contacts', data);
+  const baseUrl = getLocalApiUrl();
+  const url = new URL('/api/zeke/contacts', baseUrl);
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to create contact: ${res.statusText}`);
+  }
   return res.json();
 }
 
 export async function updateContact(id: string, updates: Partial<ZekeContact>): Promise<ZekeContact> {
-  const res = await apiRequest('PATCH', `/api/contacts/${id}`, updates);
+  const baseUrl = getLocalApiUrl();
+  const url = new URL(`/api/zeke/contacts/${id}`, baseUrl);
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(updates),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to update contact: ${res.statusText}`);
+  }
   return res.json();
 }
 
 export async function deleteContact(id: string): Promise<void> {
-  await apiRequest('DELETE', `/api/contacts/${id}`);
+  const baseUrl = getLocalApiUrl();
+  const url = new URL(`/api/zeke/contacts/${id}`, baseUrl);
+  const res = await fetch(url, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to delete contact: ${res.statusText}`);
+  }
 }
 
 export async function getSmsConversations(): Promise<ZekeContactConversation[]> {
@@ -627,8 +664,8 @@ export async function getTodayEvents(): Promise<ZekeEvent[]> {
 }
 
 export async function getPendingTasks(): Promise<ZekeTask[]> {
-  const baseUrl = getApiUrl();
-  const url = new URL('/api/tasks', baseUrl);
+  const baseUrl = getLocalApiUrl();
+  const url = new URL('/api/zeke/tasks', baseUrl);
   url.searchParams.set('status', 'pending');
   
   try {
@@ -652,7 +689,17 @@ export async function addGroceryItem(
   unit?: string,
   category?: string
 ): Promise<ZekeGroceryItem> {
-  const res = await apiRequest('POST', '/api/grocery', { name, quantity, unit, category });
+  const baseUrl = getLocalApiUrl();
+  const url = new URL('/api/zeke/grocery', baseUrl);
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ name, quantity, unit, category }),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to add grocery item: ${res.statusText}`);
+  }
   return res.json();
 }
 
@@ -660,12 +707,30 @@ export async function updateGroceryItem(
   id: string,
   updates: Partial<ZekeGroceryItem>
 ): Promise<ZekeGroceryItem> {
-  const res = await apiRequest('PATCH', `/api/grocery/${id}`, updates);
+  const baseUrl = getLocalApiUrl();
+  const url = new URL(`/api/zeke/grocery/${id}`, baseUrl);
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(updates),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to update grocery item: ${res.statusText}`);
+  }
   return res.json();
 }
 
 export async function deleteGroceryItem(id: string): Promise<void> {
-  await apiRequest('DELETE', `/api/grocery/${id}`);
+  const baseUrl = getLocalApiUrl();
+  const url = new URL(`/api/zeke/grocery/${id}`, baseUrl);
+  const res = await fetch(url, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to delete grocery item: ${res.statusText}`);
+  }
 }
 
 export async function toggleGroceryPurchased(
@@ -676,8 +741,8 @@ export async function toggleGroceryPurchased(
 }
 
 export async function getAllTasks(): Promise<ZekeTask[]> {
-  const baseUrl = getApiUrl();
-  const url = new URL('/api/tasks', baseUrl);
+  const baseUrl = getLocalApiUrl();
+  const url = new URL('/api/zeke/tasks', baseUrl);
   
   try {
     const res = await fetch(url, { 
@@ -685,11 +750,14 @@ export async function getAllTasks(): Promise<ZekeTask[]> {
       signal: createTimeoutSignal(5000)
     });
     if (!res.ok) {
+      console.log('[ZEKE Proxy] getAllTasks failed:', res.status);
       return [];
     }
     const data = await res.json();
+    console.log('[ZEKE Proxy] getAllTasks fetched:', data.tasks?.length || 0);
     return data.tasks || data || [];
-  } catch {
+  } catch (error) {
+    console.error('[ZEKE Proxy] getAllTasks error:', error);
     return [];
   }
 }
@@ -699,7 +767,17 @@ export async function createTask(
   dueDate?: string,
   priority?: string
 ): Promise<ZekeTask> {
-  const res = await apiRequest('POST', '/api/tasks', { title, dueDate, priority });
+  const baseUrl = getLocalApiUrl();
+  const url = new URL('/api/zeke/tasks', baseUrl);
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ title, dueDate, priority }),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to create task: ${res.statusText}`);
+  }
   return res.json();
 }
 
@@ -707,12 +785,30 @@ export async function updateTask(
   id: string,
   updates: Partial<ZekeTask>
 ): Promise<ZekeTask> {
-  const res = await apiRequest('PATCH', `/api/tasks/${id}`, updates);
+  const baseUrl = getLocalApiUrl();
+  const url = new URL(`/api/zeke/tasks/${id}`, baseUrl);
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(updates),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to update task: ${res.statusText}`);
+  }
   return res.json();
 }
 
 export async function deleteTask(id: string): Promise<void> {
-  await apiRequest('DELETE', `/api/tasks/${id}`);
+  const baseUrl = getLocalApiUrl();
+  const url = new URL(`/api/zeke/tasks/${id}`, baseUrl);
+  const res = await fetch(url, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to delete task: ${res.statusText}`);
+  }
 }
 
 export async function toggleTaskComplete(

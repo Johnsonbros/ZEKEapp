@@ -4,19 +4,28 @@
 ZEKE AI is a mobile companion app (Expo/React Native) designed as a **full extension** of the main ZEKE web application (https://zekeai.replit.app), running on a dedicated mobile device. It provides quick access to daily essentials (calendar, tasks, grocery lists, custom lists, contacts), captures conversation memory from AI wearables, facilitates communication via SMS/Voice (Twilio), and includes an AI chat assistant. The app features a dark-themed design with gradient accents and supports iOS, Android, and web platforms. Its core purpose is to leverage native mobile features (voice input, location, notifications) for communication and real-time data capture, while the ZEKE web server handles data persistence, AI processing, and complex integrations. Communication priority is App Chat, then SMS, then Voice calls.
 
 ## ZEKE Backend Integration Status
-The mobile app is configured to route all API calls to the deployed ZEKE backend (`EXPO_PUBLIC_ZEKE_BACKEND_URL`):
-- **Tasks**: Full CRUD via `/api/tasks` endpoints
-- **Grocery**: Full CRUD via `/api/grocery` endpoints  
-- **Lists**: Full CRUD via `/api/lists` endpoints (custom lists with items)
-- **Calendar**: CRUD via `/api/calendar` endpoints (Google Calendar sync)
-- **Chat**: AI conversations via `/api/chat` endpoints
+The mobile app uses a **server-side proxy** (`server/zeke-proxy.ts`) to route all ZEKE backend API calls through the local Express server, bypassing CORS restrictions entirely.
 
-**CORS Configuration Required**: The ZEKE backend at `https://zekeai.replit.app` must allow CORS requests from:
-- This Replit development domain
-- Any production domains where the mobile app is deployed
-- Expo Go app domains
+### Proxy Architecture
+- **Proxy Endpoint**: `/api/zeke/*` routes are handled by the local Express server
+- **Backend Target**: `https://zekeai.replit.app` (configured via `EXPO_PUBLIC_ZEKE_BACKEND_URL`)
+- **Header Forwarding**: Authentication headers (Cookie, Authorization, X-* headers) are forwarded to preserve user sessions
+- **Error Handling**: Proper status code propagation and error responses
 
-To configure CORS on ZEKE server, add these origins to the allowed CORS list in the Express configuration.
+### Available Proxy Routes
+- **Tasks**: Full CRUD via `/api/zeke/tasks` endpoints
+- **Grocery**: Full CRUD via `/api/zeke/grocery` endpoints  
+- **Lists**: Full CRUD via `/api/zeke/lists` endpoints (custom lists with items)
+- **Contacts**: Full CRUD via `/api/zeke/contacts` endpoints
+- **Chat**: AI conversations via `/api/zeke/chat` endpoints
+- **Dashboard**: `/api/zeke/dashboard` for dashboard data
+- **Memories**: `/api/zeke/memories` for AI memories
+- **Health Check**: `/api/zeke/health` to verify backend connectivity
+
+### Local-Only Endpoints (NOT proxied)
+These use Replit connectors and must stay on the local backend:
+- **Calendar**: `/api/calendar/*` (Google Calendar via Replit connector)
+- **Twilio**: `/api/twilio/*` (SMS/Voice via Replit connector)
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
