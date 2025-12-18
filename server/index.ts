@@ -3,7 +3,7 @@ import type { Request, Response, NextFunction } from "express";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import { registerRoutes } from "./routes";
 import { setupWebSocketServer } from "./websocket";
-import { authMiddleware, getAuthStatus, getLockedIPs, unlockIP } from "./auth-middleware";
+import { authMiddleware, getAuthStatus, getLockedIPs, unlockIP, clearAllLockouts } from "./auth-middleware";
 import { validateMasterSecret, registerDevice, listDevices, revokeAllDeviceTokens, isSecretConfigured } from "./device-auth";
 import * as fs from "fs";
 import * as path from "path";
@@ -265,6 +265,12 @@ function setupErrorHandler(app: express.Application) {
     const ip = req.params.ip;
     const success = unlockIP(ip);
     res.json({ success, ip });
+  });
+
+  // Clear all lockouts (for debugging/recovery)
+  app.post("/api/auth/clear-lockouts", (_req, res) => {
+    const count = clearAllLockouts();
+    res.json({ success: true, clearedCount: count });
   });
 
   // Device pairing endpoint (public - validates master secret)

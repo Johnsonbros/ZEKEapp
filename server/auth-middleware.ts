@@ -20,6 +20,8 @@ const PUBLIC_ROUTES = [
   '/api/auth/locked',
   '/api/auth/pair',
   '/api/auth/verify',
+  '/api/auth/unlock',
+  '/api/auth/clear-lockouts',
   '/api/zeke/health',
   '/api/zeke/security/status',
   '/api/omi/memory-trigger',
@@ -194,4 +196,11 @@ export function unlockIP(ip: string): boolean {
     return true;
   }
   return false;
+}
+
+export function clearAllLockouts(): number {
+  const count = failedAttempts.size;
+  failedAttempts.clear();
+  console.log(`[Auth] Cleared all ${count} lockouts/failed attempts`);
+  return count;
 }
