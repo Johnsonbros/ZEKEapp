@@ -234,6 +234,11 @@ function setupErrorHandler(app: express.Application) {
   // Authentication middleware - protects all /api/* routes
   app.use(authMiddleware);
 
+  // Health check endpoint (public)
+  app.get("/api/health", (_req, res) => {
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
+  });
+
   // Security status endpoints (public - for monitoring)
   app.get("/api/auth/status", (_req, res) => {
     res.json({
