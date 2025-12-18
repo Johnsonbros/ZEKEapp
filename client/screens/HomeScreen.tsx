@@ -216,7 +216,7 @@ export default function HomeScreen() {
 
   const handleMessagePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    navigation.navigate('SmsCompose', {});
+    navigation.navigate('CommsTab');
   };
 
   const handleRecordPress = () => {
