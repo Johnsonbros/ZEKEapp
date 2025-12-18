@@ -46,7 +46,7 @@ export function useScreenOptions({
       },
       headerBackground: transparent
         ? () => (
-            <View style={styles.headerBackgroundContainer} pointerEvents="none">
+            <View style={styles.headerBackgroundContainer}>
               {isLiquidGlassAvailable() ? (
                 <GlassView
                   glassEffectStyle="regular"
@@ -100,5 +100,6 @@ const styles = StyleSheet.create({
   headerBackgroundContainer: {
     ...StyleSheet.absoluteFillObject,
     overflow: "hidden",
+    pointerEvents: "none",
   },
 });
