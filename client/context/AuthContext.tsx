@@ -23,14 +23,14 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 async function getStoredValue(key: string): Promise<string | null> {
   if (Platform.OS === 'web') {
-    return sessionStorage.getItem(key);
+    return localStorage.getItem(key);
   }
   return SecureStore.getItemAsync(key);
 }
 
 async function setStoredValue(key: string, value: string): Promise<void> {
   if (Platform.OS === 'web') {
-    sessionStorage.setItem(key, value);
+    localStorage.setItem(key, value);
     return;
   }
   await SecureStore.setItemAsync(key, value);
@@ -38,7 +38,7 @@ async function setStoredValue(key: string, value: string): Promise<void> {
 
 async function deleteStoredValue(key: string): Promise<void> {
   if (Platform.OS === 'web') {
-    sessionStorage.removeItem(key);
+    localStorage.removeItem(key);
     return;
   }
   await SecureStore.deleteItemAsync(key);

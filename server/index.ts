@@ -268,7 +268,7 @@ function setupErrorHandler(app: express.Application) {
   });
 
   // Device pairing endpoint (public - validates master secret)
-  app.post("/api/auth/pair", (req, res) => {
+  app.post("/api/auth/pair", async (req, res) => {
     const { secret, deviceName } = req.body;
     
     if (!secret || !deviceName) {
@@ -299,7 +299,7 @@ function setupErrorHandler(app: express.Application) {
       });
     }
 
-    const device = registerDevice(deviceName);
+    const device = await registerDevice(deviceName);
     
     res.status(201).json({
       success: true,

@@ -1,8 +1,11 @@
 import crypto from 'crypto';
+import { db } from './db';
+import { deviceTokens } from '@shared/schema';
+import { eq } from 'drizzle-orm';
 
 const ZEKE_SECRET = process.env.ZEKE_SHARED_SECRET;
 
-interface DeviceToken {
+interface DeviceTokenData {
   token: string;
   deviceId: string;
   deviceName: string;
@@ -10,7 +13,31 @@ interface DeviceToken {
   lastUsed: Date;
 }
 
-const deviceTokens = new Map<string, DeviceToken>();
+const tokenCache = new Map<string, DeviceTokenData>();
+let cacheInitialized = false;
+
+async function initializeCache(): Promise<void> {
+  if (cacheInitialized) return;
+  
+  try {
+    const storedTokens = await db.select().from(deviceTokens);
+    for (const token of storedTokens) {
+      tokenCache.set(token.token, {
+        token: token.token,
+        deviceId: token.deviceId,
+        deviceName: token.deviceName,
+        createdAt: token.createdAt,
+        lastUsed: token.lastUsedAt,
+      });
+    }
+    cacheInitialized = true;
+    console.log(`[DeviceAuth] Loaded ${storedTokens.length} device tokens from database`);
+  } catch (error) {
+    console.error('[DeviceAuth] Failed to load tokens from database:', error);
+  }
+}
+
+initializeCache();
 
 export function generateDeviceToken(): string {
   return crypto.randomBytes(32).toString('hex');
@@ -27,47 +54,78 @@ export function validateMasterSecret(secret: string): boolean {
   );
 }
 
-export function registerDevice(deviceName: string): DeviceToken {
+export async function registerDevice(deviceName: string): Promise<DeviceTokenData> {
   const token = generateDeviceToken();
   const deviceId = `device_${crypto.randomBytes(8).toString('hex')}`;
+  const now = new Date();
   
-  const deviceToken: DeviceToken = {
+  const deviceToken: DeviceTokenData = {
     token,
     deviceId,
     deviceName,
-    createdAt: new Date(),
-    lastUsed: new Date()
+    createdAt: now,
+    lastUsed: now
   };
   
-  deviceTokens.set(token, deviceToken);
-  console.log(`[DeviceAuth] Registered device: ${deviceName} (${deviceId})`);
+  try {
+    await db.insert(deviceTokens).values({
+      token,
+      deviceId,
+      deviceName,
+    });
+    console.log(`[DeviceAuth] Registered device in database: ${deviceName} (${deviceId})`);
+  } catch (error) {
+    console.error('[DeviceAuth] Failed to save device to database:', error);
+  }
+  
+  tokenCache.set(token, deviceToken);
   
   return deviceToken;
 }
 
-export function validateDeviceToken(token: string): DeviceToken | null {
-  const device = deviceTokens.get(token);
+export function validateDeviceToken(token: string): DeviceTokenData | null {
+  const device = tokenCache.get(token);
   if (device) {
     device.lastUsed = new Date();
+    
+    db.update(deviceTokens)
+      .set({ lastUsedAt: device.lastUsed })
+      .where(eq(deviceTokens.token, token))
+      .catch(err => console.error('[DeviceAuth] Failed to update lastUsedAt:', err));
+    
     return device;
   }
   return null;
 }
 
-export function revokeDeviceToken(token: string): boolean {
-  const existed = deviceTokens.has(token);
-  deviceTokens.delete(token);
+export async function revokeDeviceToken(token: string): Promise<boolean> {
+  const existed = tokenCache.has(token);
+  tokenCache.delete(token);
+  
+  try {
+    await db.delete(deviceTokens).where(eq(deviceTokens.token, token));
+  } catch (error) {
+    console.error('[DeviceAuth] Failed to delete token from database:', error);
+  }
+  
   return existed;
 }
 
-export function revokeAllDeviceTokens(): number {
-  const count = deviceTokens.size;
-  deviceTokens.clear();
+export async function revokeAllDeviceTokens(): Promise<number> {
+  const count = tokenCache.size;
+  tokenCache.clear();
+  
+  try {
+    await db.delete(deviceTokens);
+  } catch (error) {
+    console.error('[DeviceAuth] Failed to delete all tokens from database:', error);
+  }
+  
   return count;
 }
 
-export function listDevices(): Array<Omit<DeviceToken, 'token'> & { tokenPreview: string }> {
-  return Array.from(deviceTokens.values()).map(device => ({
+export function listDevices(): Array<Omit<DeviceTokenData, 'token'> & { tokenPreview: string }> {
+  return Array.from(tokenCache.values()).map(device => ({
     deviceId: device.deviceId,
     deviceName: device.deviceName,
     createdAt: device.createdAt,
