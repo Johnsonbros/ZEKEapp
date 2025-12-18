@@ -400,6 +400,51 @@ export function registerZekeProxyRoutes(app: Express): void {
     res.json(result.data);
   });
 
+  app.get("/api/conversations", async (req: Request, res: Response) => {
+    const headers = extractForwardHeaders(req.headers);
+    const result = await proxyToZeke("GET", "/api/conversations", undefined, headers);
+    if (!result.success) {
+      return res.status(result.status).json({ error: result.error || "Failed to fetch conversations", conversations: [] });
+    }
+    res.json(result.data);
+  });
+
+  app.post("/api/conversations", async (req: Request, res: Response) => {
+    const headers = extractForwardHeaders(req.headers);
+    const result = await proxyToZeke("POST", "/api/conversations", req.body, headers);
+    if (!result.success) {
+      return res.status(result.status).json({ error: result.error || "Failed to create conversation" });
+    }
+    res.status(201).json(result.data);
+  });
+
+  app.get("/api/conversations/:id", async (req: Request, res: Response) => {
+    const headers = extractForwardHeaders(req.headers);
+    const result = await proxyToZeke("GET", `/api/conversations/${req.params.id}`, undefined, headers);
+    if (!result.success) {
+      return res.status(result.status).json({ error: result.error || "Failed to fetch conversation" });
+    }
+    res.json(result.data);
+  });
+
+  app.get("/api/conversations/:id/messages", async (req: Request, res: Response) => {
+    const headers = extractForwardHeaders(req.headers);
+    const result = await proxyToZeke("GET", `/api/conversations/${req.params.id}/messages`, undefined, headers);
+    if (!result.success) {
+      return res.status(result.status).json({ error: result.error || "Failed to fetch messages", messages: [] });
+    }
+    res.json(result.data);
+  });
+
+  app.post("/api/conversations/:id/messages", async (req: Request, res: Response) => {
+    const headers = extractForwardHeaders(req.headers);
+    const result = await proxyToZeke("POST", `/api/conversations/${req.params.id}/messages`, req.body, headers);
+    if (!result.success) {
+      return res.status(result.status).json({ error: result.error || "Failed to send message" });
+    }
+    res.status(201).json(result.data);
+  });
+
   app.get("/api/zeke/dashboard", async (req: Request, res: Response) => {
     const headers = extractForwardHeaders(req.headers);
     const result = await proxyToZeke("GET", "/api/dashboard", undefined, headers);
