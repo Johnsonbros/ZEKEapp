@@ -39,22 +39,16 @@ export function signRequest(
   timestamp?: number,
   nonce?: string
 ): SignedRequestHeaders {
-  // ZEKE backend expects timestamp in MILLISECONDS for comparison with Date.now()
-  const ts = timestamp || Date.now();
+  // ZEKE backend expects timestamp in SECONDS for signature validation
+  const ts = timestamp || Math.floor(Date.now() / 1000);
   const n = nonce || generateNonce();
   const requestId = generateRequestId();
   
   const bodyString = body || "";
+  const bodyHash = crypto.createHash("sha256").update(bodyString).digest("hex");
   
-  // ZEKE backend payload format: METHOD|path|body|timestamp|nonce|proxyId
-  const payload = [
-    method.toUpperCase(),
-    path,
-    bodyString,
-    ts.toString(),
-    n,
-    PROXY_ID,
-  ].join("|");
+  // ZEKE backend payload format: timestamp.nonce.METHOD.path.bodyHash
+  const payload = `${ts}.${n}.${method.toUpperCase()}.${path}.${bodyHash}`;
   
   const signature = crypto
     .createHmac("sha256", SHARED_SECRET)
