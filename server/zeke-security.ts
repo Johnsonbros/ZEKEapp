@@ -41,7 +41,7 @@ export function signRequest(
 ): SignedRequestHeaders {
   // ZEKE backend expects timestamp in SECONDS, not milliseconds
   const ts = timestamp || Math.floor(Date.now() / 1000);
-  const n = nonce || ""; // Use empty string if no nonce (as per ZEKE backend spec)
+  const n = nonce || generateNonce(); // Use random nonce for each request
   const requestId = generateRequestId();
   
   // Hash the body (empty string hash if no body) - ZEKE backend expects SHA-256 of body
