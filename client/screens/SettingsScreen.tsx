@@ -59,7 +59,7 @@ export default function SettingsScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const { theme } = useTheme();
   const navigation = useNavigation<NativeStackNavigationProp<SettingsStackParamList>>();
-  const { unpairDevice, state } = useAuth();
+  const { unpairDevice } = useAuth();
 
   const { data: zekeDevices = [], isLoading: isLoadingDevices } = useQuery({
     queryKey: ['/api/devices'],
@@ -298,7 +298,6 @@ export default function SettingsScreen() {
           <SettingsRow
             icon="log-out"
             label="Unpair Device"
-            value={state.deviceId ? `ID: ${state.deviceId.slice(0, 8)}...` : undefined}
             isDestructive
             showChevron={false}
             onPress={handleUnpairDevice}
