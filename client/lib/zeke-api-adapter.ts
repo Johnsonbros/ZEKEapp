@@ -370,6 +370,48 @@ export async function deleteContact(id: string): Promise<void> {
   }
 }
 
+export interface ImportContactData {
+  firstName?: string;
+  lastName?: string;
+  phoneNumber?: string;
+  email?: string;
+  organization?: string;
+  occupation?: string;
+  notes?: string;
+}
+
+export interface ImportContactsResult {
+  imported: number;
+  failed: number;
+  duplicates: number;
+  errors: string[];
+}
+
+export async function importContacts(contacts: ImportContactData[]): Promise<ImportContactsResult> {
+  const result: ImportContactsResult = {
+    imported: 0,
+    failed: 0,
+    duplicates: 0,
+    errors: [],
+  };
+  
+  for (const contact of contacts) {
+    try {
+      await createContact(contact);
+      result.imported++;
+    } catch (error: any) {
+      if (error.message?.includes('duplicate') || error.message?.includes('exists')) {
+        result.duplicates++;
+      } else {
+        result.failed++;
+        result.errors.push(`${contact.firstName || ''} ${contact.lastName || ''}: ${error.message}`);
+      }
+    }
+  }
+  
+  return result;
+}
+
 export async function getSmsConversations(): Promise<ZekeContactConversation[]> {
   const baseUrl = getApiUrl();
   const url = new URL('/api/sms-log', baseUrl);

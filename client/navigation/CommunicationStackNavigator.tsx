@@ -9,6 +9,7 @@ import CommunicationsHubScreen from "@/screens/CommunicationsHubScreen";
 import SmsConversationScreen from "@/screens/SmsConversationScreen";
 import ContactDetailScreen from "@/screens/ContactDetailScreen";
 import VoIPCallingScreen from "@/screens/VoIPCallingScreen";
+import ImportContactsScreen from "@/screens/ImportContactsScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { ZekeHeaderTitle, ZekeHeaderButtons } from "@/components/ZekeHeader";
@@ -24,6 +25,7 @@ export type CommunicationStackParamList = {
   ConversationDetail: { conversationId: string; type: "sms" | "voice" | "app" };
   ContactDetail: { contactId: string };
   VoIPCalling: { phoneNumber?: string; contactName?: string };
+  ImportContacts: undefined;
 };
 
 const Stack = createNativeStackNavigator<CommunicationStackParamList>();
@@ -61,6 +63,13 @@ export default function CommunicationStackNavigator() {
         component={VoIPCallingScreen}
         options={{
           headerTitle: "Call",
+        }}
+      />
+      <Stack.Screen
+        name="ImportContacts"
+        component={ImportContactsScreen}
+        options={{
+          headerTitle: "Import Contacts",
         }}
       />
     </Stack.Navigator>
