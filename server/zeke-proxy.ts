@@ -463,5 +463,75 @@ export function registerZekeProxyRoutes(app: Express): void {
     res.json(result.data);
   });
 
+  app.get("/api/zeke/calendar/today", async (req: Request, res: Response) => {
+    const headers = extractForwardHeaders(req.headers);
+    const result = await proxyToZeke("GET", "/api/calendar/today", undefined, headers);
+    if (!result.success) {
+      return res.status(result.status).json({ error: result.error || "Failed to fetch calendar events", events: [] });
+    }
+    res.json(result.data);
+  });
+
+  app.get("/api/zeke/calendar/upcoming", async (req: Request, res: Response) => {
+    const headers = extractForwardHeaders(req.headers);
+    const days = req.query.days || '7';
+    const result = await proxyToZeke("GET", `/api/calendar/upcoming?days=${days}`, undefined, headers);
+    if (!result.success) {
+      return res.status(result.status).json({ error: result.error || "Failed to fetch upcoming events", events: [] });
+    }
+    res.json(result.data);
+  });
+
+  app.get("/api/zeke/calendar/events", async (req: Request, res: Response) => {
+    const headers = extractForwardHeaders(req.headers);
+    const { timeMin, timeMax, calendarId } = req.query;
+    let queryString = '';
+    if (timeMin) queryString += `timeMin=${encodeURIComponent(timeMin as string)}&`;
+    if (timeMax) queryString += `timeMax=${encodeURIComponent(timeMax as string)}&`;
+    if (calendarId) queryString += `calendarId=${encodeURIComponent(calendarId as string)}`;
+    const result = await proxyToZeke("GET", `/api/calendar/events${queryString ? '?' + queryString : ''}`, undefined, headers);
+    if (!result.success) {
+      return res.status(result.status).json({ error: result.error || "Failed to fetch events", events: [] });
+    }
+    res.json(result.data);
+  });
+
+  app.get("/api/zeke/calendar/calendars", async (req: Request, res: Response) => {
+    const headers = extractForwardHeaders(req.headers);
+    const result = await proxyToZeke("GET", "/api/calendar/calendars", undefined, headers);
+    if (!result.success) {
+      return res.status(result.status).json({ error: result.error || "Failed to fetch calendars", calendars: [] });
+    }
+    res.json(result.data);
+  });
+
+  app.post("/api/zeke/calendar/events", async (req: Request, res: Response) => {
+    const headers = extractForwardHeaders(req.headers);
+    const result = await proxyToZeke("POST", "/api/calendar/events", req.body, headers);
+    if (!result.success) {
+      return res.status(result.status).json({ error: result.error || "Failed to create event" });
+    }
+    res.status(201).json(result.data);
+  });
+
+  app.patch("/api/zeke/calendar/events/:eventId", async (req: Request, res: Response) => {
+    const headers = extractForwardHeaders(req.headers);
+    const result = await proxyToZeke("PATCH", `/api/calendar/events/${req.params.eventId}`, req.body, headers);
+    if (!result.success) {
+      return res.status(result.status).json({ error: result.error || "Failed to update event" });
+    }
+    res.json(result.data);
+  });
+
+  app.delete("/api/zeke/calendar/events/:eventId", async (req: Request, res: Response) => {
+    const headers = extractForwardHeaders(req.headers);
+    const calendarId = req.query.calendarId ? `?calendarId=${encodeURIComponent(req.query.calendarId as string)}` : '';
+    const result = await proxyToZeke("DELETE", `/api/calendar/events/${req.params.eventId}${calendarId}`, undefined, headers);
+    if (!result.success) {
+      return res.status(result.status).json({ error: result.error || "Failed to delete event" });
+    }
+    res.status(204).send();
+  });
+
   console.log("[ZEKE Proxy] Routes registered successfully");
 }
