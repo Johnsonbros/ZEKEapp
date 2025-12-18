@@ -1,5 +1,6 @@
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
+import { createProxyMiddleware } from "http-proxy-middleware";
 import { registerRoutes } from "./routes";
 import { setupWebSocketServer } from "./websocket";
 import { authMiddleware, getAuthStatus, getLockedIPs, unlockIP } from "./auth-middleware";
@@ -177,21 +178,29 @@ function configureExpoAndLanding(app: express.Application) {
 
   log("Serving static Expo files with dynamic manifest routing");
 
+  const metroProxy = createProxyMiddleware({
+    target: 'http://localhost:8081',
+    changeOrigin: true,
+    ws: true,
+    logger: console,
+  });
+
   app.use((req: Request, res: Response, next: NextFunction) => {
     if (req.path.startsWith("/api")) {
       return next();
     }
 
-    if (req.path !== "/" && req.path !== "/manifest") {
-      return next();
-    }
-
     const platform = req.header("expo-platform");
     if (platform && (platform === "ios" || platform === "android")) {
-      return serveExpoManifest(platform, res);
+      if (req.path === "/" || req.path === "/manifest") {
+        return serveExpoManifest(platform, res);
+      }
     }
 
-    if (req.path === "/") {
+    const userAgent = req.header("user-agent") || "";
+    const isExpoGo = userAgent.includes("Expo") || platform;
+    
+    if (isExpoGo && (req.path === "/" || req.path === "/manifest")) {
       return serveLandingPage({
         req,
         res,
@@ -200,7 +209,7 @@ function configureExpoAndLanding(app: express.Application) {
       });
     }
 
-    next();
+    return metroProxy(req, res, next);
   });
 
   app.use("/assets", express.static(path.resolve(process.cwd(), "assets")));
