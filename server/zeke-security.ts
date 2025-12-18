@@ -18,9 +18,9 @@ setInterval(() => {
 
 export interface SignedRequestHeaders {
   "X-Zeke-Proxy-Id": string;
-  "X-Zeke-Timestamp": string;
-  "X-Zeke-Nonce": string;
-  "X-Zeke-Signature": string;
+  "X-ZEKE-Timestamp": string;
+  "X-ZEKE-Nonce": string;
+  "X-ZEKE-Signature": string;
   "X-Zeke-Request-Id": string;
 }
 
@@ -58,8 +58,8 @@ export function signRequest(
   
   return {
     "X-Zeke-Proxy-Id": PROXY_ID,
-    "X-Zeke-Timestamp": ts.toString(),
-    "X-Zeke-Nonce": n,
+    "X-ZEKE-Timestamp": ts.toString(),
+    "X-ZEKE-Nonce": n,
     "X-ZEKE-Signature": signature,
     "X-Zeke-Request-Id": requestId,
   };
