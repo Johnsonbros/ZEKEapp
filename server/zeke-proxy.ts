@@ -539,5 +539,82 @@ export function registerZekeProxyRoutes(app: Express): void {
     res.status(204).send();
   });
 
+  app.post("/api/zeke/location/update", async (req: Request, res: Response) => {
+    const headers = extractForwardHeaders(req.headers);
+    const result = await proxyToZeke("POST", "/api/location-history", req.body, headers);
+    if (!result.success) {
+      return res.status(result.status).json({ error: result.error || "Failed to update location" });
+    }
+    res.status(201).json(result.data);
+  });
+
+  app.post("/api/zeke/location/batch", async (req: Request, res: Response) => {
+    const headers = extractForwardHeaders(req.headers);
+    const result = await proxyToZeke("POST", "/api/location-samples/batch", req.body, headers);
+    if (!result.success) {
+      return res.status(result.status).json({ error: result.error || "Failed to sync location samples" });
+    }
+    res.status(201).json(result.data);
+  });
+
+  app.get("/api/zeke/location/current", async (req: Request, res: Response) => {
+    const headers = extractForwardHeaders(req.headers);
+    const result = await proxyToZeke("GET", "/api/location-history/latest", undefined, headers);
+    if (!result.success) {
+      return res.status(result.status).json({ error: result.error || "Failed to fetch current location" });
+    }
+    res.json(result.data);
+  });
+
+  app.get("/api/zeke/location/history", async (req: Request, res: Response) => {
+    const headers = extractForwardHeaders(req.headers);
+    const { limit, startDate, endDate } = req.query;
+    let queryString = '';
+    if (limit) queryString += `limit=${encodeURIComponent(limit as string)}&`;
+    if (startDate) queryString += `startDate=${encodeURIComponent(startDate as string)}&`;
+    if (endDate) queryString += `endDate=${encodeURIComponent(endDate as string)}`;
+    const result = await proxyToZeke("GET", `/api/location-history${queryString ? '?' + queryString : ''}`, undefined, headers);
+    if (!result.success) {
+      return res.status(result.status).json({ error: result.error || "Failed to fetch location history", locations: [] });
+    }
+    res.json(result.data);
+  });
+
+  app.get("/api/zeke/saved-places", async (req: Request, res: Response) => {
+    const headers = extractForwardHeaders(req.headers);
+    const result = await proxyToZeke("GET", "/api/saved-places", undefined, headers);
+    if (!result.success) {
+      return res.status(result.status).json({ error: result.error || "Failed to fetch saved places", places: [] });
+    }
+    res.json(result.data);
+  });
+
+  app.post("/api/zeke/saved-places", async (req: Request, res: Response) => {
+    const headers = extractForwardHeaders(req.headers);
+    const result = await proxyToZeke("POST", "/api/saved-places", req.body, headers);
+    if (!result.success) {
+      return res.status(result.status).json({ error: result.error || "Failed to save place" });
+    }
+    res.status(201).json(result.data);
+  });
+
+  app.patch("/api/zeke/saved-places/:id", async (req: Request, res: Response) => {
+    const headers = extractForwardHeaders(req.headers);
+    const result = await proxyToZeke("PATCH", `/api/saved-places/${req.params.id}`, req.body, headers);
+    if (!result.success) {
+      return res.status(result.status).json({ error: result.error || "Failed to update saved place" });
+    }
+    res.json(result.data);
+  });
+
+  app.delete("/api/zeke/saved-places/:id", async (req: Request, res: Response) => {
+    const headers = extractForwardHeaders(req.headers);
+    const result = await proxyToZeke("DELETE", `/api/saved-places/${req.params.id}`, undefined, headers);
+    if (!result.success) {
+      return res.status(result.status).json({ error: result.error || "Failed to delete saved place" });
+    }
+    res.status(204).send();
+  });
+
   console.log("[ZEKE Proxy] Routes registered successfully");
 }
