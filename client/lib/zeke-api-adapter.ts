@@ -1,4 +1,4 @@
-import { getApiUrl, getLocalApiUrl, isZekeSyncMode, apiRequest } from "./query-client";
+import { getApiUrl, getLocalApiUrl, isZekeSyncMode, apiRequest, getAuthHeaders } from "./query-client";
 import type {
   Task,
   GroceryItem,
@@ -132,7 +132,7 @@ export async function getConversations(): Promise<ZekeConversation[]> {
   const baseUrl = getApiUrl();
   const url = new URL('/api/conversations', baseUrl);
   
-  const res = await fetch(url, { credentials: 'include' });
+  const res = await fetch(url, { credentials: 'include', headers: getAuthHeaders() });
   if (!res.ok) {
     if (res.status === 404) {
       return [];
@@ -151,7 +151,7 @@ export async function getConversationMessages(conversationId: string): Promise<Z
   const baseUrl = getApiUrl();
   const url = new URL(`/api/conversations/${conversationId}/messages`, baseUrl);
   
-  const res = await fetch(url, { credentials: 'include' });
+  const res = await fetch(url, { credentials: 'include', headers: getAuthHeaders() });
   if (!res.ok) {
     if (res.status === 404) {
       return [];
@@ -181,7 +181,7 @@ export async function getRecentMemories(limit: number = 10): Promise<ZekeMemory[
     const url = new URL('/api/omi/memories', baseUrl);
     url.searchParams.set('limit', limit.toString());
     
-    const res = await fetch(url, { credentials: 'include' });
+    const res = await fetch(url, { credentials: 'include', headers: getAuthHeaders() });
     if (!res.ok) {
       if (res.status === 404) {
         return [];
@@ -192,7 +192,7 @@ export async function getRecentMemories(limit: number = 10): Promise<ZekeMemory[
     return data.memories || data || [];
   } else {
     const url = new URL(`/api/memories?limit=${limit}`, baseUrl);
-    const res = await fetch(url, { credentials: 'include' });
+    const res = await fetch(url, { credentials: 'include', headers: getAuthHeaders() });
     if (!res.ok) {
       return [];
     }
@@ -223,6 +223,7 @@ export async function getTasks(): Promise<ZekeTask[]> {
   try {
     const res = await fetch(url, { 
       credentials: 'include',
+      headers: getAuthHeaders(),
       signal: createTimeoutSignal(5000)
     });
     if (!res.ok) {
@@ -245,6 +246,7 @@ export async function getGroceryItems(): Promise<ZekeGroceryItem[]> {
   try {
     const res = await fetch(url, { 
       credentials: 'include',
+      headers: getAuthHeaders(),
       signal: createTimeoutSignal(5000)
     });
     if (!res.ok) {
@@ -276,6 +278,7 @@ export async function getReminders(): Promise<ZekeReminder[]> {
   try {
     const res = await fetch(url, { 
       credentials: 'include',
+      headers: getAuthHeaders(),
       signal: createTimeoutSignal(5000)
     });
     if (!res.ok) {
@@ -295,6 +298,7 @@ export async function getContacts(): Promise<ZekeContact[]> {
   try {
     const res = await fetch(url, { 
       credentials: 'include',
+      headers: getAuthHeaders(),
       signal: createTimeoutSignal(5000)
     });
     if (!res.ok) {
@@ -317,6 +321,7 @@ export async function getContact(id: string): Promise<ZekeContact | null> {
   try {
     const res = await fetch(url, { 
       credentials: 'include',
+      headers: getAuthHeaders(),
       signal: createTimeoutSignal(5000)
     });
     if (!res.ok) {
@@ -333,7 +338,7 @@ export async function createContact(data: Partial<ZekeContact>): Promise<ZekeCon
   const url = new URL('/api/zeke/contacts', baseUrl);
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     credentials: 'include',
     body: JSON.stringify(data),
   });
@@ -348,7 +353,7 @@ export async function updateContact(id: string, updates: Partial<ZekeContact>): 
   const url = new URL(`/api/zeke/contacts/${id}`, baseUrl);
   const res = await fetch(url, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     credentials: 'include',
     body: JSON.stringify(updates),
   });
@@ -364,6 +369,7 @@ export async function deleteContact(id: string): Promise<void> {
   const res = await fetch(url, {
     method: 'DELETE',
     credentials: 'include',
+    headers: getAuthHeaders(),
   });
   if (!res.ok) {
     throw new Error(`Failed to delete contact: ${res.statusText}`);
@@ -419,6 +425,7 @@ export async function getSmsConversations(): Promise<ZekeContactConversation[]> 
   try {
     const res = await fetch(url, { 
       credentials: 'include',
+      headers: getAuthHeaders(),
       signal: createTimeoutSignal(5000)
     });
     if (!res.ok) {
@@ -480,6 +487,7 @@ export async function getTwilioConversations(): Promise<TwilioSmsConversation[]>
   try {
     const res = await fetch(url, { 
       credentials: 'include',
+      headers: getAuthHeaders(),
       signal: createTimeoutSignal(10000)
     });
     if (!res.ok) {
@@ -503,6 +511,7 @@ export async function getTwilioConversation(phoneNumber: string): Promise<Twilio
   try {
     const res = await fetch(url, { 
       credentials: 'include',
+      headers: getAuthHeaders(),
       signal: createTimeoutSignal(10000)
     });
     if (!res.ok) {
@@ -526,6 +535,7 @@ export async function getTwilioCalls(): Promise<TwilioCallRecord[]> {
   try {
     const res = await fetch(url, { 
       credentials: 'include',
+      headers: getAuthHeaders(),
       signal: createTimeoutSignal(10000)
     });
     if (!res.ok) {
@@ -549,6 +559,7 @@ export async function getTwilioPhoneNumber(): Promise<string | null> {
   try {
     const res = await fetch(url, { 
       credentials: 'include',
+      headers: getAuthHeaders(),
       signal: createTimeoutSignal(5000)
     });
     if (!res.ok) {
@@ -572,6 +583,7 @@ export async function getHealthStatus(): Promise<{ status: string; connected: bo
     
     const res = await fetch(url, { 
       credentials: 'include',
+      headers: getAuthHeaders(),
       signal: createTimeoutSignal(5000)
     });
     
@@ -593,6 +605,7 @@ export async function getZekeDevices(): Promise<ZekeDevice[]> {
       
       const res = await fetch(url, { 
         credentials: 'include',
+        headers: getAuthHeaders(),
         signal: createTimeoutSignal(5000)
       });
       
@@ -629,6 +642,7 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
     const url = new URL('/api/dashboard/summary', baseUrl);
     const res = await fetch(url, { 
       credentials: 'include',
+      headers: getAuthHeaders(),
       signal: createTimeoutSignal(5000)
     });
     
@@ -664,6 +678,7 @@ export async function getEventsForDateRange(startDate: Date, endDate: Date): Pro
   try {
     const res = await fetch(url, { 
       credentials: 'include',
+      headers: getAuthHeaders(),
       signal: createTimeoutSignal(10000)
     });
     console.log('[Calendar] Range response status:', res.status);
@@ -689,6 +704,7 @@ export async function getTodayEvents(): Promise<ZekeEvent[]> {
   try {
     const res = await fetch(url, { 
       credentials: 'include',
+      headers: getAuthHeaders(),
       signal: createTimeoutSignal(10000)
     });
     console.log('[Calendar] Response status:', res.status);
@@ -713,6 +729,7 @@ export async function getPendingTasks(): Promise<ZekeTask[]> {
   try {
     const res = await fetch(url, { 
       credentials: 'include',
+      headers: getAuthHeaders(),
       signal: createTimeoutSignal(5000)
     });
     if (!res.ok) {
@@ -735,7 +752,7 @@ export async function addGroceryItem(
   const url = new URL('/api/zeke/grocery', baseUrl);
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     credentials: 'include',
     body: JSON.stringify({ name, quantity, unit, category }),
   });
@@ -753,7 +770,7 @@ export async function updateGroceryItem(
   const url = new URL(`/api/zeke/grocery/${id}`, baseUrl);
   const res = await fetch(url, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     credentials: 'include',
     body: JSON.stringify(updates),
   });
@@ -768,6 +785,7 @@ export async function deleteGroceryItem(id: string): Promise<void> {
   const url = new URL(`/api/zeke/grocery/${id}`, baseUrl);
   const res = await fetch(url, {
     method: 'DELETE',
+    headers: getAuthHeaders(),
     credentials: 'include',
   });
   if (!res.ok) {
@@ -789,6 +807,7 @@ export async function getAllTasks(): Promise<ZekeTask[]> {
   try {
     const res = await fetch(url, { 
       credentials: 'include',
+      headers: getAuthHeaders(),
       signal: createTimeoutSignal(5000)
     });
     if (!res.ok) {
@@ -813,7 +832,7 @@ export async function createTask(
   const url = new URL('/api/zeke/tasks', baseUrl);
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     credentials: 'include',
     body: JSON.stringify({ title, dueDate, priority }),
   });
@@ -831,7 +850,7 @@ export async function updateTask(
   const url = new URL(`/api/zeke/tasks/${id}`, baseUrl);
   const res = await fetch(url, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     credentials: 'include',
     body: JSON.stringify(updates),
   });
@@ -846,6 +865,7 @@ export async function deleteTask(id: string): Promise<void> {
   const url = new URL(`/api/zeke/tasks/${id}`, baseUrl);
   const res = await fetch(url, {
     method: 'DELETE',
+    headers: getAuthHeaders(),
     credentials: 'include',
   });
   if (!res.ok) {
@@ -873,7 +893,7 @@ export async function createCalendarEvent(
   
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     credentials: 'include',
     body: JSON.stringify({ title, startTime, endTime, location, calendarId, description }),
   });
@@ -900,7 +920,7 @@ export async function updateCalendarEvent(
   
   const res = await fetch(url, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     credentials: 'include',
     body: JSON.stringify(updates),
   });
@@ -919,6 +939,7 @@ export async function getUpcomingEvents(limit: number = 10): Promise<ZekeEvent[]
   try {
     const res = await fetch(url, { 
       credentials: 'include',
+      headers: getAuthHeaders(),
       signal: createTimeoutSignal(5000)
     });
     if (!res.ok) {
@@ -940,6 +961,7 @@ export async function deleteCalendarEvent(id: string, calendarId?: string): Prom
   
   const res = await fetch(url, {
     method: 'DELETE',
+    headers: getAuthHeaders(),
     credentials: 'include',
   });
   
@@ -955,6 +977,7 @@ export async function getCalendarList(): Promise<ZekeCalendar[]> {
   try {
     const res = await fetch(url, { 
       credentials: 'include',
+      headers: getAuthHeaders(),
       signal: createTimeoutSignal(10000)
     });
     if (!res.ok) {
@@ -973,6 +996,7 @@ export async function getZekeCalendar(): Promise<ZekeCalendar | null> {
   try {
     const res = await fetch(url, { 
       credentials: 'include',
+      headers: getAuthHeaders(),
       signal: createTimeoutSignal(10000)
     });
     if (!res.ok) {
@@ -1129,7 +1153,7 @@ export async function syncLocationSamples(samples: LocationSample[]): Promise<{ 
   try {
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
       credentials: 'include',
       body: JSON.stringify({ samples }),
       signal: createTimeoutSignal(10000),
@@ -1165,6 +1189,7 @@ export async function getLocationSamplesFromBackend(since?: string, limit?: numb
   try {
     const res = await fetch(url, {
       credentials: 'include',
+      headers: getAuthHeaders(),
       signal: createTimeoutSignal(10000),
     });
     
@@ -1191,7 +1216,7 @@ export async function syncStarredPlaces(places: StarredPlace[]): Promise<{ synce
   try {
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
       credentials: 'include',
       body: JSON.stringify({ places }),
       signal: createTimeoutSignal(10000),
@@ -1220,6 +1245,7 @@ export async function getStarredPlacesFromBackend(): Promise<StarredPlace[]> {
   try {
     const res = await fetch(url, {
       credentials: 'include',
+      headers: getAuthHeaders(),
       signal: createTimeoutSignal(10000),
     });
     
@@ -1363,7 +1389,7 @@ export async function syncGeofencesToBackend(geofences: Geofence[]): Promise<{ s
   try {
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
       credentials: 'include',
       body: JSON.stringify({ geofences }),
       signal: createTimeoutSignal(10000),
@@ -1392,6 +1418,7 @@ export async function getGeofencesFromBackend(): Promise<Geofence[]> {
   try {
     const res = await fetch(url, {
       credentials: 'include',
+      headers: getAuthHeaders(),
       signal: createTimeoutSignal(10000),
     });
     
@@ -1472,7 +1499,7 @@ export async function syncTriggerEventsToBackend(): Promise<{ synced: number }> 
     
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
       credentials: 'include',
       body: JSON.stringify({ events: unsyncedEvents }),
       signal: createTimeoutSignal(10000),
@@ -1530,6 +1557,7 @@ export async function getLists(): Promise<ZekeList[]> {
   try {
     const res = await fetch(url, { 
       credentials: 'include',
+      headers: getAuthHeaders(),
       signal: createTimeoutSignal(5000)
     });
     if (!res.ok) return [];
@@ -1546,6 +1574,7 @@ export async function getListWithItems(id: string): Promise<ZekeListWithItems | 
   try {
     const res = await fetch(url, { 
       credentials: 'include',
+      headers: getAuthHeaders(),
       signal: createTimeoutSignal(5000)
     });
     if (!res.ok) return null;

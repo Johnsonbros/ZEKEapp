@@ -10,7 +10,7 @@ export function getDeviceToken(): string | null {
   return cachedDeviceToken;
 }
 
-function getAuthHeaders(): Record<string, string> {
+export function getAuthHeaders(): Record<string, string> {
   const headers: Record<string, string> = {};
   if (cachedDeviceToken) {
     headers['X-ZEKE-Device-Token'] = cachedDeviceToken;
