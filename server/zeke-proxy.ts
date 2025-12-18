@@ -101,6 +101,9 @@ async function proxyToZeke(
     }
     
     console.log(`[ZEKE Proxy] Response: ${response.status} [${requestId}] ${latencyMs}ms`);
+    if (!response.ok) {
+      console.log(`[ZEKE Proxy] Error response body:`, JSON.stringify(data, null, 2));
+    }
     
     logCommunication({
       requestId,
@@ -242,7 +245,8 @@ export function registerZekeProxyRoutes(app: Express): void {
     const headers = extractForwardHeaders(req.headers);
     const result = await proxyToZeke("POST", "/api/grocery", req.body, headers);
     if (!result.success) {
-      return res.status(result.status).json({ error: result.error || "Failed to create grocery item" });
+      const errorMsg = result.data?.error || result.data?.message || result.error || "Failed to create grocery item";
+      return res.status(result.status).json({ error: errorMsg, details: result.data });
     }
     res.status(201).json(result.data);
   });

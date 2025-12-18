@@ -918,10 +918,17 @@ export async function addGroceryItem(
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     credentials: 'include',
-    body: JSON.stringify({ name, quantity, unit, category }),
+    body: JSON.stringify({ 
+      name, 
+      quantity: quantity !== undefined ? String(quantity) : "1", 
+      unit: unit || "", 
+      category: category || "General",
+      addedBy: "mobile-app"
+    }),
   });
   if (!res.ok) {
-    throw new Error(`Failed to add grocery item: ${res.statusText}`);
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.error || `Failed to add grocery item: ${res.statusText}`);
   }
   return res.json();
 }
