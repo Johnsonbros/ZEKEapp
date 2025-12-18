@@ -1,18 +1,21 @@
 import React from 'react';
-import { FlexWidget, TextWidget, ImageWidget } from 'react-native-android-widget';
+import { FlexWidget, TextWidget } from 'react-native-android-widget';
 
 interface ZekeLocationWidgetProps {
-  status?: 'idle' | 'saving' | 'saved';
+  status?: 'idle' | 'saving' | 'saved' | 'error';
   lastSaved?: string;
+  errorMessage?: string;
 }
 
-export function ZekeLocationWidget({ status = 'idle', lastSaved }: ZekeLocationWidgetProps) {
+export function ZekeLocationWidget({ status = 'idle', lastSaved, errorMessage }: ZekeLocationWidgetProps) {
   const getStatusText = () => {
     switch (status) {
       case 'saving':
         return 'Saving...';
       case 'saved':
         return lastSaved ? `Saved: ${lastSaved}` : 'Location Saved!';
+      case 'error':
+        return errorMessage || 'Tap to open app';
       default:
         return 'Tap to save location';
     }
@@ -24,8 +27,23 @@ export function ZekeLocationWidget({ status = 'idle', lastSaved }: ZekeLocationW
         return '#64748B';
       case 'saved':
         return '#22C55E';
+      case 'error':
+        return '#EF4444';
       default:
         return '#6366F1';
+    }
+  };
+
+  const getIconSymbol = () => {
+    switch (status) {
+      case 'saving':
+        return '...';
+      case 'saved':
+        return 'OK';
+      case 'error':
+        return '!';
+      default:
+        return 'LOC';
     }
   };
 
@@ -56,9 +74,11 @@ export function ZekeLocationWidget({ status = 'idle', lastSaved }: ZekeLocationW
         }}
       >
         <TextWidget
-          text="📍"
+          text={getIconSymbol()}
           style={{
-            fontSize: 24,
+            fontSize: 16,
+            fontWeight: '700',
+            color: '#FFFFFF',
           }}
         />
       </FlexWidget>
