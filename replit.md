@@ -37,6 +37,8 @@ Client-side data is persisted using AsyncStorage for devices, memories, chat mes
 
 ### Communication Services
 - **Twilio**: Independent integration via Replit connector for SMS and Voice calling, managed by a server-side service layer.
+  - **VoIP Calling**: Requires a development build with `@twilio/voice-react-native-sdk`. Web version falls back to server-initiated calls.
+  - **Required for VoIP**: Set `TWILIO_TWIML_APP_SID` environment variable to your TwiML App SID from Twilio Console. The TwiML App should point to `/api/twilio/twiml/voice` endpoint.
 - **Google Calendar**: Independent integration via Replit connector for real-time calendar sync and CRUD operations, managed by a server-side service layer.
 
 ### Third-Party Services
@@ -51,3 +53,4 @@ Client-side data is persisted using AsyncStorage for devices, memories, chat mes
 - **Replit Environment**: For deployment.
 - **Metro Bundler**: For path aliases.
 - **esbuild**: For server-side bundling.
+- **EAS Build**: For development builds with native modules (VoIP, BLE). Run `eas build --profile development --platform android` for Android APK.

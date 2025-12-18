@@ -570,7 +570,7 @@ export default function CommunicationsHubScreen() {
   const handleCallPress = (call: TwilioCallRecord) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const otherParty = call.from === twilioPhoneNumber ? call.to : call.from;
-    navigation.navigate("SmsCompose", { phoneNumber: otherParty });
+    navigation.navigate("VoIPCalling", { phoneNumber: otherParty });
   };
 
   const handleStartChat = () => {
@@ -586,7 +586,10 @@ export default function CommunicationsHubScreen() {
   const handleContactCall = (contact: ZekeContact) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     if (contact.phoneNumber) {
-      callMutation.mutate(contact.id.toString());
+      navigation.navigate("VoIPCalling", { 
+        phoneNumber: contact.phoneNumber,
+        contactName: `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || undefined
+      });
     }
   };
 
