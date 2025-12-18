@@ -5,7 +5,7 @@ The ZEKE mobile companion app is unable to connect to the chat feature because `
 
 ## Technical Details
 
-**Endpoint:** `POST https://zekeai.replit.app/api/conversations`
+**Endpoint:** `POST https://zekeai.replit.app/api/ `
 
 **Request from mobile app:**
 ```
