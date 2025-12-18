@@ -129,48 +129,124 @@ export interface DashboardSummary {
 }
 
 export async function getConversations(): Promise<ZekeConversation[]> {
-  const baseUrl = getApiUrl();
+  const baseUrl = getLocalApiUrl();
   const url = new URL('/api/conversations', baseUrl);
   
-  const res = await fetch(url, { credentials: 'include', headers: getAuthHeaders() });
-  if (!res.ok) {
-    if (res.status === 404) {
-      return [];
+  try {
+    const res = await fetch(url, { 
+      credentials: 'include', 
+      headers: getAuthHeaders(),
+      signal: createTimeoutSignal(10000)
+    });
+    if (!res.ok) {
+      if (res.status === 404) {
+        return [];
+      }
+      throw new Error(`Failed to fetch conversations: ${res.statusText}`);
     }
-    throw new Error(`Failed to fetch conversations: ${res.statusText}`);
+    return res.json();
+  } catch (error) {
+    console.error('[ZEKE Chat] Failed to fetch conversations:', error);
+    return [];
   }
-  return res.json();
 }
 
 export async function createConversation(title?: string): Promise<ZekeConversation> {
-  const res = await apiRequest('POST', '/api/conversations', { title: title || 'Chat with ZEKE' });
-  return res.json();
+  const baseUrl = getLocalApiUrl();
+  const url = new URL('/api/conversations', baseUrl);
+  
+  console.log('[ZEKE Chat] Creating conversation at:', url.toString());
+  
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 
+      'Content-Type': 'application/json',
+      ...getAuthHeaders() 
+    },
+    credentials: 'include',
+    body: JSON.stringify({ title: title || 'Chat with ZEKE' }),
+    signal: createTimeoutSignal(15000)
+  });
+  
+  if (!res.ok) {
+    const errorText = await res.text().catch(() => res.statusText);
+    console.error('[ZEKE Chat] Create conversation failed:', res.status, errorText);
+    throw new Error(`Failed to create conversation: ${res.status} ${errorText}`);
+  }
+  
+  const data = await res.json();
+  console.log('[ZEKE Chat] Conversation created:', data.id);
+  return data;
 }
 
 export async function getConversationMessages(conversationId: string): Promise<ZekeMessage[]> {
-  const baseUrl = getApiUrl();
+  const baseUrl = getLocalApiUrl();
   const url = new URL(`/api/conversations/${conversationId}/messages`, baseUrl);
   
-  const res = await fetch(url, { credentials: 'include', headers: getAuthHeaders() });
-  if (!res.ok) {
-    if (res.status === 404) {
-      return [];
+  try {
+    const res = await fetch(url, { 
+      credentials: 'include', 
+      headers: getAuthHeaders(),
+      signal: createTimeoutSignal(10000)
+    });
+    if (!res.ok) {
+      if (res.status === 404) {
+        return [];
+      }
+      throw new Error(`Failed to fetch messages: ${res.statusText}`);
     }
-    throw new Error(`Failed to fetch messages: ${res.statusText}`);
+    return res.json();
+  } catch (error) {
+    console.error('[ZEKE Chat] Failed to fetch messages:', error);
+    return [];
   }
-  return res.json();
 }
 
 export async function sendMessage(conversationId: string, content: string): Promise<{ userMessage: ZekeMessage; assistantMessage: ZekeMessage }> {
-  const res = await apiRequest('POST', `/api/conversations/${conversationId}/messages`, { content });
+  const baseUrl = getLocalApiUrl();
+  const url = new URL(`/api/conversations/${conversationId}/messages`, baseUrl);
+  
+  console.log('[ZEKE Chat] Sending message to:', url.toString());
+  
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 
+      'Content-Type': 'application/json',
+      ...getAuthHeaders() 
+    },
+    credentials: 'include',
+    body: JSON.stringify({ content }),
+    signal: createTimeoutSignal(30000)
+  });
+  
+  if (!res.ok) {
+    const errorText = await res.text().catch(() => res.statusText);
+    console.error('[ZEKE Chat] Send message failed:', res.status, errorText);
+    throw new Error(`Failed to send message: ${res.status} ${errorText}`);
+  }
+  
   return res.json();
 }
 
 export async function chatWithZeke(message: string, phone?: string): Promise<{ response: string; conversationId?: string }> {
-  const res = await apiRequest('POST', '/api/chat', { 
-    message,
-    phone: phone || 'mobile-app'
+  const baseUrl = getLocalApiUrl();
+  const url = new URL('/api/zeke/chat', baseUrl);
+  
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 
+      'Content-Type': 'application/json',
+      ...getAuthHeaders() 
+    },
+    credentials: 'include',
+    body: JSON.stringify({ message, phone: phone || 'mobile-app' }),
+    signal: createTimeoutSignal(30000)
   });
+  
+  if (!res.ok) {
+    throw new Error(`Failed to chat: ${res.statusText}`);
+  }
+  
   return res.json();
 }
 
