@@ -444,15 +444,10 @@ function EmptyState({ type, onImport }: { type: 'sms' | 'voice' | 'contacts'; on
       {type === 'contacts' && onImport ? (
         <Pressable 
           onPress={onImport}
-          style={({ pressed }) => [styles.importButton, { opacity: pressed ? 0.8 : 1 }]}
+          style={({ pressed }) => [styles.importButton, { opacity: pressed ? 0.8 : 1, backgroundColor: Colors.dark.primary, borderRadius: BorderRadius.md, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.lg, flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }]}
         >
-          <LinearGradient
-            colors={Gradients.primary}
-            style={styles.importButtonGradient}
-          >
-            <Feather name="download" size={18} color="#FFFFFF" />
-            <Text style={styles.importButtonText}>Import from Device</Text>
-          </LinearGradient>
+          <Feather name="download" size={18} color="#FFFFFF" />
+          <ThemedText style={{ color: '#FFFFFF', fontWeight: '600' }}>Import from Device</ThemedText>
         </Pressable>
       ) : null}
     </View>
