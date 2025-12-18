@@ -39,18 +39,17 @@ export function signRequest(
   timestamp?: number,
   nonce?: string
 ): SignedRequestHeaders {
-  const ts = timestamp || Date.now();
-  const n = nonce || generateNonce();
+  // ZEKE backend expects timestamp in SECONDS, not milliseconds
+  const ts = timestamp || Math.floor(Date.now() / 1000);
+  const n = nonce || ""; // Use empty string if no nonce (as per ZEKE backend spec)
   const requestId = generateRequestId();
   
-  const payload = [
-    method.toUpperCase(),
-    path,
-    body || "",
-    ts.toString(),
-    n,
-    PROXY_ID,
-  ].join("|");
+  // Hash the body (empty string hash if no body) - ZEKE backend expects SHA-256 of body
+  const bodyString = body || "";
+  const bodyHash = crypto.createHash("sha256").update(bodyString).digest("hex");
+  
+  // ZEKE backend payload format: timestamp.nonce.method.path.bodyHash
+  const payload = `${ts}.${n}.${method.toUpperCase()}.${path}.${bodyHash}`;
   
   const signature = crypto
     .createHmac("sha256", SHARED_SECRET)
@@ -61,7 +60,7 @@ export function signRequest(
     "X-Zeke-Proxy-Id": PROXY_ID,
     "X-Zeke-Timestamp": ts.toString(),
     "X-Zeke-Nonce": n,
-    "X-Zeke-Signature": signature,
+    "X-ZEKE-Signature": signature,
     "X-Zeke-Request-Id": requestId,
   };
 }
@@ -148,8 +147,9 @@ export function getCommunicationLogs(limit: number = 100): CommunicationLogEntry
 }
 
 export function hashBody(body: string): string {
-  if (!body) return "";
-  return crypto.createHash("sha256").update(body).digest("hex").slice(0, 16);
+  // Return full SHA-256 hash as expected by ZEKE backend
+  const bodyString = body || "";
+  return crypto.createHash("sha256").update(bodyString).digest("hex");
 }
 
 export function isSecurityConfigured(): boolean {
