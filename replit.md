@@ -54,3 +54,30 @@ Client-side data is persisted using AsyncStorage for devices, memories, chat mes
 - **Metro Bundler**: For path aliases.
 - **esbuild**: For server-side bundling.
 - **EAS Build**: For development builds with native modules (VoIP, BLE). Run `eas build --profile development --platform android` for Android APK.
+
+## Monorepo Configuration (ZekeAssistant)
+
+This project (ZEKEapp) is part of a unified monorepo at https://github.com/Johnsonbros/ZekeAssistant for AI assistance across both frontend and backend.
+
+### Repository Structure
+```
+ZekeAssistant/
+├── backend/          ← Zeke backend (private android/ excluded)
+│   ├── client/       ← Web UI
+│   ├── server/       ← Backend API
+│   └── python_agents/← AI agents
+│
+└── mobile/           ← ZEKEapp (this project)
+    ├── client/       ← Mobile app
+    └── server/       ← Mobile proxy
+```
+
+### Sync with Original Repos
+Uses Git subtrees for two-way sync:
+- Pull from Zeke/ZEKEapp into ZekeAssistant
+- Push from ZekeAssistant back to Zeke/ZEKEapp
+
+See `MONOREPO_SETUP.md` and `SYNC_GUIDE.md` for commands.
+
+### Privacy Note
+The `backend/android/` folder is excluded from ZekeAssistant (public) via .gitignore. It remains only in the private Zeke repo.
