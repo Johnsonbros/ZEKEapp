@@ -956,6 +956,18 @@ class BluetoothService {
   public clearBuffer(): void {
     this.rawDataBuffer = [];
   }
+
+  public onAudioData(callback: (data: Uint8Array) => void): () => void {
+    return this.onAudioChunk(callback);
+  }
+
+  public async startStreamingAudio(): Promise<boolean> {
+    return this.startAudioStream();
+  }
+
+  public stopStreamingAudio(): void {
+    this.stopAudioStream();
+  }
 }
 
 export const bluetoothService = new BluetoothService();
