@@ -7,7 +7,7 @@ This guide explains how to set up ZekeAssistant as a unified monorepo with two-w
 **Repository Structure:**
 ```
 ZekeAssistant/
-├── backend/          ← From Zeke repo (excludes android/)
+├── backend/          ← From Zeke repo (android/ EXCLUDED)
 │   ├── client/       ← Web UI
 │   ├── server/       ← Backend API
 │   ├── python_agents/← AI agents
@@ -22,9 +22,17 @@ ZekeAssistant/
 └── README.md
 ```
 
+## CRITICAL: Privacy Protection
+
+The `android/` folder in Zeke is private and must NEVER appear in ZekeAssistant's git history. Git subtrees commit ALL files, including those you later delete. This guide uses a safe two-step approach:
+
+1. **ZEKEapp** → Uses standard Git subtree (no private content)
+2. **Zeke** → Uses filtered rsync to exclude android/ BEFORE any commits
+
 ## Prerequisites
 
 - Git installed on your local machine
+- rsync installed (pre-installed on macOS/Linux, install via WSL on Windows)
 - GitHub access to all three repositories:
   - https://github.com/Johnsonbros/ZekeAssistant (public)
   - https://github.com/Johnsonbros/Zeke (private)
@@ -32,47 +40,32 @@ ZekeAssistant/
 
 ## One-Time Setup
 
-Run these commands on your local machine to set up the monorepo:
+Run these commands on your local machine:
 
 ```bash
-# 1. Clone ZekeAssistant
+# 1. Create a clean working directory
+mkdir -p ~/zeke-monorepo-setup
+cd ~/zeke-monorepo-setup
+
+# 2. Clone ZekeAssistant
 git clone https://github.com/Johnsonbros/ZekeAssistant.git
 cd ZekeAssistant
 
-# 2. Remove existing content (keeping .git)
+# 3. Remove existing content (keeping .git)
 find . -maxdepth 1 ! -name '.git' ! -name '.' -exec rm -rf {} +
 
-# 3. Create initial README
-cat > README.md << 'EOF'
-# ZekeAssistant
-
-Unified monorepo combining ZEKE backend and ZEKEapp mobile companion.
-
-## Structure
-- `backend/` - ZEKE backend server and web UI
-- `mobile/` - ZEKEapp mobile companion app
-
-## Sync Commands
-See SYNC_GUIDE.md for commands to sync with original repositories.
-EOF
-
-# 4. Add ZEKEapp as subtree at mobile/
-git subtree add --prefix=mobile https://github.com/Johnsonbros/ZEKEapp.git main --squash
-
-# 5. Add Zeke as subtree at backend/
-git subtree add --prefix=backend https://github.com/Johnsonbros/Zeke.git main --squash
-
-# 6. Create .gitignore to exclude android/
+# 4. Create .gitignore FIRST (critical for safety)
 cat > .gitignore << 'EOF'
-# Exclude private android folder from Zeke
+# CRITICAL: Exclude private android folder
 backend/android/
 
-# Node modules (handled per-project)
+# Node modules
 node_modules/
 
 # Environment files
 .env
 .env.local
+.env*.local
 
 # IDE
 .idea/
@@ -81,104 +74,268 @@ node_modules/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Build outputs
+dist/
+build/
+.expo/
 EOF
 
-# 7. Remove android folder if it was pulled
-rm -rf backend/android
+# 5. Create README
+cat > README.md << 'EOF'
+# ZekeAssistant
 
-# 8. Commit and push
+Unified monorepo combining ZEKE backend and ZEKEapp mobile companion.
+
+## Structure
+- `backend/` - ZEKE backend server and web UI (android/ excluded)
+- `mobile/` - ZEKEapp mobile companion app
+
+## Sync Commands
+See SYNC_GUIDE.md for commands to sync with original repositories.
+
+## Privacy Note
+The backend/android/ folder is excluded from this public repository.
+EOF
+
+# 6. Commit the gitignore and readme FIRST
 git add -A
-git commit -m "Set up monorepo with backend and mobile subtrees"
+git commit -m "Initial monorepo setup with .gitignore"
+
+# 7. Add ZEKEapp as subtree (safe - no private content)
+git subtree add --prefix=mobile https://github.com/Johnsonbros/ZEKEapp.git main --squash
+git add -A
+git commit -m "Add ZEKEapp as mobile subtree" --allow-empty
+
+# 8. Clone Zeke to a TEMPORARY location
+cd ~/zeke-monorepo-setup
+git clone https://github.com/Johnsonbros/Zeke.git zeke-temp
+
+# 9. Use rsync to copy to ZekeAssistant/backend EXCLUDING android/ and .git
+cd ~/zeke-monorepo-setup/ZekeAssistant
+mkdir -p backend
+rsync -av --delete \
+    --exclude='.git' \
+    --exclude='android' \
+    --exclude='android/' \
+    ~/zeke-monorepo-setup/zeke-temp/ \
+    backend/
+
+# 10. Verify android folder is NOT present
+if [ -d "backend/android" ]; then
+    echo "ERROR: android folder exists! Removing..."
+    rm -rf backend/android
+fi
+
+# 11. Commit the backend (without android/)
+git add -A
+git commit -m "Add Zeke backend (android/ excluded)"
+
+# 12. Push to ZekeAssistant
 git push origin main
+
+# 13. Cleanup temp files
+rm -rf ~/zeke-monorepo-setup/zeke-temp
+
+echo "Setup complete! ZekeAssistant now has both repos without android/"
+```
+
+## Setting Up Sync Remotes
+
+After initial setup, configure remotes for easier syncing:
+
+```bash
+cd ~/zeke-monorepo-setup/ZekeAssistant
+
+# Add remotes for original repos
+git remote add zeke-origin https://github.com/Johnsonbros/Zeke.git
+git remote add zekeapp-origin https://github.com/Johnsonbros/ZEKEapp.git
+
+# Verify remotes
+git remote -v
 ```
 
 ## Daily Sync Commands
 
-### Pull updates FROM original repos INTO ZekeAssistant
+### Pull updates FROM ZEKEapp INTO ZekeAssistant (safe - uses subtree)
 
 ```bash
 cd ZekeAssistant
 
-# Pull latest from Zeke backend
-git subtree pull --prefix=backend https://github.com/Johnsonbros/Zeke.git main --squash
-
-# Pull latest from ZEKEapp mobile
+# Pull from ZEKEapp using subtree
 git subtree pull --prefix=mobile https://github.com/Johnsonbros/ZEKEapp.git main --squash
 
-# Remove android if it got pulled
-rm -rf backend/android
-
-# Push to ZekeAssistant
+# Commit and push
+git add -A
+git commit -m "Sync mobile from ZEKEapp" --allow-empty
 git push origin main
 ```
 
-### Push changes FROM ZekeAssistant BACK TO original repos
+### Pull updates FROM Zeke INTO ZekeAssistant (rsync - excludes android/)
+
+```bash
+cd ~/zeke-monorepo-setup
+TEMP_DIR="zeke-temp"
+
+# Clone/update Zeke to temp location
+rm -rf "$TEMP_DIR"
+git clone https://github.com/Johnsonbros/Zeke.git "$TEMP_DIR"
+
+# Rsync to backend/ excluding android/ and .git, with --delete to propagate deletions
+cd ZekeAssistant
+rsync -av --delete \
+    --exclude='.git' \
+    --exclude='android' \
+    --exclude='android/' \
+    ~/zeke-monorepo-setup/"$TEMP_DIR"/ \
+    backend/
+
+# Verify and commit
+rm -rf backend/android  # Extra safety check
+git add -A
+git commit -m "Sync backend from Zeke (android/ excluded)"
+git push origin main
+
+# Cleanup
+rm -rf ~/zeke-monorepo-setup/"$TEMP_DIR"
+```
+
+### Push changes FROM ZekeAssistant BACK TO ZEKEapp (safe - uses subtree)
 
 ```bash
 cd ZekeAssistant
-
-# Push backend changes back to Zeke
-git subtree push --prefix=backend https://github.com/Johnsonbros/Zeke.git main
-
-# Push mobile changes back to ZEKEapp
 git subtree push --prefix=mobile https://github.com/Johnsonbros/ZEKEapp.git main
+```
+
+### Push changes FROM ZekeAssistant BACK TO Zeke (rsync - preserves android/)
+
+```bash
+cd ~/zeke-monorepo-setup
+TEMP_DIR="zeke-push-temp"
+
+# Clone Zeke (keeps android/ intact)
+rm -rf "$TEMP_DIR"
+git clone https://github.com/Johnsonbros/Zeke.git "$TEMP_DIR"
+
+# Rsync from backend/ to Zeke clone, excluding android/ and .git
+# --delete ensures files deleted in ZekeAssistant are deleted in Zeke
+cd ZekeAssistant
+rsync -av --delete \
+    --exclude='.git' \
+    --exclude='.git/' \
+    --exclude='android' \
+    --exclude='android/' \
+    backend/ \
+    ~/zeke-monorepo-setup/"$TEMP_DIR"/
+
+# Push to Zeke
+cd ~/zeke-monorepo-setup/"$TEMP_DIR"
+git add -A
+git commit -m "Sync from ZekeAssistant" --allow-empty
+git push origin main
+
+# Cleanup
+rm -rf ~/zeke-monorepo-setup/"$TEMP_DIR"
 ```
 
 ## Quick Reference Scripts
 
-Save these as shell scripts for easy use:
+Save these scripts in your ZekeAssistant directory:
 
-### sync-pull.sh
+### sync-pull-all.sh
 ```bash
 #!/bin/bash
-# Pull updates from both original repos
+set -e
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+WORK_DIR="$(dirname "$SCRIPT_DIR")"
+TEMP_DIR="$WORK_DIR/zeke-temp"
 
-cd "$(dirname "$0")"
+cd "$SCRIPT_DIR"
 
-echo "Pulling from Zeke..."
-git subtree pull --prefix=backend https://github.com/Johnsonbros/Zeke.git main --squash
+echo "=== Syncing ZekeAssistant from original repos ==="
 
+# Pull from ZEKEapp (subtree - safe)
 echo "Pulling from ZEKEapp..."
-git subtree pull --prefix=mobile https://github.com/Johnsonbros/ZEKEapp.git main --squash
+git subtree pull --prefix=mobile https://github.com/Johnsonbros/ZEKEapp.git main --squash || true
 
-echo "Removing android folder..."
-rm -rf backend/android
+# Pull from Zeke (rsync - excludes android/)
+echo "Pulling from Zeke (excluding android/)..."
+rm -rf "$TEMP_DIR"
+git clone https://github.com/Johnsonbros/Zeke.git "$TEMP_DIR"
 
-echo "Pushing to ZekeAssistant..."
+rsync -av --delete \
+    --exclude='.git' \
+    --exclude='android' \
+    --exclude='android/' \
+    "$TEMP_DIR"/ \
+    backend/
+
+rm -rf "$TEMP_DIR"
+rm -rf backend/android  # Extra safety
+
+# Commit and push
+git add -A
+git commit -m "Sync from Zeke and ZEKEapp" --allow-empty
 git push origin main
 
+echo "=== Sync complete! ==="
+```
+
+### sync-push-mobile.sh
+```bash
+#!/bin/bash
+set -e
+cd "$(dirname "$0")"
+
+echo "Pushing mobile/ to ZEKEapp..."
+git subtree push --prefix=mobile https://github.com/Johnsonbros/ZEKEapp.git main
 echo "Done!"
 ```
 
 ### sync-push-backend.sh
 ```bash
 #!/bin/bash
-# Push backend changes back to Zeke
+set -e
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+WORK_DIR="$(dirname "$SCRIPT_DIR")"
+TEMP_DIR="$WORK_DIR/zeke-push-temp"
 
-cd "$(dirname "$0")"
-git subtree push --prefix=backend https://github.com/Johnsonbros/Zeke.git main
-echo "Backend pushed to Zeke!"
+cd "$SCRIPT_DIR"
+
+echo "Pushing backend/ to Zeke..."
+rm -rf "$TEMP_DIR"
+git clone https://github.com/Johnsonbros/Zeke.git "$TEMP_DIR"
+
+# Rsync backend/ to Zeke, preserving android/ and .git in Zeke
+rsync -av --delete \
+    --exclude='.git' \
+    --exclude='.git/' \
+    --exclude='android' \
+    --exclude='android/' \
+    backend/ \
+    "$TEMP_DIR"/
+
+cd "$TEMP_DIR"
+git add -A
+git commit -m "Sync from ZekeAssistant" --allow-empty
+git push origin main
+
+rm -rf "$TEMP_DIR"
+echo "Done!"
 ```
 
-### sync-push-mobile.sh
-```bash
-#!/bin/bash
-# Push mobile changes back to ZEKEapp
+## Verification Checklist
 
-cd "$(dirname "$0")"
-git subtree push --prefix=mobile https://github.com/Johnsonbros/ZEKEapp.git main
-echo "Mobile pushed to ZEKEapp!"
-```
+After setup, verify:
 
-## Important Notes
-
-1. **Android folder is always excluded** - The `.gitignore` ensures `backend/android/` never gets committed to ZekeAssistant (public repo).
-
-2. **Squash commits** - The `--squash` flag keeps history clean by combining all subtree changes into single commits.
-
-3. **Conflict resolution** - If you get merge conflicts when pulling, resolve them locally then commit.
-
-4. **AI Assistance** - Once set up, AI tools can see both `backend/` and `mobile/` folders in ZekeAssistant to help with cross-project improvements.
+1. `backend/android/` does NOT exist in ZekeAssistant
+2. `.gitignore` contains `backend/android/`
+3. Hidden files (like `.env.example`) are synced correctly
+4. Git history has no commits containing android/:
+   ```bash
+   git log --all --name-only | grep -c "android/" 
+   # Should return 0
+   ```
 
 ## Troubleshooting
 
@@ -188,18 +345,20 @@ git pull --rebase origin main
 git push origin main
 ```
 
-### Subtree push fails with merge issues
-```bash
-# Force recreate the subtree split
-git subtree split --prefix=backend -b temp-split
-git push https://github.com/Johnsonbros/Zeke.git temp-split:main --force
-git branch -D temp-split
-```
-
-### Android folder accidentally committed
+### Android folder accidentally appears
 ```bash
 rm -rf backend/android
 git add -A
-git commit -m "Remove android folder"
+git commit -m "Remove accidentally added android folder"
 git push origin main
 ```
+
+### Need to verify android/ never in history
+```bash
+# Check all commits for android/ references
+git log --all --full-history -- "backend/android" "**/android"
+# Should return empty
+```
+
+### rsync not installed (Windows)
+Use WSL (Windows Subsystem for Linux) or Git Bash with rsync installed.
