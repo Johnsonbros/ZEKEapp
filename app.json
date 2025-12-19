@@ -39,8 +39,11 @@
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_BACKGROUND_LOCATION",
-        "android.permission.READ_CONTACTS"
-      ]
+        "android.permission.READ_CONTACTS",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ],
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "output": "single",
@@ -88,7 +91,8 @@
             }
           ]
         }
-      ]
+      ],
+      "@twilio/voice-react-native-sdk"
     ],
     "experiments": {
       "reactCompiler": true
