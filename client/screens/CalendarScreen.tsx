@@ -702,13 +702,27 @@ export default function CalendarScreen() {
         </View>
         <ViewToggle currentView={viewType} onViewChange={setViewType} theme={theme} />
         <View style={styles.actionRow}>
-          <Pressable
-            onPress={openAddModal}
-            style={[styles.addButton, { backgroundColor: Colors.dark.primary }]}
-          >
-            <Feather name="plus" size={20} color="#fff" />
-            <ThemedText style={styles.addButtonText}>Add Event</ThemedText>
-          </Pressable>
+          <View style={styles.actionRowLeft}>
+            <Pressable
+              onPress={openAddModal}
+              style={[styles.addButton, { backgroundColor: Colors.dark.primary }]}
+            >
+              <Feather name="plus" size={20} color="#fff" />
+              <ThemedText style={styles.addButtonText}>Add Event</ThemedText>
+            </Pressable>
+            {calendars.length > 0 ? (
+              <Pressable
+                onPress={() => setShowCalendarFilter(!showCalendarFilter)}
+                style={[styles.filterToggle, { backgroundColor: theme.backgroundSecondary }]}
+              >
+                <Feather name="filter" size={16} color={theme.textSecondary} />
+                <ThemedText style={[styles.filterToggleText, { color: theme.textSecondary }]} numberOfLines={1}>
+                  {filterCalendarId ? calendars.find(c => c.id === filterCalendarId)?.name || 'Filter' : 'All Calendars'}
+                </ThemedText>
+                <Feather name={showCalendarFilter ? "chevron-up" : "chevron-down"} size={16} color={theme.textSecondary} />
+              </Pressable>
+            ) : null}
+          </View>
           <View style={styles.voiceContainer}>
             {isProcessingVoice ? (
               <ActivityIndicator color={Colors.dark.primary} />
@@ -721,24 +735,13 @@ export default function CalendarScreen() {
           </View>
         </View>
 
-        {calendars.length > 0 ? (
-          <View>
-            <Pressable
-              onPress={() => setShowCalendarFilter(!showCalendarFilter)}
-              style={[styles.filterToggle, { backgroundColor: theme.backgroundSecondary }]}
+        {calendars.length > 0 && showCalendarFilter ? (
+          <View style={styles.calendarFilterContainer}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.calendarFilters}
             >
-              <Feather name="filter" size={16} color={theme.textSecondary} />
-              <ThemedText style={[styles.filterToggleText, { color: theme.textSecondary }]}>
-                {filterCalendarId ? calendars.find(c => c.id === filterCalendarId)?.name || 'Filter' : 'All Calendars'}
-              </ThemedText>
-              <Feather name={showCalendarFilter ? "chevron-up" : "chevron-down"} size={16} color={theme.textSecondary} />
-            </Pressable>
-            {showCalendarFilter ? (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.calendarFilters}
-              >
                 <Pressable
                   onPress={() => { setFilterCalendarId(null); setShowCalendarFilter(false); }}
                   style={[
@@ -781,9 +784,8 @@ export default function CalendarScreen() {
                       {getCalendarDisplayName(cal.name)}
                     </ThemedText>
                   </Pressable>
-                ))}
-              </ScrollView>
-            ) : null}
+              ))}
+            </ScrollView>
           </View>
         ) : null}
       </View>
@@ -1446,7 +1448,14 @@ const styles = StyleSheet.create({
   actionRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+  },
+  actionRowLeft: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.md,
+    flexShrink: 1,
+    flex: 1,
   },
   addButton: {
     flexDirection: "row",
@@ -1462,7 +1471,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   voiceContainer: {
-    marginLeft: "auto",
+    flexShrink: 0,
+    marginLeft: Spacing.md,
   },
   loadingContainer: {
     flex: 1,
@@ -1582,6 +1592,9 @@ const styles = StyleSheet.create({
   inputRow: {
     flexDirection: "row",
   },
+  calendarFilterContainer: {
+    marginTop: Spacing.sm,
+  },
   calendarFilters: {
     paddingVertical: Spacing.xs,
     gap: Spacing.sm,
@@ -1592,6 +1605,7 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
+    flexShrink: 1,
     borderRadius: BorderRadius.md,
     alignSelf: "flex-start",
   },
