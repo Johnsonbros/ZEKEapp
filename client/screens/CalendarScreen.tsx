@@ -31,7 +31,6 @@ import {
   deleteCalendarEvent,
   getCalendarList,
   getZekeCalendar,
-  chatWithZeke,
   type ZekeEvent,
   type ZekeCalendar,
 } from "@/lib/zeke-api-adapter";
@@ -605,28 +604,6 @@ export default function CalendarScreen() {
     },
     [deleteMutation]
   );
-
-  const handleVoiceRecordingComplete = async (
-    audioUri: string,
-    durationSeconds: number
-  ) => {
-    setIsProcessingVoice(true);
-    try {
-      await chatWithZeke(
-        "I just recorded a voice message to add an event to my calendar. Please help me create the event I mentioned.",
-        "mobile-app"
-      );
-      await refetch();
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (error) {
-      Alert.alert(
-        "Voice Input",
-        "Voice input was recorded. To add events via voice, please use the Chat feature and say something like 'Add a meeting at 2pm tomorrow'."
-      );
-    } finally {
-      setIsProcessingVoice(false);
-    }
-  };
 
   function formatTimeForInput(dateString: string): string {
     const date = new Date(dateString);
@@ -1457,10 +1434,6 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "600",
     fontSize: 14,
-  },
-  voiceContainer: {
-    flexShrink: 0,
-    marginLeft: Spacing.md,
   },
   loadingContainer: {
     flex: 1,
