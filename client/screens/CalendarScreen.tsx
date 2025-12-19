@@ -19,7 +19,6 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 
 import { ThemedText } from "@/components/ThemedText";
 import { EmptyState } from "@/components/EmptyState";
-import { VoiceInputButton } from "@/components/VoiceInputButton";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, Colors, BorderRadius } from "@/constants/theme";
@@ -408,7 +407,6 @@ export default function CalendarScreen() {
   const [selectedCalendarId, setSelectedCalendarId] = useState<string>("primary");
   const [filterCalendarId, setFilterCalendarId] = useState<string | null>(null);
   const [showCalendarFilter, setShowCalendarFilter] = useState(false);
-  const [isProcessingVoice, setIsProcessingVoice] = useState(false);
 
   const weekDates = useMemo(() => getWeekDates(selectedDate), [selectedDate]);
   const monthDates = useMemo(() => getMonthDates(selectedDate), [selectedDate]);
@@ -722,16 +720,6 @@ export default function CalendarScreen() {
                 <Feather name={showCalendarFilter ? "chevron-up" : "chevron-down"} size={16} color={theme.textSecondary} />
               </Pressable>
             ) : null}
-          </View>
-          <View style={styles.voiceContainer}>
-            {isProcessingVoice ? (
-              <ActivityIndicator color={Colors.dark.primary} />
-            ) : (
-              <VoiceInputButton
-                onRecordingComplete={handleVoiceRecordingComplete}
-                disabled={isProcessingVoice}
-              />
-            )}
           </View>
         </View>
 
