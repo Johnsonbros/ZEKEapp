@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "zekeai",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.zekeai.companion",
@@ -90,12 +90,6 @@
               "widgetFeatures": "reconfigurable"
             }
           ]
-        }
-      ],
-      [
-        "@twilio/voice-react-native-sdk",
-        {
-          "microphonePermission": "ZEKE AI needs microphone access for voice calls"
         }
       ]
     ],
