@@ -220,6 +220,30 @@ export async function getRecentMemories(limit: number = 10): Promise<ZekeMemory[
   }
 }
 
+export interface CreateMemoryParams {
+  title: string;
+  transcript: string;
+  duration: number;
+  speakers?: any;
+  source?: string;
+}
+
+export async function createZekeMemory(params: CreateMemoryParams): Promise<boolean> {
+  try {
+    await apiClient.post('/api/memories', {
+      title: params.title,
+      transcript: params.transcript,
+      duration: params.duration,
+      speakers: params.speakers,
+      summary: `Captured from ${params.source || 'mobile'}`,
+    });
+    return true;
+  } catch (error) {
+    console.error('[Memories] Failed to create memory:', error);
+    return false;
+  }
+}
+
 export async function searchMemories(query: string): Promise<ZekeMemory[]> {
   try {
     if (isZekeSyncMode()) {

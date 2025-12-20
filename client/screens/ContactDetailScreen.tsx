@@ -337,7 +337,7 @@ export default function ContactDetailScreen() {
   }
 
   const accessColor = getAccessLevelColor(contact.accessLevel);
-  const subtitle = contact.relationship || contact.organization || contact.occupation;
+  const subtitle = contact.organization || contact.occupation;
 
   return (
     <ThemedView style={styles.container}>
@@ -473,7 +473,7 @@ export default function ContactDetailScreen() {
           ) : null}
           {contact.conversations && contact.conversations.length > 0 ? (
             <View style={styles.conversationsList}>
-              {contact.conversations.slice(0, 5).map((conv) => (
+              {contact.conversations.slice(0, 5).map((conv: ZekeContactConversation) => (
                 <ConversationItem
                   key={conv.id}
                   conversation={conv}

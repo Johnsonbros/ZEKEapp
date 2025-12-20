@@ -70,7 +70,7 @@ export async function showGeofenceNotification(
 export async function showGroceryPromptNotification(
   geofence: Geofence
 ): Promise<void> {
-  let groceryItems: { id: string; name: string; isPurchased: boolean }[] = [];
+  let groceryItems: { id: string; name: string; isPurchased?: boolean }[] = [];
   let unpurchasedCount = 0;
   let itemPreview = '';
   

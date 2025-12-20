@@ -82,8 +82,6 @@ export function useScreenOptions({
       headerStyle: {
         backgroundColor: theme.backgroundDefault,
       },
-      headerStatusBarHeight: transparent ? statusBarHeight : undefined,
-      headerTopInsetEnabled: true,
     };
   }
 

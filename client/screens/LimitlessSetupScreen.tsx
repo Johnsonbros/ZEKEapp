@@ -212,7 +212,7 @@ export default function LimitlessSetupScreen() {
                 elevation={currentStep === index ? 2 : 1} 
                 style={[
                   styles.stepCard,
-                  currentStep === index && { borderColor: Colors.dark.primary, borderWidth: 1 },
+                  currentStep === index ? { borderColor: Colors.dark.primary, borderWidth: 1 } : undefined,
                 ]}
               >
                 <View style={styles.stepHeader}>

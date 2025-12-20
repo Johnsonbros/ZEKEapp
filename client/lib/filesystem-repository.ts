@@ -1,9 +1,11 @@
-import * as FileSystem from 'expo-file-system';
+import * as FileSystemLegacy from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 import { getApiUrl } from './query-client';
 import { apiClient } from './api-client';
 
-const DATA_DIRECTORY = `${FileSystem.documentDirectory}zeke-data/`;
+const FileSystem = FileSystemLegacy;
+
+const DATA_DIRECTORY = `${FileSystem.documentDirectory || ''}zeke-data/`;
 const SYNC_QUEUE_FILE = `${DATA_DIRECTORY}sync-queue.json`;
 
 export interface SyncMetadata {

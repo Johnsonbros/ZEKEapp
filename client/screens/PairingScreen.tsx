@@ -125,7 +125,7 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginBottom: Spacing.xxl,
+    marginBottom: Spacing["2xl"],
   },
   iconContainer: {
     width: 100,
@@ -145,7 +145,7 @@ const styles = StyleSheet.create({
     color: Colors.dark.textSecondary,
   },
   form: {
-    marginBottom: Spacing.xxl,
+    marginBottom: Spacing["2xl"],
   },
   label: {
     fontSize: 14,
@@ -154,7 +154,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   input: {
-    backgroundColor: Colors.dark.cardElevated,
+    backgroundColor: Colors.dark.backgroundSecondary,
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,

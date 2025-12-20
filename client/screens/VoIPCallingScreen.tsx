@@ -26,7 +26,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
-// apiRequest moved to ZekeApiClient - import if needed from @/lib/api-client
+import { getApiUrl, getAuthHeaders } from "@/lib/query-client";
 import { CommunicationStackParamList } from "@/navigation/CommunicationStackNavigator";
 
 type VoIPCallingScreenRouteProp = RouteProp<CommunicationStackParamList, "VoIPCalling">;
@@ -200,7 +200,17 @@ export default function VoIPCallingScreen() {
     if (!isVoIPAvailable) {
       try {
         setCallState("connecting");
-        const response = await apiRequest("POST", "/api/twilio/call/initiate", { to: phoneNumber });
+        const baseUrl = getApiUrl();
+        const callUrl = new URL("/api/twilio/call/initiate", baseUrl);
+        const response = await fetch(callUrl.toString(), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...getAuthHeaders(),
+          },
+          credentials: "include",
+          body: JSON.stringify({ to: phoneNumber }),
+        });
         const data = await response.json();
         
         if (data.sid) {
@@ -222,8 +232,18 @@ export default function VoIPCallingScreen() {
     try {
       setCallState("connecting");
       
-      const tokenResponse = await apiRequest("POST", "/api/twilio/voice/token", {
-        identity: `zeke-mobile-${Date.now()}`,
+      const baseUrl = getApiUrl();
+      const tokenUrl = new URL("/api/twilio/voice/token", baseUrl);
+      const tokenResponse = await fetch(tokenUrl.toString(), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          identity: `zeke-mobile-${Date.now()}`,
+        }),
       });
       const { token } = await tokenResponse.json();
       

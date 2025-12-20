@@ -7,8 +7,10 @@ import MapView, {
   Region,
   MapViewProps,
   UrlTile,
-  MarkerProps,
+  MapMarkerProps,
 } from "react-native-maps";
+
+export type MarkerProps = MapMarkerProps;
 
 const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
 
@@ -86,7 +88,6 @@ export const ConfigurableMap = forwardRef<MapView, ConfigurableMapProps>(
 ConfigurableMap.displayName = "ConfigurableMap";
 
 export { Marker, Region };
-export type { MarkerProps };
 
 const styles = StyleSheet.create({
   map: {

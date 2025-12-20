@@ -1451,8 +1451,7 @@ export default function LocationScreen() {
       {activeTab === 'geofences' && geofences.length > 0 && (
         <FloatingActionButton
           onPress={handleOpenAddGeofence}
-          icon="plus"
-          style={{ bottom: insets.bottom + Spacing.xl }}
+          bottom={insets.bottom + Spacing.xl}
         />
       )}
 

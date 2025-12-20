@@ -15,7 +15,7 @@ import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Colors, Gradients } from "@/constants/theme";
-import { queryClient, getApiUrl } from "@/lib/query-client";
+import { queryClient, getApiUrl, getAuthHeaders } from "@/lib/query-client";
 
 interface SelectedFile {
   uri: string;
@@ -114,11 +114,24 @@ export default function AudioUploadScreen() {
         deviceId = devicesData[0].id;
       } else {
         setUploadProgress(10);
-        const createRes = await apiRequest('POST', '/api/devices', {
-          name: 'Manual Upload',
-          type: 'omi',
-          isConnected: false,
+        const baseUrl = getApiUrl();
+        const createUrl = new URL('/api/devices', baseUrl);
+        const createRes = await fetch(createUrl.toString(), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...getAuthHeaders(),
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            name: 'Manual Upload',
+            type: 'omi',
+            isConnected: false,
+          }),
         });
+        if (!createRes.ok) {
+          throw new Error('Failed to create device');
+        }
         const newDevice = await createRes.json();
         deviceId = newDevice.id;
       }
