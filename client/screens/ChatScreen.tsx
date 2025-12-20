@@ -110,17 +110,11 @@ export default function ChatScreen() {
         
         if (isValidId(storedSessionId)) {
           try {
-            const url = new URL(`/api/chat/sessions/${storedSessionId}/messages`, getApiUrl());
-            const res = await fetch(url.toString(), { credentials: 'include' });
-            if (res.ok) {
-              const contentType = res.headers.get('content-type');
-              if (contentType && contentType.includes('application/json')) {
-                await res.json();
-                setSessionId(storedSessionId);
-                setIsInitializing(false);
-                return;
-              }
-            }
+            const { apiClient } = await import('@/lib/api-client');
+            await apiClient.get(`/api/chat/sessions/${storedSessionId}/messages`);
+            setSessionId(storedSessionId);
+            setIsInitializing(false);
+            return;
           } catch (e) {
             await AsyncStorage.removeItem(CHAT_SESSION_KEY);
           }
@@ -129,40 +123,19 @@ export default function ChatScreen() {
         }
         
         try {
-          const apiUrl = getApiUrl();
-          console.log('[Chat] Creating session, API URL:', apiUrl);
+          const { apiClient } = await import('@/lib/api-client');
+          console.log('[Chat] Creating session via apiClient');
           
-          const createRes = await apiRequest('POST', '/api/chat/sessions', { title: 'Chat with ZEKE' });
-          console.log('[Chat] Response status:', createRes.status);
+          const data = await apiClient.post<{ id: string }>('/api/chat/sessions', { title: 'Chat with ZEKE' });
+          console.log('[Chat] Session created successfully:', data.id);
           
-          const contentType = createRes.headers.get('content-type');
-          console.log('[Chat] Response content-type:', contentType);
-          
-          if (!contentType || !contentType.includes('application/json')) {
-            const textBody = await createRes.text();
-            console.error('[Chat] Non-JSON response body (first 200 chars):', textBody.substring(0, 200));
-            throw new Error('Server returned non-JSON response');
-          }
-          
-          // Parse JSON carefully to catch parse errors
-          let newSession: ApiChatSession;
-          try {
-            newSession = await createRes.json();
-          } catch (parseError) {
-            console.error('[Chat] Failed to parse response:', parseError);
-            throw new Error('Server response is invalid');
-          }
-          
-          if (!newSession.id) {
+          if (!data.id) {
             throw new Error('Invalid session response');
           }
           
-          console.log('[Chat] Session created successfully:', newSession.id);
-          await AsyncStorage.setItem(CHAT_SESSION_KEY, newSession.id);
-          setSessionId(newSession.id);
+          await AsyncStorage.setItem(CHAT_SESSION_KEY, data.id);
+          setSessionId(data.id);
         } catch (error) {
-          // If we get here, the API call failed with an exception
-          // This could be a network error or a parse error
           const errorMessage = error instanceof Error ? error.message : String(error);
           console.error('[Chat] API error:', errorMessage);
           throw new Error('Failed to create chat session. Check your connection.');
@@ -191,14 +164,8 @@ export default function ChatScreen() {
           createdAt: m.createdAt,
         }));
       } else {
-        const url = new URL(`/api/chat/sessions/${sessionId}/messages`, getApiUrl());
-        const res = await fetch(url.toString(), { credentials: 'include' });
-        if (!res.ok) throw new Error('Failed to fetch messages');
-        const contentType = res.headers.get('content-type');
-        if (!contentType || !contentType.includes('application/json')) {
-          throw new Error('Server returned non-JSON response');
-        }
-        return res.json();
+        const { apiClient } = await import('@/lib/api-client');
+        return await apiClient.get<ApiChatMessage[]>(`/api/chat/sessions/${sessionId}/messages`);
       }
     },
     enabled: isValidId(sessionId),

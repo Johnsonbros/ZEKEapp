@@ -643,20 +643,13 @@ async function getTodayEventsFromZekeProxy(): Promise<ZekeEvent[]> {
 }
 
 export async function getPendingTasks(): Promise<ZekeTask[]> {
-  const baseUrl = getLocalApiUrl();
-  const url = new URL('/api/zeke/tasks', baseUrl);
-  url.searchParams.set('status', 'pending');
-  
   try {
-    const res = await fetch(url, { 
-      credentials: 'include',
-      headers: getAuthHeaders(),
-      signal: createTimeoutSignal(5000)
-    });
-    if (!res.ok) {
-      return [];
-    }
-    const data = await res.json();
+    // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
+    // Routes to local API via isLocalEndpoint() check
+    const data = await apiClient.get<{ tasks?: ZekeTask[] }>(
+      '/api/zeke/tasks',
+      { query: { status: 'pending' }, emptyArrayOn404: true, timeoutMs: 5000 }
+    );
     return (data.tasks || data || []).filter((t: ZekeTask) => t.status === 'pending');
   } catch {
     return [];
@@ -700,20 +693,13 @@ export async function toggleGroceryPurchased(
 }
 
 export async function getAllTasks(): Promise<ZekeTask[]> {
-  const baseUrl = getLocalApiUrl();
-  const url = new URL('/api/zeke/tasks', baseUrl);
-  
   try {
-    const res = await fetch(url, { 
-      credentials: 'include',
-      headers: getAuthHeaders(),
-      signal: createTimeoutSignal(5000)
-    });
-    if (!res.ok) {
-      console.log('[ZEKE Proxy] getAllTasks failed:', res.status);
-      return [];
-    }
-    const data = await res.json();
+    // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
+    // Routes to local API via isLocalEndpoint() check
+    const data = await apiClient.get<{ tasks?: ZekeTask[] }>(
+      '/api/zeke/tasks',
+      { emptyArrayOn404: true, timeoutMs: 5000 }
+    );
     console.log('[ZEKE Proxy] getAllTasks fetched:', data.tasks?.length || 0);
     return data.tasks || data || [];
   } catch (error) {

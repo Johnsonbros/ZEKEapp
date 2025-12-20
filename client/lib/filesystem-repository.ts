@@ -1,6 +1,7 @@
 import * as FileSystem from 'expo-file-system';
 import { Platform } from 'react-native';
-import { getApiUrl, apiRequest } from './query-client';
+import { getApiUrl } from './query-client';
+import { apiClient } from './api-client';
 
 const DATA_DIRECTORY = `${FileSystem.documentDirectory}zeke-data/`;
 const SYNC_QUEUE_FILE = `${DATA_DIRECTORY}sync-queue.json`;
@@ -555,13 +556,13 @@ export class SyncService {
   private static async syncList(item: SyncQueueItem): Promise<void> {
     switch (item.action) {
       case 'create':
-        await apiRequest('POST', '/api/lists', item.data);
+        await apiClient.post('/api/lists', item.data);
         break;
       case 'update':
-        await apiRequest('PATCH', `/api/lists/${item.data.id}`, item.data);
+        await apiClient.patch(`/api/lists/${item.data.id}`, item.data);
         break;
       case 'delete':
-        await apiRequest('DELETE', `/api/lists/${item.data.id}`);
+        await apiClient.delete(`/api/lists/${item.data.id}`);
         break;
     }
   }
@@ -569,13 +570,13 @@ export class SyncService {
   private static async syncListItem(item: SyncQueueItem): Promise<void> {
     switch (item.action) {
       case 'create':
-        await apiRequest('POST', `/api/lists/${item.data.listId}/items`, { text: item.data.text });
+        await apiClient.post(`/api/lists/${item.data.listId}/items`, { text: item.data.text });
         break;
       case 'update':
-        await apiRequest('PATCH', `/api/lists/${item.data.listId}/items/${item.data.id}`, item.data);
+        await apiClient.patch(`/api/lists/${item.data.listId}/items/${item.data.id}`, item.data);
         break;
       case 'delete':
-        await apiRequest('DELETE', `/api/lists/${item.data.listId}/items/${item.data.id}`);
+        await apiClient.delete(`/api/lists/${item.data.listId}/items/${item.data.id}`);
         break;
     }
   }
@@ -583,49 +584,40 @@ export class SyncService {
   private static async syncGrocery(item: SyncQueueItem): Promise<void> {
     switch (item.action) {
       case 'create':
-        await apiRequest('POST', '/api/grocery', item.data);
+        await apiClient.post('/api/grocery', item.data);
         break;
       case 'update':
-        await apiRequest('PATCH', `/api/grocery/${item.data.id}`, item.data);
+        await apiClient.patch(`/api/grocery/${item.data.id}`, item.data);
         break;
       case 'delete':
-        await apiRequest('DELETE', `/api/grocery/${item.data.id}`);
+        await apiClient.delete(`/api/grocery/${item.data.id}`);
         break;
     }
   }
   
   static async importFromBackend(): Promise<{ lists: number; grocery: number }> {
     try {
-      const [listsRes, groceryRes] = await Promise.all([
-        fetch(new URL('/api/lists', getApiUrl()).toString(), { credentials: 'include' }),
-        fetch(new URL('/api/grocery', getApiUrl()).toString(), { credentials: 'include' }),
+      // Retry, timeout, and auth now handled centrally by ZekeApiClient
+      const [listsData, groceryData] = await Promise.all([
+        apiClient.get<{ lists?: any[]; items?: any[] }>('/api/lists', { emptyArrayOn404: true }).catch(() => ({ lists: [] })),
+        apiClient.get<{ items?: any[] }>('/api/grocery', { emptyArrayOn404: true }).catch(() => ({ items: [] })),
       ]);
       
-      let lists: any[] = [];
-      let grocery: any[] = [];
+      let lists: any[] = listsData.lists || listsData || [];
+      let grocery: any[] = groceryData.items || groceryData || [];
       let listItems: any[] = [];
       
-      if (listsRes.ok) {
-        const listsData = await listsRes.json();
-        lists = listsData.lists || listsData || [];
-        
+      if (lists.length > 0) {
         for (const list of lists) {
-          const itemsRes = await fetch(
-            new URL(`/api/lists/${list.id}`, getApiUrl()).toString(),
-            { credentials: 'include' }
-          );
-          if (itemsRes.ok) {
-            const listData = await itemsRes.json();
-            if (listData.items) {
-              listItems.push(...listData.items.map((item: any) => ({ ...item, listId: list.id })));
+          try {
+            const listItemData = await apiClient.get<{ items?: any[] }>(`/api/lists/${list.id}`, { emptyArrayOn404: true });
+            if (listItemData.items) {
+              listItems.push(...listItemData.items.map((item: any) => ({ ...item, listId: list.id })));
             }
+          } catch {
+            // Skip lists with fetch errors
           }
         }
-      }
-      
-      if (groceryRes.ok) {
-        const groceryData = await groceryRes.json();
-        grocery = groceryData.items || groceryData || [];
       }
       
       await ListsRepository.importFromBackend(lists, listItems);

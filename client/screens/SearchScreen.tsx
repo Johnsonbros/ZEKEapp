@@ -122,15 +122,11 @@ export default function SearchScreen() {
           totalMatches: results.length,
         };
       } else {
-        const url = new URL('/api/memories/search', getApiUrl());
-        const res = await fetch(url.toString(), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ query: activeSearchQuery, limit: 10 })
+        const { apiClient } = await import('@/lib/api-client');
+        return await apiClient.post<SemanticSearchResponse>('/api/memories/search', {
+          query: activeSearchQuery,
+          limit: 10
         });
-        if (!res.ok) throw new Error('Failed to search memories');
-        return res.json();
       }
     },
     enabled: !!activeSearchQuery,
