@@ -1,5 +1,8 @@
 import { getApiUrl, getLocalApiUrl, getAuthHeaders } from './query-client';
 
+// Declare __DEV__ for React Native/Expo environments
+declare const __DEV__: boolean;
+
 /**
  * Custom API error with detailed context
  */
@@ -78,7 +81,8 @@ export function classifyEndpoint(endpoint: string): 'local' | 'core' {
   const isLocal = LOCAL_API_PREFIXES.some(prefix => endpoint.startsWith(prefix));
   
   // Development-only safety check: catch ambiguous routing
-  if (__DEV__) {
+  const isDev = typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV === 'development';
+  if (isDev) {
     const couldBeCore = CORE_API_PREFIXES.some(prefix => endpoint.startsWith(prefix));
     if (isLocal && couldBeCore) {
       console.error(
@@ -192,7 +196,7 @@ class ZekeApiClient {
 
     if (!signal && controller) {
       timeoutId = setTimeout(() => {
-        if (__DEV__) {
+        if (typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV === 'development') {
           console.log(`[ZekeApiClient] Timeout (${timeoutMs}ms) for ${method} ${endpoint}`);
         }
         controller!.abort();
@@ -222,7 +226,7 @@ class ZekeApiClient {
 
         // Handle 404 with emptyArrayOn404 fallback
         if (response.status === 404 && emptyArrayOn404) {
-          if (__DEV__) {
+          if (typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV === 'development') {
             console.log(`[ZekeApiClient] ${method} ${endpoint} - 404, returning empty array`);
           }
           return [] as unknown as T;
@@ -236,7 +240,7 @@ class ZekeApiClient {
           // Only retry on specific status codes
           const retryableStatuses = [408, 429, 500, 502, 503, 504];
           if (retryableStatuses.includes(response.status) && attempt < maxAttempts - 1) {
-            if (__DEV__) {
+            if (typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV === 'development') {
               console.log(
                 `[ZekeApiClient] Retrying ${method} ${endpoint} (attempt ${attempt + 1}/${maxAttempts}) - got status ${response.status}`,
               );
@@ -259,7 +263,7 @@ class ZekeApiClient {
         // Parse response
         const data = await parseResponseBody<T>(response);
 
-        if (__DEV__) {
+        if (typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV === 'development') {
           console.log(`[ZekeApiClient] ${method} ${endpoint} (${attempt + 1}/${maxAttempts}) - OK`);
         }
 
@@ -284,7 +288,7 @@ class ZekeApiClient {
         const shouldRetry = isNetworkError && attempt < maxAttempts - 1;
 
         if (shouldRetry) {
-          if (__DEV__) {
+          if (typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV === 'development') {
             console.log(
               `[ZekeApiClient] Network error, retrying ${method} ${endpoint} (attempt ${attempt + 1}/${maxAttempts})`,
             );
@@ -301,7 +305,7 @@ class ZekeApiClient {
     // Clear timeout on final error
     if (timeoutId) clearTimeout(timeoutId);
 
-    if (__DEV__) {
+    if (typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV === 'development') {
       console.log(`[ZekeApiClient] ${method} ${endpoint} - FAILED after ${maxAttempts} attempts`);
     }
 
