@@ -23,6 +23,7 @@ export function useScreenOptions({
     gestureEnabled: true,
     gestureDirection: "horizontal",
     fullScreenGestureEnabled: isLiquidGlassAvailable() ? false : true,
+    headerShadowVisible: false,
     contentStyle: {
       backgroundColor: theme.backgroundRoot,
     },
@@ -70,10 +71,24 @@ export function useScreenOptions({
   if (isAndroid) {
     return {
       ...baseOptions,
-      headerTransparent: false,
+      headerTransparent: transparent,
       headerStyle: {
-        backgroundColor: theme.backgroundDefault,
+        backgroundColor: transparent ? "transparent" : theme.backgroundDefault,
       },
+      headerBackground: transparent
+        ? () => (
+            <View
+              style={[
+                StyleSheet.absoluteFill,
+                {
+                  backgroundColor: isDark
+                    ? "rgba(15, 23, 42, 0.95)"
+                    : "rgba(241, 245, 249, 0.95)",
+                },
+              ]}
+            />
+          )
+        : undefined,
     };
   }
 

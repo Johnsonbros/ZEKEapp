@@ -37,9 +37,12 @@ export default function HomeStackNavigator() {
         name="Home"
         component={HomeScreen}
         options={{
-          headerTitle: "",
+          headerTitle: () => null,
+          headerTitleAlign: "left",
           headerLeft: () => <ZekeHeaderTitle />,
           headerRight: () => <ZekeHeaderButtons />,
+          headerLeftContainerStyle: { paddingLeft: 4 },
+          headerRightContainerStyle: { paddingRight: 8 },
         }}
       />
       <Stack.Screen
