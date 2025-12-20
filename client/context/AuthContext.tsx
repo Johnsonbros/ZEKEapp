@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
-import { setDeviceToken, getLocalApiUrl } from '@/lib/query-client';
+import { setDeviceToken } from '@/lib/query-client';
+import { apiClient, ApiError } from '@/lib/api-client';
 
 const DEVICE_TOKEN_KEY = 'zeke_device_token';
 const DEVICE_ID_KEY = 'zeke_device_id';
@@ -64,22 +65,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setDeviceToken(token);
 
-      const baseUrl = getLocalApiUrl();
-      const response = await fetch(new URL('/api/auth/verify', baseUrl).toString(), {
-        method: 'POST',
-        headers: { 'X-ZEKE-Device-Token': token }
-      });
+      // Retry and timeout now handled centrally by ZekeApiClient
+      // Routes to local API via isLocalEndpoint() check
+      const data = await apiClient.get<{ deviceId?: string }>(
+        '/api/auth/verify',
+        { headers: { 'X-ZEKE-Device-Token': token } }
+      );
 
-      if (response.ok) {
-        const data = await response.json();
-        setState({
-          isAuthenticated: true,
-          isLoading: false,
-          deviceId: data.deviceId || storedDeviceId,
-          error: null,
-        });
-        return true;
-      } else if (response.status === 401) {
+      setState({
+        isAuthenticated: true,
+        isLoading: false,
+        deviceId: data.deviceId || storedDeviceId,
+        error: null,
+      });
+      return true;
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        // Session expired - clear stored credentials
         await deleteStoredValue(DEVICE_TOKEN_KEY);
         await deleteStoredValue(DEVICE_ID_KEY);
         setDeviceToken(null);
@@ -92,11 +94,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return false;
       }
       
-      setState(prev => ({ ...prev, isLoading: false }));
-      return false;
-    } catch (error) {
       console.error('[Auth] Check auth error:', error);
-      setState(prev => ({ ...prev, isLoading: false, error: 'Connection error' }));
+      setState(prev => ({ ...prev, isLoading: false, error: error instanceof ApiError ? error.message : 'Connection error' }));
       return false;
     }
   }, []);
@@ -105,24 +104,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
     
     try {
-      const baseUrl = getLocalApiUrl();
-      const response = await fetch(new URL('/api/auth/pair', baseUrl).toString(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ secret, deviceName }),
-      });
+      // Retry, timeout, and auth now handled centrally by ZekeApiClient
+      // Routes to local API via isLocalEndpoint() check
+      const data = await apiClient.post<{ deviceToken?: string; deviceId?: string; message?: string }>(
+        '/api/auth/pair',
+        { secret, deviceName }
+      );
 
-      const data = await response.json();
-
-      if (response.ok && data.deviceToken) {
+      if (data.deviceToken) {
         await setStoredValue(DEVICE_TOKEN_KEY, data.deviceToken);
-        await setStoredValue(DEVICE_ID_KEY, data.deviceId);
+        await setStoredValue(DEVICE_ID_KEY, data.deviceId || '');
         setDeviceToken(data.deviceToken);
         
         setState({
           isAuthenticated: true,
           isLoading: false,
-          deviceId: data.deviceId,
+          deviceId: data.deviceId || null,
           error: null,
         });
         return true;
@@ -136,10 +133,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error('[Auth] Pair error:', error);
+      const errorMessage = error instanceof ApiError ? error.message : 'Connection error. Check your network.';
       setState(prev => ({
         ...prev,
         isLoading: false,
-        error: 'Connection error. Check your network.',
+        error: errorMessage,
       }));
       return false;
     }
