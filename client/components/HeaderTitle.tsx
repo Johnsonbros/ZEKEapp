@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { View, StyleSheet, Image, Platform } from "react-native";
+import { View, StyleSheet, Image } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -9,7 +9,6 @@ import Animated, {
   Easing,
 } from "react-native-reanimated";
 
-import { GradientText } from "@/components/GradientText";
 import { ThemedText } from "@/components/ThemedText";
 import { Spacing, Colors, Gradients } from "@/constants/theme";
 
@@ -21,7 +20,6 @@ interface HeaderTitleProps {
 export function HeaderTitle({ title, isOnline = false }: HeaderTitleProps) {
   const pulseScale = useSharedValue(1);
   const pulseOpacity = useSharedValue(1);
-  const glowOpacity = useSharedValue(0.6);
 
   useEffect(() => {
     if (isOnline) {
@@ -45,44 +43,22 @@ export function HeaderTitle({ title, isOnline = false }: HeaderTitleProps) {
       pulseScale.value = withTiming(1, { duration: 200 });
       pulseOpacity.value = withTiming(1, { duration: 200 });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOnline]);
-
-  useEffect(() => {
-    glowOpacity.value = withRepeat(
-      withSequence(
-        withTiming(0.8, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
-        withTiming(0.5, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
-      ),
-      -1,
-      false,
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isOnline, pulseScale, pulseOpacity]);
 
   const pulseAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: pulseScale.value }],
     opacity: pulseOpacity.value,
   }));
 
-  const glowAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: glowOpacity.value,
-  }));
-
   return (
     <View style={styles.container}>
-      <View style={styles.iconWrapper}>
-        <Animated.View style={[styles.iconGlow, glowAnimatedStyle]} />
-        <Image
-          source={require("../../assets/images/icon.png")}
-          style={styles.icon}
-          resizeMode="contain"
-        />
-      </View>
+      <Image
+        source={require("../../assets/images/icon.png")}
+        style={styles.icon}
+        resizeMode="contain"
+      />
       <View style={styles.titleContainer}>
-        <GradientText type="h2" style={styles.title}>
-          {title}
-        </GradientText>
+        <ThemedText style={styles.title}>{title}</ThemedText>
         <View style={styles.statusContainer}>
           <View style={styles.statusDotWrapper}>
             {isOnline ? (
@@ -126,77 +102,47 @@ const styles = StyleSheet.create({
     justifyContent: "flex-start",
     gap: Spacing.sm,
   },
-  iconWrapper: {
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  iconGlow: {
-    position: "absolute",
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: Gradients.primary[0],
-    ...Platform.select({
-      ios: {
-        shadowColor: Gradients.primary[0],
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.6,
-        shadowRadius: 10,
-      },
-      android: {
-        elevation: 8,
-      },
-      web: {
-        boxShadow: `0 0 16px ${Gradients.primary[0]}`,
-      },
-    }),
-  },
   icon: {
-    width: 42,
-    height: 42,
-    borderRadius: 11,
-    flexShrink: 0,
-    borderWidth: 1.5,
-    borderColor: Gradients.primary[0],
+    width: 36,
+    height: 36,
+    borderRadius: 8,
   },
   titleContainer: {
     flexDirection: "column",
     justifyContent: "center",
-    flexShrink: 0,
   },
   title: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "700",
-    lineHeight: 28,
-    letterSpacing: 1.2,
+    lineHeight: 26,
+    letterSpacing: 1,
+    color: Gradients.primary[0],
   },
   statusContainer: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    marginTop: 2,
+    gap: 5,
+    marginTop: 1,
   },
   statusDotWrapper: {
-    width: 10,
-    height: 10,
+    width: 8,
+    height: 8,
     alignItems: "center",
     justifyContent: "center",
   },
   statusDotPulse: {
     position: "absolute",
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   statusDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   statusText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "600",
     letterSpacing: 0.3,
   },
