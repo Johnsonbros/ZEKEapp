@@ -164,19 +164,9 @@ export default function VoIPCallingScreen() {
   }, [callState, pulseScale]);
 
   const checkVoIPAvailability = async () => {
-    if (Platform.OS === "web") {
-      setIsVoIPAvailable(false);
-      return;
-    }
-
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      require("@twilio/voice-react-native-sdk");
-      setIsVoIPAvailable(true);
-    } catch {
-      console.log("Twilio Voice SDK not available");
-      setIsVoIPAvailable(false);
-    }
+    // VoIP SDK removed - using server-initiated calls instead
+    // The app uses the /api/twilio/call/initiate endpoint for all calls
+    setIsVoIPAvailable(false);
   };
 
   const formatDuration = (seconds: number): string => {
