@@ -124,9 +124,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "flex-start",
-    gap: Spacing.md,
-    flexShrink: 0,
-    minWidth: 130,
+    gap: Spacing.sm,
   },
   iconWrapper: {
     width: 40,
