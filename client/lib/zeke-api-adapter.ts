@@ -379,33 +379,36 @@ export async function importContacts(contacts: ImportContactData[]): Promise<Imp
 }
 
 export async function getSmsConversations(): Promise<ZekeContactConversation[]> {
-  const baseUrl = getApiUrl();
-  const url = new URL('/api/sms-log', baseUrl);
-  
   try {
-    const res = await fetch(url, { 
-      credentials: 'include',
-      headers: getAuthHeaders(),
-      signal: createTimeoutSignal(5000)
-    });
-    if (!res.ok) {
-      return [];
-    }
-    const data = await res.json();
+    // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
+    // Routes to local API via isLocalEndpoint() check
+    const data = await apiClient.get<{ conversations?: ZekeContactConversation[] }>(
+      '/api/sms-log',
+      { emptyArrayOn404: true }
+    );
     return data.conversations || data || [];
-  } catch {
+  } catch (error) {
+    console.error('[SMS] Failed to fetch SMS conversations:', error);
     return [];
   }
 }
 
 export async function sendSms(to: string, message: string): Promise<{ sid: string; to: string; from: string; body: string; status: string }> {
-  const res = await apiRequest('POST', '/api/twilio/sms/send', { to, body: message });
-  return res.json();
+  // Retry, timeout, and auth now handled centrally by ZekeApiClient
+  // Routes to local API via isLocalEndpoint() check
+  return await apiClient.post<{ sid: string; to: string; from: string; body: string; status: string }>(
+    '/api/twilio/sms/send',
+    { to, body: message }
+  );
 }
 
 export async function initiateCall(to: string): Promise<{ sid: string; to: string; from: string; status: string }> {
-  const res = await apiRequest('POST', '/api/twilio/call/initiate', { to });
-  return res.json();
+  // Retry, timeout, and auth now handled centrally by ZekeApiClient
+  // Routes to local API via isLocalEndpoint() check
+  return await apiClient.post<{ sid: string; to: string; from: string; status: string }>(
+    '/api/twilio/call/initiate',
+    { to }
+  );
 }
 
 export interface TwilioSmsConversation {
@@ -441,97 +444,58 @@ export interface TwilioCallRecord {
 }
 
 export async function getTwilioConversations(): Promise<TwilioSmsConversation[]> {
-  const baseUrl = getApiUrl();
-  const url = new URL('/api/twilio/sms/conversations', baseUrl);
-  
   try {
-    const res = await fetch(url, { 
-      credentials: 'include',
-      headers: getAuthHeaders(),
-      signal: createTimeoutSignal(10000)
-    });
-    if (!res.ok) {
-      return [];
-    }
-    const contentType = res.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-      return [];
-    }
-    const data = await res.json();
+    // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
+    // Routes to local API via isLocalEndpoint() check
+    const data = await apiClient.get<TwilioSmsConversation[]>(
+      '/api/twilio/sms/conversations',
+      { emptyArrayOn404: true }
+    );
     return Array.isArray(data) ? data : [];
   } catch (error) {
+    console.error('[Twilio] Failed to fetch conversations:', error);
     return [];
   }
 }
 
 export async function getTwilioConversation(phoneNumber: string): Promise<TwilioSmsConversation | null> {
-  const baseUrl = getApiUrl();
-  const url = new URL(`/api/twilio/sms/conversation/${encodeURIComponent(phoneNumber)}`, baseUrl);
-  
   try {
-    const res = await fetch(url, { 
-      credentials: 'include',
-      headers: getAuthHeaders(),
-      signal: createTimeoutSignal(10000)
-    });
-    if (!res.ok) {
-      return null;
-    }
-    const contentType = res.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-      return null;
-    }
-    const data = await res.json();
-    return data;
+    // Retry and timeout now handled centrally by ZekeApiClient
+    // Routes to local API via isLocalEndpoint() check
+    return await apiClient.get<TwilioSmsConversation>(
+      `/api/twilio/sms/conversation/${encodeURIComponent(phoneNumber)}`
+    );
   } catch (error) {
+    console.error('[Twilio] Failed to fetch conversation:', error);
     return null;
   }
 }
 
 export async function getTwilioCalls(): Promise<TwilioCallRecord[]> {
-  const baseUrl = getApiUrl();
-  const url = new URL('/api/twilio/calls', baseUrl);
-  
   try {
-    const res = await fetch(url, { 
-      credentials: 'include',
-      headers: getAuthHeaders(),
-      signal: createTimeoutSignal(10000)
-    });
-    if (!res.ok) {
-      return [];
-    }
-    const contentType = res.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-      return [];
-    }
-    const data = await res.json();
+    // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
+    // Routes to local API via isLocalEndpoint() check
+    const data = await apiClient.get<TwilioCallRecord[]>(
+      '/api/twilio/calls',
+      { emptyArrayOn404: true }
+    );
     return Array.isArray(data) ? data : [];
   } catch (error) {
+    console.error('[Twilio] Failed to fetch calls:', error);
     return [];
   }
 }
 
 export async function getTwilioPhoneNumber(): Promise<string | null> {
-  const baseUrl = getApiUrl();
-  const url = new URL('/api/twilio/phone-number', baseUrl);
-  
   try {
-    const res = await fetch(url, { 
-      credentials: 'include',
-      headers: getAuthHeaders(),
-      signal: createTimeoutSignal(5000)
-    });
-    if (!res.ok) {
-      return null;
-    }
-    const contentType = res.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-      return null;
-    }
-    const data = await res.json();
+    // Retry and timeout now handled centrally by ZekeApiClient
+    // Routes to local API via isLocalEndpoint() check
+    const data = await apiClient.get<{ phoneNumber?: string }>(
+      '/api/twilio/phone-number'
+    );
     return data.phoneNumber || null;
   } catch (error) {
+    console.error('[Twilio] Failed to fetch phone number:', error);
     return null;
   }
 }
