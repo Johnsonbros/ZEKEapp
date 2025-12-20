@@ -50,6 +50,8 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      "expo-asset",
+      "expo-audio",
       [
         "expo-splash-screen",
         {
