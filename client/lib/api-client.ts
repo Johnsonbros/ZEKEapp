@@ -168,6 +168,11 @@ class ZekeApiClient {
     // Determine base URL based on endpoint type
     const baseUrl = isLocalEndpoint(endpoint) ? getLocalApiUrl() : getApiUrl();
 
+    // DEV-only: Log routing decision
+    if (typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV === 'development') {
+      console.log(`[api] ${method} ${endpoint} → ${baseUrl}`);
+    }
+
     // Build URL with query parameters
     const url = new URL(endpoint, baseUrl);
     if (query) {
@@ -184,6 +189,15 @@ class ZekeApiClient {
       ...authHeaders,
       ...customHeaders,
     };
+
+    // DEV-only: Log authorization header presence
+    if (typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV === 'development') {
+      const hasAuth = Object.keys(authHeaders).length > 0;
+      if (hasAuth) {
+        const authHeader = authHeaders['X-ZEKE-Device-Token'] ? `Bearer ${authHeaders['X-ZEKE-Device-Token'].substring(0, 8)}***` : 'Present';
+        console.log(`[auth] Authorization header: ${authHeader}`);
+      }
+    }
 
     // Add Content-Type for requests with body
     if (body && !finalHeaders['Content-Type']) {
