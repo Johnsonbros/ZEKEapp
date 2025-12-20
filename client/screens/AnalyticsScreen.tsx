@@ -1,16 +1,25 @@
 import React, { useMemo } from "react";
-import { View, StyleSheet, ScrollView, Dimensions, ActivityIndicator } from "react-native";
+import {
+  View,
+  StyleSheet,
+  ScrollView,
+  Dimensions,
+  ActivityIndicator,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 
 import { ThemedText } from "@/components/ThemedText";
-import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Colors } from "@/constants/theme";
-import { getZekeDevices, getRecentMemories, ZekeDevice, ZekeMemory } from "@/lib/zeke-api-adapter";
+import {
+  getZekeDevices,
+  getRecentMemories,
+  ZekeMemory,
+} from "@/lib/zeke-api-adapter";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const CHART_HEIGHT = 120;
@@ -27,8 +36,15 @@ function StatCard({ icon, label, value, trend, trendPositive }: StatCardProps) {
   const { theme } = useTheme();
 
   return (
-    <View style={[styles.statCard, { backgroundColor: theme.backgroundDefault }]}>
-      <View style={[styles.statIconContainer, { backgroundColor: theme.backgroundSecondary }]}>
+    <View
+      style={[styles.statCard, { backgroundColor: theme.backgroundDefault }]}
+    >
+      <View
+        style={[
+          styles.statIconContainer,
+          { backgroundColor: theme.backgroundSecondary },
+        ]}
+      >
         <Feather name={icon} size={20} color={Colors.dark.primary} />
       </View>
       <ThemedText type="caption" secondary style={styles.statLabel}>
@@ -46,7 +62,10 @@ function StatCard({ icon, label, value, trend, trendPositive }: StatCardProps) {
           />
           <ThemedText
             type="caption"
-            style={{ color: trendPositive ? Colors.dark.success : Colors.dark.error, marginLeft: 4 }}
+            style={{
+              color: trendPositive ? Colors.dark.success : Colors.dark.error,
+              marginLeft: 4,
+            }}
           >
             {trend}
           </ThemedText>
@@ -63,7 +82,7 @@ interface BarChartProps {
 }
 
 function BarChart({ data, maxValue, color }: BarChartProps) {
-  const { theme } = useTheme();
+  useTheme();
   const safeMaxValue = maxValue > 0 ? maxValue : 1;
 
   return (
@@ -90,30 +109,30 @@ function BarChart({ data, maxValue, color }: BarChartProps) {
   );
 }
 
-interface PieSegmentProps {
-  percentage: number;
-  color: string;
-  startAngle: number;
-}
-
 interface DeviceUsageRingProps {
   memories: ZekeMemory[];
 }
 
 function DeviceUsageRing({ memories }: DeviceUsageRingProps) {
   const { theme } = useTheme();
-  
-  const omiCount = memories.filter(m => m.deviceId?.toLowerCase().includes('omi')).length;
-  const limitlessCount = memories.filter(m => m.deviceId?.toLowerCase().includes('limitless')).length;
-  const otherCount = memories.length - omiCount - limitlessCount;
+
+  const omiCount = memories.filter((m) =>
+    m.deviceId?.toLowerCase().includes("omi"),
+  ).length;
+  const limitlessCount = memories.filter((m) =>
+    m.deviceId?.toLowerCase().includes("limitless"),
+  ).length;
   const total = memories.length;
   const omiPercentage = total > 0 ? Math.round((omiCount / total) * 100) : 50;
-  const limitlessPercentage = total > 0 ? Math.round((limitlessCount / total) * 100) : 50;
+  const limitlessPercentage =
+    total > 0 ? Math.round((limitlessCount / total) * 100) : 50;
 
   return (
     <View style={styles.pieContainer}>
       <View style={styles.pieChart}>
-        <View style={[styles.pieSegment, { backgroundColor: Colors.dark.primary }]} />
+        <View
+          style={[styles.pieSegment, { backgroundColor: Colors.dark.primary }]}
+        />
         <View
           style={[
             styles.pieOverlay,
@@ -123,7 +142,12 @@ function DeviceUsageRing({ memories }: DeviceUsageRingProps) {
             },
           ]}
         />
-        <View style={[styles.pieCenter, { backgroundColor: theme.backgroundDefault }]}>
+        <View
+          style={[
+            styles.pieCenter,
+            { backgroundColor: theme.backgroundDefault },
+          ]}
+        >
           <ThemedText type="h3">{total}</ThemedText>
           <ThemedText type="caption" secondary>
             Total
@@ -132,12 +156,21 @@ function DeviceUsageRing({ memories }: DeviceUsageRingProps) {
       </View>
       <View style={styles.legendContainer}>
         <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: Colors.dark.primary }]} />
+          <View
+            style={[styles.legendDot, { backgroundColor: Colors.dark.primary }]}
+          />
           <ThemedText type="small">Omi ({omiPercentage}%)</ThemedText>
         </View>
         <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: Colors.dark.secondary }]} />
-          <ThemedText type="small">Limitless ({limitlessPercentage}%)</ThemedText>
+          <View
+            style={[
+              styles.legendDot,
+              { backgroundColor: Colors.dark.secondary },
+            ]}
+          />
+          <ThemedText type="small">
+            Limitless ({limitlessPercentage}%)
+          </ThemedText>
         </View>
       </View>
     </View>
@@ -150,13 +183,13 @@ export default function AnalyticsScreen() {
   const { theme } = useTheme();
 
   const { data: devices = [], isLoading: isLoadingDevices } = useQuery({
-    queryKey: ['/api/devices'],
+    queryKey: ["/api/devices"],
     queryFn: getZekeDevices,
     staleTime: 30000,
   });
 
   const { data: memories = [], isLoading: isLoadingMemories } = useQuery({
-    queryKey: ['/api/memories'],
+    queryKey: ["/api/memories"],
     queryFn: () => getRecentMemories(100),
     staleTime: 30000,
   });
@@ -165,9 +198,9 @@ export default function AnalyticsScreen() {
 
   const stats = useMemo(() => {
     const totalMemories = memories.length;
-    const starredMemories = memories.filter(m => m.isStarred).length;
-    const connectedDevices = devices.filter(d => d.isConnected).length;
-    
+    const starredMemories = memories.filter((m) => m.isStarred).length;
+    const connectedDevices = devices.filter((d) => d.isConnected).length;
+
     const totalSeconds = memories.reduce((acc, m) => {
       return acc + (m.duration || 0);
     }, 0);
@@ -182,16 +215,16 @@ export default function AnalyticsScreen() {
   }, [memories, devices]);
 
   const weeklyData = useMemo(() => {
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const counts: Record<string, number> = {};
-    days.forEach(d => counts[d] = 0);
-    
-    memories.forEach(memory => {
+    days.forEach((d) => (counts[d] = 0));
+
+    memories.forEach((memory) => {
       const date = new Date(memory.createdAt);
       const day = days[date.getDay()];
       counts[day] = (counts[day] || 0) + 1;
     });
-    
+
     return [
       { label: "Mon", value: counts["Mon"] },
       { label: "Tue", value: counts["Tue"] },
@@ -205,15 +238,15 @@ export default function AnalyticsScreen() {
 
   const speakerData = useMemo(() => {
     const speakerCounts: Record<string, number> = {};
-    memories.forEach(memory => {
+    memories.forEach((memory) => {
       const speakers = Array.isArray(memory.speakers) ? memory.speakers : [];
       speakers.forEach((speaker: string) => {
-        if (typeof speaker === 'string') {
+        if (typeof speaker === "string") {
           speakerCounts[speaker] = (speakerCounts[speaker] || 0) + 1;
         }
       });
     });
-    
+
     return Object.entries(speakerCounts)
       .map(([speaker, count]) => ({ speaker, count }))
       .sort((a, b) => b.count - a.count)
@@ -222,7 +255,10 @@ export default function AnalyticsScreen() {
 
   const avgDuration = useMemo(() => {
     if (memories.length === 0) return 0;
-    const totalSeconds = memories.reduce((acc, m) => acc + (m.duration || 0), 0);
+    const totalSeconds = memories.reduce(
+      (acc, m) => acc + (m.duration || 0),
+      0,
+    );
     return Math.round(totalSeconds / memories.length / 60);
   }, [memories]);
 
@@ -237,7 +273,12 @@ export default function AnalyticsScreen() {
 
   if (isLoading) {
     return (
-      <View style={[styles.loadingContainer, { backgroundColor: theme.backgroundRoot }]}>
+      <View
+        style={[
+          styles.loadingContainer,
+          { backgroundColor: theme.backgroundRoot },
+        ]}
+      >
         <ActivityIndicator size="large" color={Colors.dark.primary} />
         <ThemedText type="body" secondary style={styles.loadingText}>
           Loading analytics...
@@ -290,7 +331,7 @@ export default function AnalyticsScreen() {
         <View style={styles.chartContent}>
           <BarChart
             data={weeklyData}
-            maxValue={Math.max(...weeklyData.map(d => d.value), 1)}
+            maxValue={Math.max(...weeklyData.map((d) => d.value), 1)}
             color={Colors.dark.primary}
           />
         </View>
@@ -331,7 +372,10 @@ export default function AnalyticsScreen() {
                       styles.speakerBar,
                       {
                         width: `${(item.count / speakerData[0].count) * 100}%`,
-                        backgroundColor: index === 0 ? Colors.dark.primary : Colors.dark.secondary,
+                        backgroundColor:
+                          index === 0
+                            ? Colors.dark.primary
+                            : Colors.dark.secondary,
                       },
                     ]}
                   />
@@ -360,13 +404,17 @@ export default function AnalyticsScreen() {
           <View style={styles.insightRow}>
             <Feather name="mic" size={16} color={Colors.dark.success} />
             <ThemedText type="body" style={styles.insightText}>
-              Average recording: {avgDuration > 0 ? `${avgDuration} minutes` : 'No data'}
+              Average recording:{" "}
+              {avgDuration > 0 ? `${avgDuration} minutes` : "No data"}
             </ThemedText>
           </View>
           <View style={styles.insightRow}>
             <Feather name="users" size={16} color={Colors.dark.secondary} />
             <ThemedText type="body" style={styles.insightText}>
-              Average participants: {avgParticipants > 0 ? `${avgParticipants} per memory` : 'No data'}
+              Average participants:{" "}
+              {avgParticipants > 0
+                ? `${avgParticipants} per memory`
+                : "No data"}
             </ThemedText>
           </View>
           <View style={styles.insightRow}>

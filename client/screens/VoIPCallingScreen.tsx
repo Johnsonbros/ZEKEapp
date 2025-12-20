@@ -29,7 +29,10 @@ import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 import { getApiUrl, getAuthHeaders } from "@/lib/query-client";
 import { CommunicationStackParamList } from "@/navigation/CommunicationStackNavigator";
 
-type VoIPCallingScreenRouteProp = RouteProp<CommunicationStackParamList, "VoIPCalling">;
+type VoIPCallingScreenRouteProp = RouteProp<
+  CommunicationStackParamList,
+  "VoIPCalling"
+>;
 type NavigationProp = NativeStackNavigationProp<CommunicationStackParamList>;
 
 type CallState = "idle" | "connecting" | "ringing" | "connected" | "ended";
@@ -95,7 +98,10 @@ function DialPadButton({ digit, onPress, disabled }: DialPadButtonProps) {
           {digit}
         </ThemedText>
         {letters ? (
-          <ThemedText type="caption" style={[styles.dialPadLetters, { color: theme.textSecondary }]}>
+          <ThemedText
+            type="caption"
+            style={[styles.dialPadLetters, { color: theme.textSecondary }]}
+          >
             {letters}
           </ThemedText>
         ) : null}
@@ -109,17 +115,17 @@ export default function VoIPCallingScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<VoIPCallingScreenRouteProp>();
-  
+
   const initialPhoneNumber = route.params?.phoneNumber || "";
   const contactName = route.params?.contactName;
-  
+
   const [phoneNumber, setPhoneNumber] = useState(initialPhoneNumber);
   const [callState, setCallState] = useState<CallState>("idle");
   const [callDuration, setCallDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeaker, setIsSpeaker] = useState(false);
   const [isVoIPAvailable, setIsVoIPAvailable] = useState(false);
-  
+
   const callTimerRef = useRef<NodeJS.Timeout | null>(null);
   const pulseScale = useSharedValue(1);
 
@@ -132,14 +138,14 @@ export default function VoIPCallingScreen() {
       callTimerRef.current = setInterval(() => {
         setCallDuration((prev) => prev + 1);
       }, 1000);
-      
+
       pulseScale.value = withRepeat(
         withSequence(
           withTiming(1.1, { duration: 1000 }),
-          withTiming(1, { duration: 1000 })
+          withTiming(1, { duration: 1000 }),
         ),
         -1,
-        false
+        false,
       );
     } else {
       if (callTimerRef.current) {
@@ -162,12 +168,13 @@ export default function VoIPCallingScreen() {
       setIsVoIPAvailable(false);
       return;
     }
-    
+
     try {
-      const TwilioVoice = require("@twilio/voice-react-native-sdk").Voice;
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      require("@twilio/voice-react-native-sdk");
       setIsVoIPAvailable(true);
-    } catch (error) {
-      console.log("Twilio Voice SDK not available:", error);
+    } catch {
+      console.log("Twilio Voice SDK not available");
       setIsVoIPAvailable(false);
     }
   };
@@ -178,14 +185,17 @@ export default function VoIPCallingScreen() {
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const handleDigitPress = useCallback((digit: string) => {
-    if (callState === "idle") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      setPhoneNumber((prev) => prev + digit);
-    } else if (callState === "connected") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
-  }, [callState]);
+  const handleDigitPress = useCallback(
+    (digit: string) => {
+      if (callState === "idle") {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        setPhoneNumber((prev) => prev + digit);
+      } else if (callState === "connected") {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+    },
+    [callState],
+  );
 
   const handleDeletePress = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -194,9 +204,9 @@ export default function VoIPCallingScreen() {
 
   const handleCallPress = useCallback(async () => {
     if (!phoneNumber) return;
-    
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
+
     if (!isVoIPAvailable) {
       try {
         setCallState("connecting");
@@ -212,7 +222,7 @@ export default function VoIPCallingScreen() {
           body: JSON.stringify({ to: phoneNumber }),
         });
         const data = await response.json();
-        
+
         if (data.sid) {
           setCallState("ringing");
           setTimeout(() => {
@@ -224,14 +234,17 @@ export default function VoIPCallingScreen() {
       } catch (error) {
         console.error("Error initiating call:", error);
         setCallState("idle");
-        Alert.alert("Call Failed", "Unable to initiate the call. Please try again.");
+        Alert.alert(
+          "Call Failed",
+          "Unable to initiate the call. Please try again.",
+        );
       }
       return;
     }
 
     try {
       setCallState("connecting");
-      
+
       const baseUrl = getApiUrl();
       const tokenUrl = new URL("/api/twilio/voice/token", baseUrl);
       const tokenResponse = await fetch(tokenUrl.toString(), {
@@ -245,17 +258,20 @@ export default function VoIPCallingScreen() {
           identity: `zeke-mobile-${Date.now()}`,
         }),
       });
-      const { token } = await tokenResponse.json();
-      
+      await tokenResponse.json();
+
       setCallState("ringing");
-      
+
       setTimeout(() => {
         setCallState("connected");
       }, 2000);
     } catch (error) {
       console.error("Error initiating VoIP call:", error);
       setCallState("idle");
-      Alert.alert("Call Failed", "Unable to initiate the call. Please try again.");
+      Alert.alert(
+        "Call Failed",
+        "Unable to initiate the call. Please try again.",
+      );
     }
   }, [phoneNumber, isVoIPAvailable]);
 
@@ -263,7 +279,7 @@ export default function VoIPCallingScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     setCallState("ended");
     setCallDuration(0);
-    
+
     setTimeout(() => {
       setCallState("idle");
       if (route.params?.phoneNumber) {
@@ -286,34 +302,51 @@ export default function VoIPCallingScreen() {
     transform: [{ scale: pulseScale.value }],
   }));
 
-  const isInCall = callState === "connecting" || callState === "ringing" || callState === "connected";
+  const isInCall =
+    callState === "connecting" ||
+    callState === "ringing" ||
+    callState === "connected";
 
   return (
-    <ThemedView style={[styles.container, { paddingBottom: insets.bottom + Spacing.xl }]}>
+    <ThemedView
+      style={[styles.container, { paddingBottom: insets.bottom + Spacing.xl }]}
+    >
       {Platform.OS === "web" ? (
         <View style={styles.webNotice}>
-          <View style={[styles.noticeCard, { backgroundColor: theme.backgroundSecondary }]}>
+          <View
+            style={[
+              styles.noticeCard,
+              { backgroundColor: theme.backgroundSecondary },
+            ]}
+          >
             <Feather name="smartphone" size={48} color={theme.primary} />
             <ThemedText type="h3" style={styles.noticeTitle}>
               VoIP Available on Mobile
             </ThemedText>
-            <ThemedText type="body" style={[styles.noticeText, { color: theme.textSecondary }]}>
-              To make VoIP calls directly from the app, please use the mobile version with a development build.
+            <ThemedText
+              type="body"
+              style={[styles.noticeText, { color: theme.textSecondary }]}
+            >
+              To make VoIP calls directly from the app, please use the mobile
+              version with a development build.
             </ThemedText>
-            <ThemedText type="caption" style={[styles.noticeCaption, { color: theme.textSecondary }]}>
+            <ThemedText
+              type="caption"
+              style={[styles.noticeCaption, { color: theme.textSecondary }]}
+            >
               Build with: eas build --profile development --platform android
             </ThemedText>
           </View>
         </View>
       ) : null}
-      
+
       <View style={styles.displayArea}>
         {contactName ? (
           <ThemedText type="h4" style={styles.contactName}>
             {contactName}
           </ThemedText>
         ) : null}
-        
+
         <TextInput
           style={[styles.phoneNumberInput, { color: theme.text }]}
           value={phoneNumber}
@@ -323,18 +356,28 @@ export default function VoIPCallingScreen() {
           keyboardType="phone-pad"
           editable={callState === "idle"}
         />
-        
+
         {isInCall ? (
           <View style={styles.callStatusContainer}>
             <Animated.View style={pulseAnimatedStyle}>
-              <View style={[styles.callStatusDot, { 
-                backgroundColor: callState === "connected" ? Colors.dark.success : Colors.dark.warning 
-              }]} />
+              <View
+                style={[
+                  styles.callStatusDot,
+                  {
+                    backgroundColor:
+                      callState === "connected"
+                        ? Colors.dark.success
+                        : Colors.dark.warning,
+                  },
+                ]}
+              />
             </Animated.View>
             <ThemedText type="body" style={{ color: theme.textSecondary }}>
-              {callState === "connecting" ? "Connecting..." : 
-               callState === "ringing" ? "Ringing..." : 
-               formatDuration(callDuration)}
+              {callState === "connecting"
+                ? "Connecting..."
+                : callState === "ringing"
+                  ? "Ringing..."
+                  : formatDuration(callDuration)}
             </ThemedText>
           </View>
         ) : null}
@@ -346,20 +389,32 @@ export default function VoIPCallingScreen() {
             onPress={handleMuteToggle}
             style={[
               styles.callControlButton,
-              { backgroundColor: isMuted ? theme.error : theme.backgroundSecondary },
+              {
+                backgroundColor: isMuted
+                  ? theme.error
+                  : theme.backgroundSecondary,
+              },
             ]}
           >
-            <Feather name={isMuted ? "mic-off" : "mic"} size={24} color={theme.text} />
+            <Feather
+              name={isMuted ? "mic-off" : "mic"}
+              size={24}
+              color={theme.text}
+            />
             <ThemedText type="caption" style={{ color: theme.textSecondary }}>
               {isMuted ? "Unmute" : "Mute"}
             </ThemedText>
           </Pressable>
-          
+
           <Pressable
             onPress={handleSpeakerToggle}
             style={[
               styles.callControlButton,
-              { backgroundColor: isSpeaker ? theme.primary : theme.backgroundSecondary },
+              {
+                backgroundColor: isSpeaker
+                  ? theme.primary
+                  : theme.backgroundSecondary,
+              },
             ]}
           >
             <Feather name="volume-2" size={24} color={theme.text} />
@@ -367,10 +422,13 @@ export default function VoIPCallingScreen() {
               Speaker
             </ThemedText>
           </Pressable>
-          
+
           <Pressable
             onPress={() => {}}
-            style={[styles.callControlButton, { backgroundColor: theme.backgroundSecondary }]}
+            style={[
+              styles.callControlButton,
+              { backgroundColor: theme.backgroundSecondary },
+            ]}
           >
             <Feather name="grid" size={24} color={theme.text} />
             <ThemedText type="caption" style={{ color: theme.textSecondary }}>
@@ -403,7 +461,7 @@ export default function VoIPCallingScreen() {
         ) : (
           <View style={styles.deleteButton} />
         )}
-        
+
         {isInCall ? (
           <Pressable onPress={handleEndCall} style={styles.endCallButton}>
             <LinearGradient
@@ -427,7 +485,7 @@ export default function VoIPCallingScreen() {
             </LinearGradient>
           </Pressable>
         )}
-        
+
         <View style={styles.deleteButton} />
       </View>
     </ThemedView>

@@ -1,4 +1,4 @@
-import { getApiUrl, getLocalApiUrl, isZekeSyncMode, getAuthHeaders } from "./query-client";
+import { isZekeSyncMode } from "./query-client";
 import { apiClient } from "./api-client";
 import type {
   Task,
@@ -7,11 +7,6 @@ import type {
   CustomListItem,
   CustomListWithItems,
   Contact,
-  CalendarEvent,
-  Message,
-  Conversation,
-  MemoryNote,
-  AccessLevel,
 } from "./zeke-types";
 
 export type {
@@ -28,13 +23,11 @@ export type {
   AccessLevel,
 } from "./zeke-types";
 
-export { accessLevels, customListTypes, customListItemPriorities } from "./zeke-types";
-
-function createTimeoutSignal(ms: number): AbortSignal {
-  const controller = new AbortController();
-  setTimeout(() => controller.abort(), ms);
-  return controller.signal;
-}
+export {
+  accessLevels,
+  customListTypes,
+  customListItemPriorities,
+} from "./zeke-types";
 
 export interface ZekeConversation {
   id: string;
@@ -97,7 +90,7 @@ export interface ZekeCalendar {
 }
 
 export type ZekeTask = Task & {
-  status?: 'pending' | 'completed' | 'cancelled';
+  status?: "pending" | "completed" | "cancelled";
 };
 
 export type ZekeGroceryItem = GroceryItem & {
@@ -109,7 +102,7 @@ export interface ZekeContactConversation {
   id: string;
   title: string;
   phoneNumber?: string;
-  source: 'sms' | 'app' | 'voice';
+  source: "sms" | "app" | "voice";
   mode: string;
   summary?: string;
   createdAt: string;
@@ -132,90 +125,117 @@ export interface DashboardSummary {
 export async function getConversations(): Promise<ZekeConversation[]> {
   try {
     // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
-    return await apiClient.get<ZekeConversation[]>('/api/conversations', {
+    return await apiClient.get<ZekeConversation[]>("/api/conversations", {
       emptyArrayOn404: true,
     });
   } catch (error) {
-    console.error('[ZEKE Chat] Failed to fetch conversations:', error);
+    console.error("[ZEKE Chat] Failed to fetch conversations:", error);
     return [];
   }
 }
 
-export async function createConversation(title?: string): Promise<ZekeConversation> {
-  console.log('[ZEKE Chat] Creating conversation...');
-  
+export async function createConversation(
+  title?: string,
+): Promise<ZekeConversation> {
+  console.log("[ZEKE Chat] Creating conversation...");
+
   // Retry, timeout, and auth now handled centrally by ZekeApiClient
-  const data = await apiClient.post<ZekeConversation>('/api/conversations', {
-    title: title || 'Chat with ZEKE',
-  }, { timeoutMs: 15000 });
-  
-  if (!data?.id || data.id === 'undefined' || data.id === 'null') {
-    console.error('[ZEKE Chat] Invalid conversation ID in response:', data);
-    throw new Error('Invalid conversation ID received from server');
+  const data = await apiClient.post<ZekeConversation>(
+    "/api/conversations",
+    {
+      title: title || "Chat with ZEKE",
+    },
+    { timeoutMs: 15000 },
+  );
+
+  if (!data?.id || data.id === "undefined" || data.id === "null") {
+    console.error("[ZEKE Chat] Invalid conversation ID in response:", data);
+    throw new Error("Invalid conversation ID received from server");
   }
-  
-  console.log('[ZEKE Chat] Conversation created:', data.id);
+
+  console.log("[ZEKE Chat] Conversation created:", data.id);
   return data;
 }
 
-export async function getConversationMessages(conversationId: string): Promise<ZekeMessage[]> {
-  if (!conversationId || conversationId === 'undefined' || conversationId === 'null') {
-    console.error('[ZEKE Chat] Invalid conversation ID:', conversationId);
+export async function getConversationMessages(
+  conversationId: string,
+): Promise<ZekeMessage[]> {
+  if (
+    !conversationId ||
+    conversationId === "undefined" ||
+    conversationId === "null"
+  ) {
+    console.error("[ZEKE Chat] Invalid conversation ID:", conversationId);
     return [];
   }
-  
+
   try {
     // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
     return await apiClient.get<ZekeMessage[]>(
       `/api/conversations/${conversationId}/messages`,
-      { emptyArrayOn404: true }
+      { emptyArrayOn404: true },
     );
   } catch (error) {
-    console.error('[ZEKE Chat] Failed to fetch messages:', error);
+    console.error("[ZEKE Chat] Failed to fetch messages:", error);
     return [];
   }
 }
 
-export async function sendMessage(conversationId: string, content: string): Promise<{ userMessage: ZekeMessage; assistantMessage: ZekeMessage }> {
-  if (!conversationId || conversationId === 'undefined' || conversationId === 'null') {
-    throw new Error('Invalid conversation ID');
+export async function sendMessage(
+  conversationId: string,
+  content: string,
+): Promise<{ userMessage: ZekeMessage; assistantMessage: ZekeMessage }> {
+  if (
+    !conversationId ||
+    conversationId === "undefined" ||
+    conversationId === "null"
+  ) {
+    throw new Error("Invalid conversation ID");
   }
-  
+
   // Retry, timeout, and auth now handled centrally by ZekeApiClient
-  return await apiClient.post<{ userMessage: ZekeMessage; assistantMessage: ZekeMessage }>(
+  return await apiClient.post<{
+    userMessage: ZekeMessage;
+    assistantMessage: ZekeMessage;
+  }>(
     `/api/conversations/${conversationId}/messages`,
     { content },
-    { timeoutMs: 30000 }
+    { timeoutMs: 30000 },
   );
 }
 
-export async function chatWithZeke(message: string, phone?: string): Promise<{ response: string; conversationId?: string }> {
+export async function chatWithZeke(
+  message: string,
+  phone?: string,
+): Promise<{ response: string; conversationId?: string }> {
   // Retry, timeout, and auth now handled centrally by ZekeApiClient
   return await apiClient.post<{ response: string; conversationId?: string }>(
-    '/api/zeke/chat',
-    { message, phone: phone || 'mobile-app' },
-    { timeoutMs: 30000 }
+    "/api/zeke/chat",
+    { message, phone: phone || "mobile-app" },
+    { timeoutMs: 30000 },
   );
 }
 
-export async function getRecentMemories(limit: number = 10): Promise<ZekeMemory[]> {
+export async function getRecentMemories(
+  limit: number = 10,
+): Promise<ZekeMemory[]> {
   try {
     if (isZekeSyncMode()) {
       // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
       const data = await apiClient.get<{ memories?: ZekeMemory[] }>(
-        '/api/omi/memories',
-        { query: { limit }, emptyArrayOn404: true }
+        "/api/omi/memories",
+        { query: { limit }, emptyArrayOn404: true },
       );
       return data.memories || [];
     } else {
       // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
-      return await apiClient.get<ZekeMemory[]>(
-        '/api/memories',
-        { query: { limit }, emptyArrayOn404: true }
-      );
+      return await apiClient.get<ZekeMemory[]>("/api/memories", {
+        query: { limit },
+        emptyArrayOn404: true,
+      });
     }
   } catch (error) {
-    console.error('[Memories] Failed to fetch recent memories:', error);
+    console.error("[Memories] Failed to fetch recent memories:", error);
     return [];
   }
 }
@@ -228,18 +248,20 @@ export interface CreateMemoryParams {
   source?: string;
 }
 
-export async function createZekeMemory(params: CreateMemoryParams): Promise<boolean> {
+export async function createZekeMemory(
+  params: CreateMemoryParams,
+): Promise<boolean> {
   try {
-    await apiClient.post('/api/memories', {
+    await apiClient.post("/api/memories", {
       title: params.title,
       transcript: params.transcript,
       duration: params.duration,
       speakers: params.speakers,
-      summary: `Captured from ${params.source || 'mobile'}`,
+      summary: `Captured from ${params.source || "mobile"}`,
     });
     return true;
   } catch (error) {
-    console.error('[Memories] Failed to create memory:', error);
+    console.error("[Memories] Failed to create memory:", error);
     return false;
   }
 }
@@ -249,20 +271,20 @@ export async function searchMemories(query: string): Promise<ZekeMemory[]> {
     if (isZekeSyncMode()) {
       // Retry, timeout, and auth now handled centrally by ZekeApiClient
       const data = await apiClient.post<{ results?: ZekeMemory[] }>(
-        '/api/semantic-search',
-        { query, limit: 20 }
+        "/api/semantic-search",
+        { query, limit: 20 },
       );
       return data.results || [];
     } else {
       // Retry, timeout, and auth now handled centrally by ZekeApiClient
       const data = await apiClient.post<{ results?: ZekeMemory[] }>(
-        '/api/memories/search',
-        { query }
+        "/api/memories/search",
+        { query },
       );
       return data.results || [];
     }
   } catch (error) {
-    console.error('[Memories] Failed to search memories:', error);
+    console.error("[Memories] Failed to search memories:", error);
     return [];
   }
 }
@@ -271,13 +293,13 @@ export async function getTasks(): Promise<ZekeTask[]> {
   try {
     // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
     const data = await apiClient.get<{ tasks?: ZekeTask[] }>(
-      '/api/zeke/tasks',
-      { emptyArrayOn404: true }
+      "/api/zeke/tasks",
+      { emptyArrayOn404: true },
     );
-    console.log('[ZEKE Proxy] Tasks fetched:', data.tasks?.length || 0);
+    console.log("[ZEKE Proxy] Tasks fetched:", data.tasks?.length || 0);
     return data.tasks || [];
   } catch (error) {
-    console.error('[ZEKE Proxy] Tasks error:', error);
+    console.error("[ZEKE Proxy] Tasks error:", error);
     return [];
   }
 }
@@ -286,13 +308,13 @@ export async function getGroceryItems(): Promise<ZekeGroceryItem[]> {
   try {
     // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
     const data = await apiClient.get<{ items?: ZekeGroceryItem[] }>(
-      '/api/zeke/grocery',
-      { emptyArrayOn404: true }
+      "/api/zeke/grocery",
+      { emptyArrayOn404: true },
     );
-    console.log('[ZEKE Proxy] Grocery items fetched:', data.items?.length || 0);
+    console.log("[ZEKE Proxy] Grocery items fetched:", data.items?.length || 0);
     return data.items || [];
   } catch (error) {
-    console.error('[ZEKE Proxy] Grocery error:', error);
+    console.error("[ZEKE Proxy] Grocery error:", error);
     return [];
   }
 }
@@ -310,12 +332,12 @@ export async function getReminders(): Promise<ZekeReminder[]> {
   try {
     // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
     const data = await apiClient.get<{ reminders?: ZekeReminder[] }>(
-      '/api/reminders',
-      { emptyArrayOn404: true }
+      "/api/reminders",
+      { emptyArrayOn404: true },
     );
     return data.reminders || [];
   } catch (error) {
-    console.error('[Reminders] Failed to fetch reminders:', error);
+    console.error("[Reminders] Failed to fetch reminders:", error);
     return [];
   }
 }
@@ -324,13 +346,13 @@ export async function getContacts(): Promise<ZekeContact[]> {
   try {
     // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
     const data = await apiClient.get<{ contacts?: ZekeContact[] }>(
-      '/api/zeke/contacts',
-      { emptyArrayOn404: true }
+      "/api/zeke/contacts",
+      { emptyArrayOn404: true },
     );
-    console.log('[ZEKE Proxy] Contacts fetched:', data.contacts?.length || 0);
+    console.log("[ZEKE Proxy] Contacts fetched:", data.contacts?.length || 0);
     return data.contacts || [];
   } catch (error) {
-    console.error('[ZEKE Proxy] Contacts error:', error);
+    console.error("[ZEKE Proxy] Contacts error:", error);
     return [];
   }
 }
@@ -340,19 +362,27 @@ export async function getContact(id: string): Promise<ZekeContact | null> {
     // Retry and timeout now handled centrally by ZekeApiClient
     return await apiClient.get<ZekeContact>(`/api/zeke/contacts/${id}`);
   } catch (error) {
-    console.error('[Contacts] Failed to fetch contact:', error);
+    console.error("[Contacts] Failed to fetch contact:", error);
     return null;
   }
 }
 
-export async function createContact(data: Partial<ZekeContact>): Promise<ZekeContact> {
+export async function createContact(
+  data: Partial<ZekeContact>,
+): Promise<ZekeContact> {
   // Retry, timeout, and auth now handled centrally by ZekeApiClient
-  return await apiClient.post<ZekeContact>('/api/zeke/contacts', data);
+  return await apiClient.post<ZekeContact>("/api/zeke/contacts", data);
 }
 
-export async function updateContact(id: string, updates: Partial<ZekeContact>): Promise<ZekeContact> {
+export async function updateContact(
+  id: string,
+  updates: Partial<ZekeContact>,
+): Promise<ZekeContact> {
   // Retry, timeout, and auth now handled centrally by ZekeApiClient
-  return await apiClient.patch<ZekeContact>(`/api/zeke/contacts/${id}`, updates);
+  return await apiClient.patch<ZekeContact>(
+    `/api/zeke/contacts/${id}`,
+    updates,
+  );
 }
 
 export async function deleteContact(id: string): Promise<void> {
@@ -377,62 +407,86 @@ export interface ImportContactsResult {
   errors: string[];
 }
 
-export async function importContacts(contacts: ImportContactData[]): Promise<ImportContactsResult> {
+export async function importContacts(
+  contacts: ImportContactData[],
+): Promise<ImportContactsResult> {
   const result: ImportContactsResult = {
     imported: 0,
     failed: 0,
     duplicates: 0,
     errors: [],
   };
-  
+
   for (const contact of contacts) {
     try {
       await createContact(contact);
       result.imported++;
     } catch (error: any) {
-      if (error.message?.includes('duplicate') || error.message?.includes('exists')) {
+      if (
+        error.message?.includes("duplicate") ||
+        error.message?.includes("exists")
+      ) {
         result.duplicates++;
       } else {
         result.failed++;
-        result.errors.push(`${contact.firstName || ''} ${contact.lastName || ''}: ${error.message}`);
+        result.errors.push(
+          `${contact.firstName || ""} ${contact.lastName || ""}: ${error.message}`,
+        );
       }
     }
   }
-  
+
   return result;
 }
 
-export async function getSmsConversations(): Promise<ZekeContactConversation[]> {
+export async function getSmsConversations(): Promise<
+  ZekeContactConversation[]
+> {
   try {
     // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
     // Routes to local API via isLocalEndpoint() check
-    const data = await apiClient.get<{ conversations?: ZekeContactConversation[] }>(
-      '/api/sms-log',
-      { emptyArrayOn404: true }
-    );
+    const data = await apiClient.get<{
+      conversations?: ZekeContactConversation[];
+    }>("/api/sms-log", { emptyArrayOn404: true });
     return data.conversations || [];
   } catch (error) {
-    console.error('[SMS] Failed to fetch SMS conversations:', error);
+    console.error("[SMS] Failed to fetch SMS conversations:", error);
     return [];
   }
 }
 
-export async function sendSms(to: string, message: string): Promise<{ sid: string; to: string; from: string; body: string; status: string }> {
+export async function sendSms(
+  to: string,
+  message: string,
+): Promise<{
+  sid: string;
+  to: string;
+  from: string;
+  body: string;
+  status: string;
+}> {
   // Retry, timeout, and auth now handled centrally by ZekeApiClient
   // Routes to local API via isLocalEndpoint() check
-  return await apiClient.post<{ sid: string; to: string; from: string; body: string; status: string }>(
-    '/api/twilio/sms/send',
-    { to, body: message }
-  );
+  return await apiClient.post<{
+    sid: string;
+    to: string;
+    from: string;
+    body: string;
+    status: string;
+  }>("/api/twilio/sms/send", { to, body: message });
 }
 
-export async function initiateCall(to: string): Promise<{ sid: string; to: string; from: string; status: string }> {
+export async function initiateCall(
+  to: string,
+): Promise<{ sid: string; to: string; from: string; status: string }> {
   // Retry, timeout, and auth now handled centrally by ZekeApiClient
   // Routes to local API via isLocalEndpoint() check
-  return await apiClient.post<{ sid: string; to: string; from: string; status: string }>(
-    '/api/twilio/call/initiate',
-    { to }
-  );
+  return await apiClient.post<{
+    sid: string;
+    to: string;
+    from: string;
+    status: string;
+  }>("/api/twilio/call/initiate", { to });
 }
 
 export interface TwilioSmsConversation {
@@ -450,7 +504,7 @@ export interface TwilioSmsMessage {
   from: string;
   body: string;
   status: string;
-  direction: 'inbound' | 'outbound-api' | 'outbound-reply';
+  direction: "inbound" | "outbound-api" | "outbound-reply";
   dateSent: string | null;
   dateCreated: string;
 }
@@ -460,37 +514,41 @@ export interface TwilioCallRecord {
   to: string;
   from: string;
   status: string;
-  direction: 'inbound' | 'outbound-api' | 'outbound-dial';
+  direction: "inbound" | "outbound-api" | "outbound-dial";
   duration: number;
   startTime: string | null;
   endTime: string | null;
   dateCreated: string;
 }
 
-export async function getTwilioConversations(): Promise<TwilioSmsConversation[]> {
+export async function getTwilioConversations(): Promise<
+  TwilioSmsConversation[]
+> {
   try {
     // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
     // Routes to local API via isLocalEndpoint() check
     const data = await apiClient.get<TwilioSmsConversation[]>(
-      '/api/twilio/sms/conversations',
-      { emptyArrayOn404: true }
+      "/api/twilio/sms/conversations",
+      { emptyArrayOn404: true },
     );
     return Array.isArray(data) ? data : [];
   } catch (error) {
-    console.error('[Twilio] Failed to fetch conversations:', error);
+    console.error("[Twilio] Failed to fetch conversations:", error);
     return [];
   }
 }
 
-export async function getTwilioConversation(phoneNumber: string): Promise<TwilioSmsConversation | null> {
+export async function getTwilioConversation(
+  phoneNumber: string,
+): Promise<TwilioSmsConversation | null> {
   try {
     // Retry and timeout now handled centrally by ZekeApiClient
     // Routes to local API via isLocalEndpoint() check
     return await apiClient.get<TwilioSmsConversation>(
-      `/api/twilio/sms/conversation/${encodeURIComponent(phoneNumber)}`
+      `/api/twilio/sms/conversation/${encodeURIComponent(phoneNumber)}`,
     );
   } catch (error) {
-    console.error('[Twilio] Failed to fetch conversation:', error);
+    console.error("[Twilio] Failed to fetch conversation:", error);
     return null;
   }
 }
@@ -499,13 +557,12 @@ export async function getTwilioCalls(): Promise<TwilioCallRecord[]> {
   try {
     // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
     // Routes to local API via isLocalEndpoint() check
-    const data = await apiClient.get<TwilioCallRecord[]>(
-      '/api/twilio/calls',
-      { emptyArrayOn404: true }
-    );
+    const data = await apiClient.get<TwilioCallRecord[]>("/api/twilio/calls", {
+      emptyArrayOn404: true,
+    });
     return Array.isArray(data) ? data : [];
   } catch (error) {
-    console.error('[Twilio] Failed to fetch calls:', error);
+    console.error("[Twilio] Failed to fetch calls:", error);
     return [];
   }
 }
@@ -515,23 +572,26 @@ export async function getTwilioPhoneNumber(): Promise<string | null> {
     // Retry and timeout now handled centrally by ZekeApiClient
     // Routes to local API via isLocalEndpoint() check
     const data = await apiClient.get<{ phoneNumber?: string }>(
-      '/api/twilio/phone-number'
+      "/api/twilio/phone-number",
     );
     return data.phoneNumber || null;
   } catch (error) {
-    console.error('[Twilio] Failed to fetch phone number:', error);
+    console.error("[Twilio] Failed to fetch phone number:", error);
     return null;
   }
 }
 
-export async function getHealthStatus(): Promise<{ status: string; connected: boolean }> {
+export async function getHealthStatus(): Promise<{
+  status: string;
+  connected: boolean;
+}> {
   try {
     // Retry and timeout now handled centrally by ZekeApiClient
     // Does NOT use emptyArrayOn404 - health is boolean, not a list
-    await apiClient.get<any>('/healthz', { timeoutMs: 5000 });
-    return { status: 'healthy', connected: true };
+    await apiClient.get<any>("/healthz", { timeoutMs: 5000 });
+    return { status: "healthy", connected: true };
   } catch {
-    return { status: 'unreachable', connected: false };
+    return { status: "unreachable", connected: false };
   }
 }
 
@@ -540,12 +600,12 @@ export async function getZekeDevices(): Promise<ZekeDevice[]> {
     if (isZekeSyncMode()) {
       // Retry, timeout, and auth now handled centrally by ZekeApiClient
       const data = await apiClient.get<{ devices?: ZekeDevice[] }>(
-        '/api/omi/devices',
-        { timeoutMs: 5000 }
+        "/api/omi/devices",
+        { timeoutMs: 5000 },
       );
       return data.devices || getDefaultZekeDevices();
     }
-    
+
     return getDefaultZekeDevices();
   } catch {
     return getDefaultZekeDevices();
@@ -555,98 +615,113 @@ export async function getZekeDevices(): Promise<ZekeDevice[]> {
 function getDefaultZekeDevices(): ZekeDevice[] {
   return [
     {
-      id: 'zeke-omi',
-      name: 'ZEKE Omi',
-      type: 'omi',
+      id: "zeke-omi",
+      name: "ZEKE Omi",
+      type: "omi",
       isConnected: true,
       createdAt: new Date().toISOString(),
-    }
+    },
   ];
 }
 
 export async function getDashboardSummary(): Promise<DashboardSummary> {
   try {
     // Retry and timeout now handled centrally by ZekeApiClient
-    return await apiClient.get<DashboardSummary>(
-      '/api/dashboard/summary',
-      { timeoutMs: 5000 }
-    );
-  } catch {
-  }
-  
+    return await apiClient.get<DashboardSummary>("/api/dashboard/summary", {
+      timeoutMs: 5000,
+    });
+  } catch {}
+
   const [events, tasks, grocery, memories] = await Promise.all([
     getTodayEvents(),
     getPendingTasks(),
     getGroceryItems(),
     getRecentMemories(100),
   ]);
-  
+
   return {
     eventsCount: events.length,
     pendingTasksCount: tasks.length,
-    groceryItemsCount: grocery.filter(g => !g.isPurchased).length,
+    groceryItemsCount: grocery.filter((g) => !g.isPurchased).length,
     memoriesCount: memories.length,
   };
 }
 
-export async function getEventsForDateRange(startDate: Date, endDate: Date): Promise<ZekeEvent[]> {
-  console.log('[Calendar] Fetching events for range:', startDate.toISOString(), 'to', endDate.toISOString());
-  
+export async function getEventsForDateRange(
+  startDate: Date,
+  endDate: Date,
+): Promise<ZekeEvent[]> {
+  console.log(
+    "[Calendar] Fetching events for range:",
+    startDate.toISOString(),
+    "to",
+    endDate.toISOString(),
+  );
+
   try {
     // Retry and timeout now handled centrally by ZekeApiClient
     // Routes to local API via isLocalEndpoint() check
     const data = await apiClient.get<{ events?: ZekeEvent[] }>(
-      '/api/calendar/events',
-      { 
-        query: { 
+      "/api/calendar/events",
+      {
+        query: {
           timeMin: startDate.toISOString(),
-          timeMax: endDate.toISOString()
+          timeMax: endDate.toISOString(),
         },
-        timeoutMs: 10000 
-      }
+        timeoutMs: 10000,
+      },
     );
-    console.log('[Calendar] Fetched range events count:', Array.isArray(data) ? data.length : (data.events?.length ?? 0));
+    console.log(
+      "[Calendar] Fetched range events count:",
+      Array.isArray(data) ? data.length : (data.events?.length ?? 0),
+    );
     return data.events || [];
   } catch (error) {
-    console.error('[Calendar] Range fetch error, trying ZEKE proxy:', error);
+    console.error("[Calendar] Range fetch error, trying ZEKE proxy:", error);
     return getEventsFromZekeProxy(startDate, endDate);
   }
 }
 
-async function getEventsFromZekeProxy(startDate: Date, endDate: Date): Promise<ZekeEvent[]> {
+async function getEventsFromZekeProxy(
+  startDate: Date,
+  endDate: Date,
+): Promise<ZekeEvent[]> {
   try {
     // Retry and timeout now handled centrally by ZekeApiClient
     const data = await apiClient.get<{ events?: ZekeEvent[] }>(
-      '/api/zeke/calendar/events',
-      { 
+      "/api/zeke/calendar/events",
+      {
         query: {
           timeMin: startDate.toISOString(),
-          timeMax: endDate.toISOString()
+          timeMax: endDate.toISOString(),
         },
-        timeoutMs: 10000
-      }
+        timeoutMs: 10000,
+      },
     );
     return data.events || [];
   } catch (error) {
-    console.error('[Calendar] ZEKE proxy fetch error:', error);
+    console.error("[Calendar] ZEKE proxy fetch error:", error);
     return [];
   }
 }
 
 export async function getTodayEvents(): Promise<ZekeEvent[]> {
-  console.log('[Calendar] Fetching today events');
-  
+  console.log("[Calendar] Fetching today events");
+
   try {
     // Retry and timeout now handled centrally by ZekeApiClient
     // Routes to local API via isLocalEndpoint() check
     const data = await apiClient.get<{ events?: ZekeEvent[] }>(
-      '/api/calendar/today',
-      { timeoutMs: 10000 }
+      "/api/calendar/today",
+      { timeoutMs: 10000 },
     );
-    console.log('[Calendar] Fetched events count:', Array.isArray(data) ? data.length : (data.events?.length ?? 0));
+    console.log(
+      "[Calendar] Fetched events count:",
+      Array.isArray(data) ? data.length : (data.events?.length ?? 0),
+    );
     return data.events || [];
   } catch (error) {
-    console.error('[Calendar] Fetch error, trying ZEKE proxy:', error);
+    console.error("[Calendar] Fetch error, trying ZEKE proxy:", error);
     return getTodayEventsFromZekeProxy();
   }
 }
@@ -655,13 +730,16 @@ async function getTodayEventsFromZekeProxy(): Promise<ZekeEvent[]> {
   try {
     // Retry and timeout now handled centrally by ZekeApiClient
     const data = await apiClient.get<{ events?: ZekeEvent[] }>(
-      '/api/zeke/calendar/today',
-      { timeoutMs: 10000 }
+      "/api/zeke/calendar/today",
+      { timeoutMs: 10000 },
     );
-    console.log('[Calendar] ZEKE proxy fetched events count:', Array.isArray(data) ? data.length : (data.events?.length ?? 0));
+    console.log(
+      "[Calendar] ZEKE proxy fetched events count:",
+      Array.isArray(data) ? data.length : (data.events?.length ?? 0),
+    );
     return data.events || [];
   } catch (error) {
-    console.error('[Calendar] ZEKE proxy fetch error:', error);
+    console.error("[Calendar] ZEKE proxy fetch error:", error);
     return [];
   }
 }
@@ -671,10 +749,10 @@ export async function getPendingTasks(): Promise<ZekeTask[]> {
     // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
     // Routes to local API via isLocalEndpoint() check
     const data = await apiClient.get<{ tasks?: ZekeTask[] }>(
-      '/api/zeke/tasks',
-      { query: { status: 'pending' }, emptyArrayOn404: true, timeoutMs: 5000 }
+      "/api/zeke/tasks",
+      { query: { status: "pending" }, emptyArrayOn404: true, timeoutMs: 5000 },
     );
-    return (data.tasks || []).filter((t: ZekeTask) => t.status === 'pending');
+    return (data.tasks || []).filter((t: ZekeTask) => t.status === "pending");
   } catch {
     return [];
   }
@@ -684,24 +762,27 @@ export async function addGroceryItem(
   name: string,
   quantity?: number,
   unit?: string,
-  category?: string
+  category?: string,
 ): Promise<ZekeGroceryItem> {
   // Retry, timeout, and auth now handled centrally by ZekeApiClient
-  return await apiClient.post<ZekeGroceryItem>('/api/zeke/grocery', {
+  return await apiClient.post<ZekeGroceryItem>("/api/zeke/grocery", {
     name,
     quantity: quantity !== undefined ? String(quantity) : "1",
     unit: unit || "",
     category: category || "General",
-    addedBy: "mobile-app"
+    addedBy: "mobile-app",
   });
 }
 
 export async function updateGroceryItem(
   id: string,
-  updates: Partial<ZekeGroceryItem>
+  updates: Partial<ZekeGroceryItem>,
 ): Promise<ZekeGroceryItem> {
   // Retry, timeout, and auth now handled centrally by ZekeApiClient
-  return await apiClient.patch<ZekeGroceryItem>(`/api/zeke/grocery/${id}`, updates);
+  return await apiClient.patch<ZekeGroceryItem>(
+    `/api/zeke/grocery/${id}`,
+    updates,
+  );
 }
 
 export async function deleteGroceryItem(id: string): Promise<void> {
@@ -711,7 +792,7 @@ export async function deleteGroceryItem(id: string): Promise<void> {
 
 export async function toggleGroceryPurchased(
   id: string,
-  purchased: boolean
+  purchased: boolean,
 ): Promise<ZekeGroceryItem> {
   return updateGroceryItem(id, { isPurchased: purchased });
 }
@@ -721,13 +802,13 @@ export async function getAllTasks(): Promise<ZekeTask[]> {
     // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
     // Routes to local API via isLocalEndpoint() check
     const data = await apiClient.get<{ tasks?: ZekeTask[] }>(
-      '/api/zeke/tasks',
-      { emptyArrayOn404: true, timeoutMs: 5000 }
+      "/api/zeke/tasks",
+      { emptyArrayOn404: true, timeoutMs: 5000 },
     );
-    console.log('[ZEKE Proxy] getAllTasks fetched:', data.tasks?.length || 0);
+    console.log("[ZEKE Proxy] getAllTasks fetched:", data.tasks?.length || 0);
     return data.tasks || [];
   } catch (error) {
-    console.error('[ZEKE Proxy] getAllTasks error:', error);
+    console.error("[ZEKE Proxy] getAllTasks error:", error);
     return [];
   }
 }
@@ -735,15 +816,19 @@ export async function getAllTasks(): Promise<ZekeTask[]> {
 export async function createTask(
   title: string,
   dueDate?: string,
-  priority?: string
+  priority?: string,
 ): Promise<ZekeTask> {
   // Retry, timeout, and auth now handled centrally by ZekeApiClient
-  return await apiClient.post<ZekeTask>('/api/zeke/tasks', { title, dueDate, priority });
+  return await apiClient.post<ZekeTask>("/api/zeke/tasks", {
+    title,
+    dueDate,
+    priority,
+  });
 }
 
 export async function updateTask(
   id: string,
-  updates: Partial<ZekeTask>
+  updates: Partial<ZekeTask>,
 ): Promise<ZekeTask> {
   // Retry, timeout, and auth now handled centrally by ZekeApiClient
   return await apiClient.patch<ZekeTask>(`/api/zeke/tasks/${id}`, updates);
@@ -756,9 +841,9 @@ export async function deleteTask(id: string): Promise<void> {
 
 export async function toggleTaskComplete(
   id: string,
-  completed: boolean
+  completed: boolean,
 ): Promise<ZekeTask> {
-  return updateTask(id, { status: completed ? 'completed' : 'pending' });
+  return updateTask(id, { status: completed ? "completed" : "pending" });
 }
 
 export async function createCalendarEvent(
@@ -767,17 +852,17 @@ export async function createCalendarEvent(
   endTime?: string,
   location?: string,
   calendarId?: string,
-  description?: string
+  description?: string,
 ): Promise<ZekeEvent> {
   // Retry, timeout, and auth now handled centrally by ZekeApiClient
   // Routes to local API via isLocalEndpoint() check
-  return await apiClient.post<ZekeEvent>('/api/calendar/events', {
+  return await apiClient.post<ZekeEvent>("/api/calendar/events", {
     title,
     startTime,
     endTime,
     location,
     calendarId,
-    description
+    description,
   });
 }
 
@@ -790,45 +875,56 @@ export async function updateCalendarEvent(
     location?: string;
     description?: string;
     calendarId?: string;
-  }
+  },
 ): Promise<ZekeEvent> {
   // Retry, timeout, and auth now handled centrally by ZekeApiClient
   // Routes to local API via isLocalEndpoint() check
-  return await apiClient.patch<ZekeEvent>(`/api/calendar/events/${eventId}`, updates);
+  return await apiClient.patch<ZekeEvent>(
+    `/api/calendar/events/${eventId}`,
+    updates,
+  );
 }
 
-export async function getUpcomingEvents(limit: number = 10): Promise<ZekeEvent[]> {
+export async function getUpcomingEvents(
+  limit: number = 10,
+): Promise<ZekeEvent[]> {
   try {
     // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
     // Routes to local API via isLocalEndpoint() check
     const data = await apiClient.get<{ events?: ZekeEvent[] }>(
-      '/api/calendar/upcoming',
-      { query: { limit }, emptyArrayOn404: true }
+      "/api/calendar/upcoming",
+      { query: { limit }, emptyArrayOn404: true },
     );
     return data.events || [];
   } catch (error) {
-    console.error('[Calendar] Failed to fetch upcoming events:', error);
+    console.error("[Calendar] Failed to fetch upcoming events:", error);
     return [];
   }
 }
 
-export async function deleteCalendarEvent(id: string, calendarId?: string): Promise<void> {
+export async function deleteCalendarEvent(
+  id: string,
+  calendarId?: string,
+): Promise<void> {
   // Retry, timeout, and auth now handled centrally by ZekeApiClient
   // Routes to local API via isLocalEndpoint() check
   const endpoint = `/api/calendar/events/${id}`;
-  await apiClient.delete(endpoint, calendarId ? { query: { calendarId } } : undefined);
+  await apiClient.delete(
+    endpoint,
+    calendarId ? { query: { calendarId } } : undefined,
+  );
 }
 
 export async function getCalendarList(): Promise<ZekeCalendar[]> {
   try {
     // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
     // Routes to local API via isLocalEndpoint() check
-    return await apiClient.get<ZekeCalendar[]>(
-      '/api/calendar/calendars',
-      { emptyArrayOn404: true, timeoutMs: 10000 }
-    );
+    return await apiClient.get<ZekeCalendar[]>("/api/calendar/calendars", {
+      emptyArrayOn404: true,
+      timeoutMs: 10000,
+    });
   } catch (error) {
-    console.error('[Calendar] Failed to fetch calendar list:', error);
+    console.error("[Calendar] Failed to fetch calendar list:", error);
     return [];
   }
 }
@@ -837,12 +933,11 @@ export async function getZekeCalendar(): Promise<ZekeCalendar | null> {
   try {
     // Retry and timeout now handled centrally by ZekeApiClient
     // Routes to local API via isLocalEndpoint() check
-    return await apiClient.get<ZekeCalendar>(
-      '/api/calendar/zeke',
-      { timeoutMs: 10000 }
-    );
+    return await apiClient.get<ZekeCalendar>("/api/calendar/zeke", {
+      timeoutMs: 10000,
+    });
   } catch (error) {
-    console.error('[Calendar] Failed to fetch ZEKE calendar:', error);
+    console.error("[Calendar] Failed to fetch ZEKE calendar:", error);
     return null;
   }
 }
@@ -851,7 +946,13 @@ export interface ActivityItem {
   id: string;
   action: string;
   timestamp: string;
-  icon: 'message-circle' | 'mic' | 'check-square' | 'calendar' | 'shopping-cart' | 'user';
+  icon:
+    | "message-circle"
+    | "mic"
+    | "check-square"
+    | "calendar"
+    | "shopping-cart"
+    | "user";
   rawDate: Date;
 }
 
@@ -859,23 +960,25 @@ function getRelativeTime(date: Date): string {
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffMins = Math.floor(diffMs / 60000);
-  
-  if (diffMins < 1) return 'Just now';
+
+  if (diffMins < 1) return "Just now";
   if (diffMins < 60) return `${diffMins} min ago`;
-  
+
   const diffHours = Math.floor(diffMins / 60);
   if (diffHours < 24) return `${diffHours} hr ago`;
-  
+
   const diffDays = Math.floor(diffHours / 24);
-  if (diffDays === 1) return 'Yesterday';
+  if (diffDays === 1) return "Yesterday";
   if (diffDays < 7) return `${diffDays} days ago`;
-  
+
   return date.toLocaleDateString();
 }
 
-export async function getRecentActivities(limit: number = 10): Promise<ActivityItem[]> {
+export async function getRecentActivities(
+  limit: number = 10,
+): Promise<ActivityItem[]> {
   const activities: ActivityItem[] = [];
-  
+
   try {
     const [memories, tasks, smsConversations, events] = await Promise.all([
       getRecentMemories(5).catch(() => []),
@@ -883,74 +986,77 @@ export async function getRecentActivities(limit: number = 10): Promise<ActivityI
       getTwilioConversations().catch(() => []),
       getTodayEvents().catch(() => []),
     ]);
-    
+
     for (const memory of memories) {
       const date = new Date(memory.createdAt);
       const durationMin = Math.round((memory.duration || 0) / 60);
       activities.push({
         id: `memory-${memory.id}`,
-        action: durationMin > 0 
-          ? `Recorded ${durationMin} min ${memory.title || 'audio'}` 
-          : `Recorded: ${memory.title || 'audio memory'}`,
+        action:
+          durationMin > 0
+            ? `Recorded ${durationMin} min ${memory.title || "audio"}`
+            : `Recorded: ${memory.title || "audio memory"}`,
         timestamp: getRelativeTime(date),
-        icon: 'mic',
+        icon: "mic",
         rawDate: date,
       });
     }
-    
+
     const recentTasks = tasks
-      .filter((t: ZekeTask) => t.status === 'completed' || t.createdAt)
+      .filter((t: ZekeTask) => t.status === "completed" || t.createdAt)
       .slice(0, 5);
-    
+
     for (const task of recentTasks) {
       const date = new Date(task.createdAt);
-      const isCompleted = task.status === 'completed';
+      const isCompleted = task.status === "completed";
       activities.push({
         id: `task-${task.id}`,
-        action: isCompleted 
-          ? `Completed: ${task.title}` 
+        action: isCompleted
+          ? `Completed: ${task.title}`
           : `Added task: ${task.title}`,
         timestamp: getRelativeTime(date),
-        icon: 'check-square',
+        icon: "check-square",
         rawDate: date,
       });
     }
-    
+
     for (const convo of smsConversations.slice(0, 5)) {
       if (convo.messages && convo.messages.length > 0) {
         const lastMsg = convo.messages[convo.messages.length - 1];
-        const date = new Date(lastMsg.dateCreated || lastMsg.dateSent || new Date());
-        const isOutbound = lastMsg.direction?.includes('outbound');
-        const contactName = convo.contactName || convo.phoneNumber || 'Unknown';
-        
+        const date = new Date(
+          lastMsg.dateCreated || lastMsg.dateSent || new Date(),
+        );
+        const isOutbound = lastMsg.direction?.includes("outbound");
+        const contactName = convo.contactName || convo.phoneNumber || "Unknown";
+
         activities.push({
           id: `sms-${lastMsg.sid || convo.phoneNumber}`,
-          action: isOutbound 
-            ? `Sent SMS to ${contactName}` 
+          action: isOutbound
+            ? `Sent SMS to ${contactName}`
             : `Received SMS from ${contactName}`,
           timestamp: getRelativeTime(date),
-          icon: 'message-circle',
+          icon: "message-circle",
           rawDate: date,
         });
       }
     }
-    
+
     for (const event of events.slice(0, 3)) {
       const date = new Date(event.startTime);
       activities.push({
         id: `event-${event.id}`,
         action: `Synced: ${event.title}`,
         timestamp: getRelativeTime(date),
-        icon: 'calendar',
+        icon: "calendar",
         rawDate: date,
       });
     }
-    
+
     activities.sort((a, b) => b.rawDate.getTime() - a.rawDate.getTime());
-    
+
     return activities.slice(0, limit);
   } catch (error) {
-    console.error('[Activities] Error fetching activities:', error);
+    console.error("[Activities] Error fetching activities:", error);
     return [];
   }
 }
@@ -985,13 +1091,15 @@ export interface StarredPlace {
   createdAt: string;
 }
 
-export async function syncLocationSamples(samples: LocationSample[]): Promise<{ synced: number }> {
+export async function syncLocationSamples(
+  samples: LocationSample[],
+): Promise<{ synced: number }> {
   try {
     // Retry, timeout, and auth now handled centrally by ZekeApiClient
     const data = await apiClient.post<{ synced?: number }>(
-      '/api/location/samples',
+      "/api/location/samples",
       { samples },
-      { timeoutMs: 10000 }
+      { timeoutMs: 10000 },
     );
     return { synced: data.synced || 0 };
   } catch {
@@ -999,16 +1107,23 @@ export async function syncLocationSamples(samples: LocationSample[]): Promise<{ 
   }
 }
 
-export async function getLocationSamplesFromBackend(since?: string, limit?: number): Promise<LocationSample[]> {
+export async function getLocationSamplesFromBackend(
+  since?: string,
+  limit?: number,
+): Promise<LocationSample[]> {
   try {
     // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
     const query: Record<string, string> = {};
     if (since) query.since = since;
     if (limit) query.limit = limit.toString();
-    
+
     const data = await apiClient.get<{ samples?: LocationSample[] }>(
-      '/api/location/samples',
-      { query: Object.keys(query).length > 0 ? query : undefined, emptyArrayOn404: true, timeoutMs: 10000 }
+      "/api/location/samples",
+      {
+        query: Object.keys(query).length > 0 ? query : undefined,
+        emptyArrayOn404: true,
+        timeoutMs: 10000,
+      },
     );
     return data.samples || [];
   } catch {
@@ -1016,13 +1131,15 @@ export async function getLocationSamplesFromBackend(since?: string, limit?: numb
   }
 }
 
-export async function syncStarredPlaces(places: StarredPlace[]): Promise<{ synced: number }> {
+export async function syncStarredPlaces(
+  places: StarredPlace[],
+): Promise<{ synced: number }> {
   try {
     // Retry, timeout, and auth now handled centrally by ZekeApiClient
     const data = await apiClient.post<{ synced?: number }>(
-      '/api/location/starred',
+      "/api/location/starred",
       { places },
-      { timeoutMs: 10000 }
+      { timeoutMs: 10000 },
     );
     return { synced: data.synced || 0 };
   } catch {
@@ -1034,8 +1151,8 @@ export async function getStarredPlacesFromBackend(): Promise<StarredPlace[]> {
   try {
     // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
     const data = await apiClient.get<{ places?: StarredPlace[] }>(
-      '/api/location/starred',
-      { emptyArrayOn404: true, timeoutMs: 10000 }
+      "/api/location/starred",
+      { emptyArrayOn404: true, timeoutMs: 10000 },
     );
     return data.places || [];
   } catch {
@@ -1050,9 +1167,9 @@ export interface Geofence {
   longitude: number;
   radius: number;
   listId?: string;
-  triggerOn: 'enter' | 'exit' | 'both';
+  triggerOn: "enter" | "exit" | "both";
   isActive: boolean;
-  actionType: 'notification' | 'grocery_prompt' | 'custom';
+  actionType: "notification" | "grocery_prompt" | "custom";
   actionData?: any;
   createdAt: string;
 }
@@ -1062,17 +1179,19 @@ export interface LocationList {
   name: string;
   description?: string;
   defaultRadius: number;
-  actionType: 'notification' | 'grocery_prompt' | 'custom';
+  actionType: "notification" | "grocery_prompt" | "custom";
   isActive: boolean;
   geofenceIds: string[];
   createdAt: string;
 }
 
-const GEOFENCE_STORAGE_KEY = '@zeke/geofences';
-const LOCATION_LISTS_STORAGE_KEY = '@zeke/location_lists';
+const GEOFENCE_STORAGE_KEY = "@zeke/geofences";
+const LOCATION_LISTS_STORAGE_KEY = "@zeke/location_lists";
 
 async function getAsyncStorage() {
-  const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+  const AsyncStorage = (
+    await import("@react-native-async-storage/async-storage")
+  ).default;
   return AsyncStorage;
 }
 
@@ -1091,7 +1210,7 @@ export async function saveGeofences(geofences: Geofence[]): Promise<void> {
     const AsyncStorage = await getAsyncStorage();
     await AsyncStorage.setItem(GEOFENCE_STORAGE_KEY, JSON.stringify(geofences));
   } catch (error) {
-    console.error('Error saving geofences:', error);
+    console.error("Error saving geofences:", error);
   }
 }
 
@@ -1102,11 +1221,14 @@ export async function addGeofence(geofence: Geofence): Promise<Geofence> {
   return geofence;
 }
 
-export async function updateGeofence(id: string, updates: Partial<Geofence>): Promise<Geofence | null> {
+export async function updateGeofence(
+  id: string,
+  updates: Partial<Geofence>,
+): Promise<Geofence | null> {
   const geofences = await getGeofences();
-  const index = geofences.findIndex(g => g.id === id);
+  const index = geofences.findIndex((g) => g.id === id);
   if (index === -1) return null;
-  
+
   geofences[index] = { ...geofences[index], ...updates };
   await saveGeofences(geofences);
   return geofences[index];
@@ -1114,7 +1236,7 @@ export async function updateGeofence(id: string, updates: Partial<Geofence>): Pr
 
 export async function deleteGeofence(id: string): Promise<void> {
   const geofences = await getGeofences();
-  const filtered = geofences.filter(g => g.id !== id);
+  const filtered = geofences.filter((g) => g.id !== id);
   await saveGeofences(filtered);
 }
 
@@ -1131,24 +1253,32 @@ export async function getLocationLists(): Promise<LocationList[]> {
 export async function saveLocationLists(lists: LocationList[]): Promise<void> {
   try {
     const AsyncStorage = await getAsyncStorage();
-    await AsyncStorage.setItem(LOCATION_LISTS_STORAGE_KEY, JSON.stringify(lists));
+    await AsyncStorage.setItem(
+      LOCATION_LISTS_STORAGE_KEY,
+      JSON.stringify(lists),
+    );
   } catch (error) {
-    console.error('Error saving location lists:', error);
+    console.error("Error saving location lists:", error);
   }
 }
 
-export async function addLocationList(list: LocationList): Promise<LocationList> {
+export async function addLocationList(
+  list: LocationList,
+): Promise<LocationList> {
   const lists = await getLocationLists();
   lists.unshift(list);
   await saveLocationLists(lists);
   return list;
 }
 
-export async function updateLocationList(id: string, updates: Partial<LocationList>): Promise<LocationList | null> {
+export async function updateLocationList(
+  id: string,
+  updates: Partial<LocationList>,
+): Promise<LocationList | null> {
   const lists = await getLocationLists();
-  const index = lists.findIndex(l => l.id === id);
+  const index = lists.findIndex((l) => l.id === id);
   if (index === -1) return null;
-  
+
   lists[index] = { ...lists[index], ...updates };
   await saveLocationLists(lists);
   return lists[index];
@@ -1156,17 +1286,19 @@ export async function updateLocationList(id: string, updates: Partial<LocationLi
 
 export async function deleteLocationList(id: string): Promise<void> {
   const lists = await getLocationLists();
-  const filtered = lists.filter(l => l.id !== id);
+  const filtered = lists.filter((l) => l.id !== id);
   await saveLocationLists(filtered);
 }
 
-export async function syncGeofencesToBackend(geofences: Geofence[]): Promise<{ synced: number }> {
+export async function syncGeofencesToBackend(
+  geofences: Geofence[],
+): Promise<{ synced: number }> {
   try {
     // Retry, timeout, and auth now handled centrally by ZekeApiClient
     const data = await apiClient.post<{ synced?: number }>(
-      '/api/geofences',
+      "/api/geofences",
       { geofences },
-      { timeoutMs: 10000 }
+      { timeoutMs: 10000 },
     );
     return { synced: data.synced || 0 };
   } catch {
@@ -1178,8 +1310,8 @@ export async function getGeofencesFromBackend(): Promise<Geofence[]> {
   try {
     // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
     const data = await apiClient.get<{ geofences?: Geofence[] }>(
-      '/api/geofences',
-      { emptyArrayOn404: true, timeoutMs: 10000 }
+      "/api/geofences",
+      { emptyArrayOn404: true, timeoutMs: 10000 },
     );
     return data.geofences || [];
   } catch {
@@ -1190,28 +1322,35 @@ export async function getGeofencesFromBackend(): Promise<Geofence[]> {
 export interface GeofenceTriggerEvent {
   id: string;
   geofenceId: string;
-  event: 'enter' | 'exit';
+  event: "enter" | "exit";
   timestamp: string;
   latitude: number;
   longitude: number;
   synced: boolean;
 }
 
-const GEOFENCE_EVENTS_STORAGE_KEY = '@zeke/geofence-events';
+const GEOFENCE_EVENTS_STORAGE_KEY = "@zeke/geofence-events";
 
-export async function saveGeofenceTriggerEvent(event: GeofenceTriggerEvent): Promise<void> {
+export async function saveGeofenceTriggerEvent(
+  event: GeofenceTriggerEvent,
+): Promise<void> {
   try {
     const AsyncStorage = await getAsyncStorage();
     const existing = await getGeofenceTriggerEvents();
     existing.unshift(event);
     const trimmed = existing.slice(0, 100);
-    await AsyncStorage.setItem(GEOFENCE_EVENTS_STORAGE_KEY, JSON.stringify(trimmed));
+    await AsyncStorage.setItem(
+      GEOFENCE_EVENTS_STORAGE_KEY,
+      JSON.stringify(trimmed),
+    );
   } catch (error) {
-    console.error('Error saving geofence trigger event:', error);
+    console.error("Error saving geofence trigger event:", error);
   }
 }
 
-export async function getGeofenceTriggerEvents(): Promise<GeofenceTriggerEvent[]> {
+export async function getGeofenceTriggerEvents(): Promise<
+  GeofenceTriggerEvent[]
+> {
   try {
     const AsyncStorage = await getAsyncStorage();
     const data = await AsyncStorage.getItem(GEOFENCE_EVENTS_STORAGE_KEY);
@@ -1221,38 +1360,45 @@ export async function getGeofenceTriggerEvents(): Promise<GeofenceTriggerEvent[]
   }
 }
 
-export async function markTriggerEventsSynced(eventIds: string[]): Promise<void> {
+export async function markTriggerEventsSynced(
+  eventIds: string[],
+): Promise<void> {
   try {
     const AsyncStorage = await getAsyncStorage();
     const events = await getGeofenceTriggerEvents();
-    const updated = events.map(e => 
-      eventIds.includes(e.id) ? { ...e, synced: true } : e
+    const updated = events.map((e) =>
+      eventIds.includes(e.id) ? { ...e, synced: true } : e,
     );
-    await AsyncStorage.setItem(GEOFENCE_EVENTS_STORAGE_KEY, JSON.stringify(updated));
+    await AsyncStorage.setItem(
+      GEOFENCE_EVENTS_STORAGE_KEY,
+      JSON.stringify(updated),
+    );
   } catch (error) {
-    console.error('Error marking events synced:', error);
+    console.error("Error marking events synced:", error);
   }
 }
 
-export async function syncTriggerEventsToBackend(): Promise<{ synced: number }> {
+export async function syncTriggerEventsToBackend(): Promise<{
+  synced: number;
+}> {
   try {
     const events = await getGeofenceTriggerEvents();
-    const unsyncedEvents = events.filter(e => !e.synced);
-    
+    const unsyncedEvents = events.filter((e) => !e.synced);
+
     if (unsyncedEvents.length === 0) {
       return { synced: 0 };
     }
-    
+
     // Retry, timeout, and auth now handled centrally by ZekeApiClient
     const data = await apiClient.post<{ synced?: number }>(
-      '/api/geofence-events',
+      "/api/geofence-events",
       { events: unsyncedEvents },
-      { timeoutMs: 10000 }
+      { timeoutMs: 10000 },
     );
     const syncedCount = data.synced || unsyncedEvents.length;
-    
-    await markTriggerEventsSynced(unsyncedEvents.map(e => e.id));
-    
+
+    await markTriggerEventsSynced(unsyncedEvents.map((e) => e.id));
+
     return { synced: syncedCount };
   } catch {
     return { synced: 0 };
@@ -1264,7 +1410,7 @@ export async function clearGeofenceTriggerEvents(): Promise<void> {
     const AsyncStorage = await getAsyncStorage();
     await AsyncStorage.removeItem(GEOFENCE_EVENTS_STORAGE_KEY);
   } catch (error) {
-    console.error('Error clearing geofence events:', error);
+    console.error("Error clearing geofence events:", error);
   }
 }
 
@@ -1287,29 +1433,44 @@ export type ZekeListWithItems = CustomListWithItems & {
 export async function getLists(): Promise<ZekeList[]> {
   try {
     // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
-    return await apiClient.get<ZekeList[]>('/api/lists', { emptyArrayOn404: true });
+    return await apiClient.get<ZekeList[]>("/api/lists", {
+      emptyArrayOn404: true,
+    });
   } catch (error) {
-    console.error('[Lists] Failed to fetch lists:', error);
+    console.error("[Lists] Failed to fetch lists:", error);
     return [];
   }
 }
 
-export async function getListWithItems(id: string): Promise<ZekeListWithItems | null> {
+export async function getListWithItems(
+  id: string,
+): Promise<ZekeListWithItems | null> {
   try {
     // Retry and timeout now handled centrally by ZekeApiClient
     return await apiClient.get<ZekeListWithItems>(`/api/lists/${id}`);
   } catch (error) {
-    console.error('[Lists] Failed to fetch list with items:', error);
+    console.error("[Lists] Failed to fetch list with items:", error);
     return null;
   }
 }
 
-export async function createList(name: string, description?: string, color?: string): Promise<ZekeList> {
+export async function createList(
+  name: string,
+  description?: string,
+  color?: string,
+): Promise<ZekeList> {
   // Retry, timeout, and auth now handled centrally by ZekeApiClient
-  return await apiClient.post<ZekeList>('/api/lists', { name, description, color });
+  return await apiClient.post<ZekeList>("/api/lists", {
+    name,
+    description,
+    color,
+  });
 }
 
-export async function updateList(id: string, updates: Partial<ZekeList>): Promise<ZekeList> {
+export async function updateList(
+  id: string,
+  updates: Partial<ZekeList>,
+): Promise<ZekeList> {
   // Retry, timeout, and auth now handled centrally by ZekeApiClient
   return await apiClient.patch<ZekeList>(`/api/lists/${id}`, updates);
 }
@@ -1319,17 +1480,31 @@ export async function deleteList(id: string): Promise<void> {
   await apiClient.delete(`/api/lists/${id}`);
 }
 
-export async function addListItem(listId: string, text: string): Promise<ZekeListItem> {
+export async function addListItem(
+  listId: string,
+  text: string,
+): Promise<ZekeListItem> {
   // Retry, timeout, and auth now handled centrally by ZekeApiClient
-  return await apiClient.post<ZekeListItem>(`/api/lists/${listId}/items`, { text });
+  return await apiClient.post<ZekeListItem>(`/api/lists/${listId}/items`, {
+    text,
+  });
 }
 
-export async function toggleListItem(listId: string, itemId: string): Promise<ZekeListItem> {
+export async function toggleListItem(
+  listId: string,
+  itemId: string,
+): Promise<ZekeListItem> {
   // Retry, timeout, and auth now handled centrally by ZekeApiClient
-  return await apiClient.post<ZekeListItem>(`/api/lists/${listId}/items/${itemId}/toggle`, {});
+  return await apiClient.post<ZekeListItem>(
+    `/api/lists/${listId}/items/${itemId}/toggle`,
+    {},
+  );
 }
 
-export async function deleteListItem(listId: string, itemId: string): Promise<void> {
+export async function deleteListItem(
+  listId: string,
+  itemId: string,
+): Promise<void> {
   // Retry, timeout, and auth now handled centrally by ZekeApiClient
   await apiClient.delete(`/api/lists/${listId}/items/${itemId}`);
 }
@@ -1385,41 +1560,45 @@ export interface ZekeSavedPlace {
   createdAt: string;
 }
 
-export async function syncLocationToZeke(location: ZekeLocationUpdate): Promise<{ success: boolean; id?: string }> {
+export async function syncLocationToZeke(
+  location: ZekeLocationUpdate,
+): Promise<{ success: boolean; id?: string }> {
   try {
     // Retry, timeout, and auth now handled centrally by ZekeApiClient
     // Routes to local API via isLocalEndpoint() check
     const data = await apiClient.post<{ id?: string }>(
-      '/api/zeke/location/update',
+      "/api/zeke/location/update",
       location,
-      { timeoutMs: 10000 }
+      { timeoutMs: 10000 },
     );
-    console.log('[ZEKE Location] Location synced to Zeke backend');
+    console.log("[ZEKE Location] Location synced to Zeke backend");
     return { success: true, id: data.id };
   } catch (error) {
-    console.error('[ZEKE Location] Sync error:', error);
+    console.error("[ZEKE Location] Sync error:", error);
     return { success: false };
   }
 }
 
-export async function syncLocationBatchToZeke(samples: ZekeLocationSample[]): Promise<{ success: boolean; synced: number }> {
+export async function syncLocationBatchToZeke(
+  samples: ZekeLocationSample[],
+): Promise<{ success: boolean; synced: number }> {
   if (samples.length === 0) {
     return { success: true, synced: 0 };
   }
-  
+
   try {
     // Retry, timeout, and auth now handled centrally by ZekeApiClient
     // Routes to local API via isLocalEndpoint() check
     const data = await apiClient.post<{ synced?: number }>(
-      '/api/zeke/location/batch',
+      "/api/zeke/location/batch",
       { samples },
-      { timeoutMs: 15000 }
+      { timeoutMs: 15000 },
     );
     const syncedCount = data.synced || samples.length;
-    console.log('[ZEKE Location] Batch synced:', syncedCount, 'samples');
+    console.log("[ZEKE Location] Batch synced:", syncedCount, "samples");
     return { success: true, synced: syncedCount };
   } catch (error) {
-    console.error('[ZEKE Location] Batch sync error:', error);
+    console.error("[ZEKE Location] Batch sync error:", error);
     return { success: false, synced: 0 };
   }
 }
@@ -1429,18 +1608,18 @@ export async function getZekeCurrentLocation(): Promise<ZekeLocationUpdate | nul
     // Retry and timeout now handled centrally by ZekeApiClient
     // Routes to local API via isLocalEndpoint() check
     return await apiClient.get<ZekeLocationUpdate>(
-      '/api/zeke/location/current',
-      { timeoutMs: 5000 }
+      "/api/zeke/location/current",
+      { timeoutMs: 5000 },
     );
   } catch {
     return null;
   }
 }
 
-export async function getZekeLocationHistory(options?: { 
-  limit?: number; 
-  startDate?: string; 
-  endDate?: string 
+export async function getZekeLocationHistory(options?: {
+  limit?: number;
+  startDate?: string;
+  endDate?: string;
 }): Promise<ZekeLocationUpdate[]> {
   try {
     // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
@@ -1449,10 +1628,14 @@ export async function getZekeLocationHistory(options?: {
     if (options?.limit) query.limit = options.limit.toString();
     if (options?.startDate) query.startDate = options.startDate;
     if (options?.endDate) query.endDate = options.endDate;
-    
+
     const data = await apiClient.get<{ locations?: ZekeLocationUpdate[] }>(
-      '/api/zeke/location/history',
-      { query: Object.keys(query).length > 0 ? query : undefined, emptyArrayOn404: true, timeoutMs: 5000 }
+      "/api/zeke/location/history",
+      {
+        query: Object.keys(query).length > 0 ? query : undefined,
+        emptyArrayOn404: true,
+        timeoutMs: 5000,
+      },
     );
     return data.locations || [];
   } catch {
@@ -1465,8 +1648,8 @@ export async function getZekeSavedPlaces(): Promise<ZekeSavedPlace[]> {
     // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
     // Routes to local API via isLocalEndpoint() check
     const data = await apiClient.get<{ places?: ZekeSavedPlace[] }>(
-      '/api/zeke/saved-places',
-      { emptyArrayOn404: true, timeoutMs: 5000 }
+      "/api/zeke/saved-places",
+      { emptyArrayOn404: true, timeoutMs: 5000 },
     );
     return data.places || [];
   } catch {
@@ -1474,28 +1657,33 @@ export async function getZekeSavedPlaces(): Promise<ZekeSavedPlace[]> {
   }
 }
 
-export async function createZekeSavedPlace(place: Omit<ZekeSavedPlace, 'id' | 'createdAt'>): Promise<ZekeSavedPlace | null> {
+export async function createZekeSavedPlace(
+  place: Omit<ZekeSavedPlace, "id" | "createdAt">,
+): Promise<ZekeSavedPlace | null> {
   try {
     // Retry, timeout, and auth now handled centrally by ZekeApiClient
     // Routes to local API via isLocalEndpoint() check
     return await apiClient.post<ZekeSavedPlace>(
-      '/api/zeke/saved-places',
+      "/api/zeke/saved-places",
       place,
-      { timeoutMs: 10000 }
+      { timeoutMs: 10000 },
     );
   } catch {
     return null;
   }
 }
 
-export async function updateZekeSavedPlace(id: string, updates: Partial<ZekeSavedPlace>): Promise<ZekeSavedPlace | null> {
+export async function updateZekeSavedPlace(
+  id: string,
+  updates: Partial<ZekeSavedPlace>,
+): Promise<ZekeSavedPlace | null> {
   try {
     // Retry, timeout, and auth now handled centrally by ZekeApiClient
     // Routes to local API via isLocalEndpoint() check
     return await apiClient.patch<ZekeSavedPlace>(
       `/api/zeke/saved-places/${id}`,
       updates,
-      { timeoutMs: 10000 }
+      { timeoutMs: 10000 },
     );
   } catch {
     return null;
@@ -1506,7 +1694,9 @@ export async function deleteZekeSavedPlace(id: string): Promise<boolean> {
   try {
     // Retry, timeout, and auth now handled centrally by ZekeApiClient
     // Routes to local API via isLocalEndpoint() check
-    await apiClient.delete(`/api/zeke/saved-places/${id}`, { timeoutMs: 10000 });
+    await apiClient.delete(`/api/zeke/saved-places/${id}`, {
+      timeoutMs: 10000,
+    });
     return true;
   } catch {
     return false;

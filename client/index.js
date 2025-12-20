@@ -8,7 +8,9 @@ registerRootComponent(App);
 // Only register widget task handler on Android native builds
 if (Platform.OS === "android") {
   try {
-    const { registerWidgetTaskHandler } = require("react-native-android-widget");
+    const {
+      registerWidgetTaskHandler,
+    } = require("react-native-android-widget");
     const { widgetTaskHandler } = require("./widgets/widget-task-handler");
     registerWidgetTaskHandler(widgetTaskHandler);
   } catch (error) {

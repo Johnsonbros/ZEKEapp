@@ -42,9 +42,19 @@ export function ChatBubble({ message }: ChatBubbleProps) {
 
   return (
     <View style={[styles.container, styles.assistantContainer]}>
-      <View style={[styles.assistantBubble, { backgroundColor: theme.backgroundDefault }]}>
+      <View
+        style={[
+          styles.assistantBubble,
+          { backgroundColor: theme.backgroundDefault },
+        ]}
+      >
         {message.isCode ? (
-          <View style={[styles.codeBlock, { backgroundColor: theme.backgroundSecondary }]}>
+          <View
+            style={[
+              styles.codeBlock,
+              { backgroundColor: theme.backgroundSecondary },
+            ]}
+          >
             <Text
               style={[
                 styles.codeText,
@@ -70,7 +80,13 @@ export function TypingIndicator() {
 
   return (
     <View style={[styles.container, styles.assistantContainer]}>
-      <View style={[styles.assistantBubble, styles.typingBubble, { backgroundColor: theme.backgroundDefault }]}>
+      <View
+        style={[
+          styles.assistantBubble,
+          styles.typingBubble,
+          { backgroundColor: theme.backgroundDefault },
+        ]}
+      >
         <View style={styles.typingDots}>
           <View style={[styles.dot, { backgroundColor: theme.primary }]} />
           <View style={[styles.dot, { backgroundColor: theme.secondary }]} />

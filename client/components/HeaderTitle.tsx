@@ -28,34 +28,36 @@ export function HeaderTitle({ title, isOnline = false }: HeaderTitleProps) {
       pulseScale.value = withRepeat(
         withSequence(
           withTiming(1.4, { duration: 800, easing: Easing.out(Easing.ease) }),
-          withTiming(1, { duration: 800, easing: Easing.in(Easing.ease) })
+          withTiming(1, { duration: 800, easing: Easing.in(Easing.ease) }),
         ),
         -1,
-        false
+        false,
       );
       pulseOpacity.value = withRepeat(
         withSequence(
           withTiming(0, { duration: 800, easing: Easing.out(Easing.ease) }),
-          withTiming(1, { duration: 800, easing: Easing.in(Easing.ease) })
+          withTiming(1, { duration: 800, easing: Easing.in(Easing.ease) }),
         ),
         -1,
-        false
+        false,
       );
     } else {
       pulseScale.value = withTiming(1, { duration: 200 });
       pulseOpacity.value = withTiming(1, { duration: 200 });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOnline]);
 
   useEffect(() => {
     glowOpacity.value = withRepeat(
       withSequence(
         withTiming(0.8, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
-        withTiming(0.5, { duration: 1500, easing: Easing.inOut(Easing.ease) })
+        withTiming(0.5, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
       ),
       -1,
-      false
+      false,
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const pulseAnimatedStyle = useAnimatedStyle(() => ({
@@ -78,7 +80,9 @@ export function HeaderTitle({ title, isOnline = false }: HeaderTitleProps) {
         />
       </View>
       <View style={styles.titleContainer}>
-        <GradientText type="h2" style={styles.title}>{title}</GradientText>
+        <GradientText type="h2" style={styles.title}>
+          {title}
+        </GradientText>
         <View style={styles.statusContainer}>
           <View style={styles.statusDotWrapper}>
             {isOnline ? (
@@ -93,7 +97,11 @@ export function HeaderTitle({ title, isOnline = false }: HeaderTitleProps) {
             <View
               style={[
                 styles.statusDot,
-                { backgroundColor: isOnline ? Colors.dark.success : Colors.dark.error },
+                {
+                  backgroundColor: isOnline
+                    ? Colors.dark.success
+                    : Colors.dark.error,
+                },
               ]}
             />
           </View>

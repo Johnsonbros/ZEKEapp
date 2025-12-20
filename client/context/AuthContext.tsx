@@ -1,11 +1,18 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import * as SecureStore from 'expo-secure-store';
-import { Platform } from 'react-native';
-import { setDeviceToken } from '@/lib/query-client';
-import { apiClient, ApiError } from '@/lib/api-client';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  ReactNode,
+} from "react";
+import * as SecureStore from "expo-secure-store";
+import { Platform } from "react-native";
+import { setDeviceToken } from "@/lib/query-client";
+import { apiClient, ApiError } from "@/lib/api-client";
 
-const DEVICE_TOKEN_KEY = 'zeke_device_token';
-const DEVICE_ID_KEY = 'zeke_device_id';
+const DEVICE_TOKEN_KEY = "zeke_device_token";
+const DEVICE_ID_KEY = "zeke_device_id";
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -23,14 +30,14 @@ interface AuthContextType extends AuthState {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 async function getStoredValue(key: string): Promise<string | null> {
-  if (Platform.OS === 'web') {
+  if (Platform.OS === "web") {
     return localStorage.getItem(key);
   }
   return SecureStore.getItemAsync(key);
 }
 
 async function setStoredValue(key: string, value: string): Promise<void> {
-  if (Platform.OS === 'web') {
+  if (Platform.OS === "web") {
     localStorage.setItem(key, value);
     return;
   }
@@ -38,7 +45,7 @@ async function setStoredValue(key: string, value: string): Promise<void> {
 }
 
 async function deleteStoredValue(key: string): Promise<void> {
-  if (Platform.OS === 'web') {
+  if (Platform.OS === "web") {
     localStorage.removeItem(key);
     return;
   }
@@ -57,9 +64,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const token = await getStoredValue(DEVICE_TOKEN_KEY);
       const storedDeviceId = await getStoredValue(DEVICE_ID_KEY);
-      
+
       if (!token) {
-        setState(prev => ({ ...prev, isAuthenticated: false, isLoading: false }));
+        setState((prev) => ({
+          ...prev,
+          isAuthenticated: false,
+          isLoading: false,
+        }));
         return false;
       }
 
@@ -68,8 +79,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Retry and timeout now handled centrally by ZekeApiClient
       // Routes to local API via isLocalEndpoint() check
       const data = await apiClient.get<{ deviceId?: string }>(
-        '/api/auth/verify',
-        { headers: { 'X-ZEKE-Device-Token': token } }
+        "/api/auth/verify",
+        { headers: { "X-ZEKE-Device-Token": token } },
       );
 
       setState({
@@ -89,59 +100,70 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           isAuthenticated: false,
           isLoading: false,
           deviceId: null,
-          error: 'Session expired. Please pair again.',
+          error: "Session expired. Please pair again.",
         });
         return false;
       }
-      
-      console.error('[Auth] Check auth error:', error);
-      setState(prev => ({ ...prev, isLoading: false, error: error instanceof ApiError ? error.message : 'Connection error' }));
-      return false;
-    }
-  }, []);
 
-  const pairDevice = useCallback(async (secret: string, deviceName: string): Promise<boolean> => {
-    setState(prev => ({ ...prev, isLoading: true, error: null }));
-    
-    try {
-      // Retry, timeout, and auth now handled centrally by ZekeApiClient
-      // Routes to local API via isLocalEndpoint() check
-      const data = await apiClient.post<{ deviceToken?: string; deviceId?: string; message?: string }>(
-        '/api/auth/pair',
-        { secret, deviceName }
-      );
-
-      if (data.deviceToken) {
-        await setStoredValue(DEVICE_TOKEN_KEY, data.deviceToken);
-        await setStoredValue(DEVICE_ID_KEY, data.deviceId || '');
-        setDeviceToken(data.deviceToken);
-        
-        setState({
-          isAuthenticated: true,
-          isLoading: false,
-          deviceId: data.deviceId || null,
-          error: null,
-        });
-        return true;
-      } else {
-        setState(prev => ({
-          ...prev,
-          isLoading: false,
-          error: data.message || 'Pairing failed',
-        }));
-        return false;
-      }
-    } catch (error) {
-      console.error('[Auth] Pair error:', error);
-      const errorMessage = error instanceof ApiError ? error.message : 'Connection error. Check your network.';
-      setState(prev => ({
+      console.error("[Auth] Check auth error:", error);
+      setState((prev) => ({
         ...prev,
         isLoading: false,
-        error: errorMessage,
+        error: error instanceof ApiError ? error.message : "Connection error",
       }));
       return false;
     }
   }, []);
+
+  const pairDevice = useCallback(
+    async (secret: string, deviceName: string): Promise<boolean> => {
+      setState((prev) => ({ ...prev, isLoading: true, error: null }));
+
+      try {
+        // Retry, timeout, and auth now handled centrally by ZekeApiClient
+        // Routes to local API via isLocalEndpoint() check
+        const data = await apiClient.post<{
+          deviceToken?: string;
+          deviceId?: string;
+          message?: string;
+        }>("/api/auth/pair", { secret, deviceName });
+
+        if (data.deviceToken) {
+          await setStoredValue(DEVICE_TOKEN_KEY, data.deviceToken);
+          await setStoredValue(DEVICE_ID_KEY, data.deviceId || "");
+          setDeviceToken(data.deviceToken);
+
+          setState({
+            isAuthenticated: true,
+            isLoading: false,
+            deviceId: data.deviceId || null,
+            error: null,
+          });
+          return true;
+        } else {
+          setState((prev) => ({
+            ...prev,
+            isLoading: false,
+            error: data.message || "Pairing failed",
+          }));
+          return false;
+        }
+      } catch (error) {
+        console.error("[Auth] Pair error:", error);
+        const errorMessage =
+          error instanceof ApiError
+            ? error.message
+            : "Connection error. Check your network.";
+        setState((prev) => ({
+          ...prev,
+          isLoading: false,
+          error: errorMessage,
+        }));
+        return false;
+      }
+    },
+    [],
+  );
 
   const unpairDevice = useCallback(async (): Promise<void> => {
     await deleteStoredValue(DEVICE_TOKEN_KEY);
@@ -160,7 +182,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [checkAuth]);
 
   return (
-    <AuthContext.Provider value={{ ...state, pairDevice, unpairDevice, checkAuth }}>
+    <AuthContext.Provider
+      value={{ ...state, pairDevice, unpairDevice, checkAuth }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -169,7 +193,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth(): AuthContextType {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 }

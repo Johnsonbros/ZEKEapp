@@ -1,4 +1,4 @@
-import { getApiUrl, getLocalApiUrl, getAuthHeaders } from './query-client';
+import { getApiUrl, getLocalApiUrl, getAuthHeaders } from "./query-client";
 
 // Declare __DEV__ for React Native/Expo environments
 declare const __DEV__: boolean;
@@ -13,9 +13,18 @@ export class ApiError extends Error {
   bodyText?: string;
   details?: unknown;
 
-  constructor(message: string, init: { status?: number; url: string; method: string; bodyText?: string; details?: unknown }) {
+  constructor(
+    message: string,
+    init: {
+      status?: number;
+      url: string;
+      method: string;
+      bodyText?: string;
+      details?: unknown;
+    },
+  ) {
     super(message);
-    this.name = 'ApiError';
+    this.name = "ApiError";
     this.status = init.status;
     this.url = init.url;
     this.method = init.method;
@@ -37,14 +46,14 @@ export type RequestOptions = {
 
 /**
  * Backend ownership documentation:
- * 
+ *
  * LOCAL API (available only on local backend):
  * - /api/calendar/*    → Google Calendar integration (events, availability)
  * - /api/twilio/*      → Twilio SMS & call management (conversations, calls)
  * - /api/sms-log       → SMS conversation history
  * - /api/conversations/* → Conversation & message management
  * - /api/zeke/*        → ZEKE core (tasks, grocery, location sync, chat)
- * 
+ *
  * CORE API (main backend):
  * - /api/memories/*    → Memory notes & metadata
  * - /api/omi/*         → Omi device sync & settings
@@ -56,64 +65,76 @@ export type RequestOptions = {
  */
 
 const LOCAL_API_PREFIXES = [
-  '/api/calendar/',
-  '/api/twilio/',
-  '/api/sms-log',
-  '/api/conversations',
-  '/api/zeke/',
+  "/api/calendar/",
+  "/api/twilio/",
+  "/api/sms-log",
+  "/api/conversations",
+  "/api/zeke/",
 ];
 
 const CORE_API_PREFIXES = [
-  '/api/memories',
-  '/api/omi/',
-  '/api/semantic-search',
-  '/api/chat/',
-  '/api/reminders',
-  '/healthz',
-  '/api/dashboard/',
+  "/api/memories",
+  "/api/omi/",
+  "/api/semantic-search",
+  "/api/chat/",
+  "/api/reminders",
+  "/healthz",
+  "/api/dashboard/",
 ];
 
 /**
  * Classify endpoint as 'local' or 'core' backend
  * With development safety check to catch routing conflicts
  */
-export function classifyEndpoint(endpoint: string): 'local' | 'core' {
-  const isLocal = LOCAL_API_PREFIXES.some(prefix => endpoint.startsWith(prefix));
-  
+export function classifyEndpoint(endpoint: string): "local" | "core" {
+  const isLocal = LOCAL_API_PREFIXES.some((prefix) =>
+    endpoint.startsWith(prefix),
+  );
+
   // Development-only safety check: catch ambiguous routing
-  const isDev = typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV === 'development';
+  const isDev =
+    typeof __DEV__ !== "undefined"
+      ? __DEV__
+      : process.env.NODE_ENV === "development";
   if (isDev) {
-    const couldBeCore = CORE_API_PREFIXES.some(prefix => endpoint.startsWith(prefix));
+    const couldBeCore = CORE_API_PREFIXES.some((prefix) =>
+      endpoint.startsWith(prefix),
+    );
     if (isLocal && couldBeCore) {
       console.error(
         `[ZekeApiClient] ROUTING CONFLICT: "${endpoint}" matches BOTH local and core prefixes. ` +
-        `Endpoints must route to exactly one backend. Fix the prefix definitions. ` +
-        `Local: [${LOCAL_API_PREFIXES.join(', ')}] | Core: [${CORE_API_PREFIXES.join(', ')}]`
+          `Endpoints must route to exactly one backend. Fix the prefix definitions. ` +
+          `Local: [${LOCAL_API_PREFIXES.join(", ")}] | Core: [${CORE_API_PREFIXES.join(", ")}]`,
       );
     }
-    
-    if (isLocal && (endpoint.includes('/api/calendar/') || endpoint.includes('/api/twilio/') || endpoint === '/api/sms-log')) {
+
+    if (
+      isLocal &&
+      (endpoint.includes("/api/calendar/") ||
+        endpoint.includes("/api/twilio/") ||
+        endpoint === "/api/sms-log")
+    ) {
       console.log(`[ZekeApiClient] Routing ${endpoint} to LOCAL API`);
     }
   }
-  
-  return isLocal ? 'local' : 'core';
+
+  return isLocal ? "local" : "core";
 }
 
 /**
  * Determines if an endpoint should use local API URL instead of main API URL
  */
 function isLocalEndpoint(endpoint: string): boolean {
-  return classifyEndpoint(endpoint) === 'local';
+  return classifyEndpoint(endpoint) === "local";
 }
 
 /**
  * Parse response body based on content-type
  */
 async function parseResponseBody<T>(response: Response): Promise<T> {
-  const contentType = response.headers.get('content-type');
+  const contentType = response.headers.get("content-type");
 
-  if (contentType?.includes('application/json')) {
+  if (contentType?.includes("application/json")) {
     return await response.json();
   }
 
@@ -163,13 +184,23 @@ class ZekeApiClient {
     body?: unknown,
     options: RequestOptions = {},
   ): Promise<T> {
-    const { timeoutMs = this.DEFAULT_TIMEOUT_MS, signal, headers: customHeaders = {}, query, emptyArrayOn404 } = options;
+    const {
+      timeoutMs = this.DEFAULT_TIMEOUT_MS,
+      signal,
+      headers: customHeaders = {},
+      query,
+      emptyArrayOn404,
+    } = options;
 
     // Determine base URL based on endpoint type
     const baseUrl = isLocalEndpoint(endpoint) ? getLocalApiUrl() : getApiUrl();
 
     // DEV-only: Log routing decision
-    if (typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV === 'development') {
+    if (
+      typeof __DEV__ !== "undefined"
+        ? __DEV__
+        : process.env.NODE_ENV === "development"
+    ) {
       console.log(`[api] ${method} ${endpoint} → ${baseUrl}`);
     }
 
@@ -191,17 +222,23 @@ class ZekeApiClient {
     };
 
     // DEV-only: Log authorization header presence
-    if (typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV === 'development') {
+    if (
+      typeof __DEV__ !== "undefined"
+        ? __DEV__
+        : process.env.NODE_ENV === "development"
+    ) {
       const hasAuth = Object.keys(authHeaders).length > 0;
       if (hasAuth) {
-        const authHeader = authHeaders['X-ZEKE-Device-Token'] ? `Bearer ${authHeaders['X-ZEKE-Device-Token'].substring(0, 8)}***` : 'Present';
+        const authHeader = authHeaders["X-ZEKE-Device-Token"]
+          ? `Bearer ${authHeaders["X-ZEKE-Device-Token"].substring(0, 8)}***`
+          : "Present";
         console.log(`[auth] Authorization header: ${authHeader}`);
       }
     }
 
     // Add Content-Type for requests with body
-    if (body && !finalHeaders['Content-Type']) {
-      finalHeaders['Content-Type'] = 'application/json';
+    if (body && !finalHeaders["Content-Type"]) {
+      finalHeaders["Content-Type"] = "application/json";
     }
 
     // Create abort controller for timeout if signal not provided
@@ -210,8 +247,14 @@ class ZekeApiClient {
 
     if (!signal && controller) {
       timeoutId = setTimeout(() => {
-        if (typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV === 'development') {
-          console.log(`[ZekeApiClient] Timeout (${timeoutMs}ms) for ${method} ${endpoint}`);
+        if (
+          typeof __DEV__ !== "undefined"
+            ? __DEV__
+            : process.env.NODE_ENV === "development"
+        ) {
+          console.log(
+            `[ZekeApiClient] Timeout (${timeoutMs}ms) for ${method} ${endpoint}`,
+          );
         }
         controller!.abort();
       }, timeoutMs);
@@ -232,7 +275,7 @@ class ZekeApiClient {
           headers: finalHeaders,
           signal: finalSignal,
           body: body ? JSON.stringify(body) : undefined,
-          credentials: 'include',
+          credentials: "include",
         });
 
         // Clear timeout on success
@@ -240,8 +283,14 @@ class ZekeApiClient {
 
         // Handle 404 with emptyArrayOn404 fallback
         if (response.status === 404 && emptyArrayOn404) {
-          if (typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV === 'development') {
-            console.log(`[ZekeApiClient] ${method} ${endpoint} - 404, returning empty array`);
+          if (
+            typeof __DEV__ !== "undefined"
+              ? __DEV__
+              : process.env.NODE_ENV === "development"
+          ) {
+            console.log(
+              `[ZekeApiClient] ${method} ${endpoint} - 404, returning empty array`,
+            );
           }
           return [] as unknown as T;
         }
@@ -253,13 +302,22 @@ class ZekeApiClient {
 
           // Only retry on specific status codes
           const retryableStatuses = [408, 429, 500, 502, 503, 504];
-          if (retryableStatuses.includes(response.status) && attempt < maxAttempts - 1) {
-            if (typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV === 'development') {
+          if (
+            retryableStatuses.includes(response.status) &&
+            attempt < maxAttempts - 1
+          ) {
+            if (
+              typeof __DEV__ !== "undefined"
+                ? __DEV__
+                : process.env.NODE_ENV === "development"
+            ) {
               console.log(
                 `[ZekeApiClient] Retrying ${method} ${endpoint} (attempt ${attempt + 1}/${maxAttempts}) - got status ${response.status}`,
               );
             }
-            await new Promise(resolve => setTimeout(resolve, retryDelays[attempt]));
+            await new Promise((resolve) =>
+              setTimeout(resolve, retryDelays[attempt]),
+            );
             continue;
           }
 
@@ -277,8 +335,14 @@ class ZekeApiClient {
         // Parse response
         const data = await parseResponseBody<T>(response);
 
-        if (typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV === 'development') {
-          console.log(`[ZekeApiClient] ${method} ${endpoint} (${attempt + 1}/${maxAttempts}) - OK`);
+        if (
+          typeof __DEV__ !== "undefined"
+            ? __DEV__
+            : process.env.NODE_ENV === "development"
+        ) {
+          console.log(
+            `[ZekeApiClient] ${method} ${endpoint} (${attempt + 1}/${maxAttempts}) - OK`,
+          );
         }
 
         return data;
@@ -298,16 +362,23 @@ class ZekeApiClient {
         });
 
         // Check if this is a network error or retryable status
-        const isNetworkError = error instanceof TypeError && error.message.includes('fetch');
+        const isNetworkError =
+          error instanceof TypeError && error.message.includes("fetch");
         const shouldRetry = isNetworkError && attempt < maxAttempts - 1;
 
         if (shouldRetry) {
-          if (typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV === 'development') {
+          if (
+            typeof __DEV__ !== "undefined"
+              ? __DEV__
+              : process.env.NODE_ENV === "development"
+          ) {
             console.log(
               `[ZekeApiClient] Network error, retrying ${method} ${endpoint} (attempt ${attempt + 1}/${maxAttempts})`,
             );
           }
-          await new Promise(resolve => setTimeout(resolve, retryDelays[attempt]));
+          await new Promise((resolve) =>
+            setTimeout(resolve, retryDelays[attempt]),
+          );
           continue;
         }
 
@@ -319,42 +390,59 @@ class ZekeApiClient {
     // Clear timeout on final error
     if (timeoutId) clearTimeout(timeoutId);
 
-    if (typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV === 'development') {
-      console.log(`[ZekeApiClient] ${method} ${endpoint} - FAILED after ${maxAttempts} attempts`);
+    if (
+      typeof __DEV__ !== "undefined"
+        ? __DEV__
+        : process.env.NODE_ENV === "development"
+    ) {
+      console.log(
+        `[ZekeApiClient] ${method} ${endpoint} - FAILED after ${maxAttempts} attempts`,
+      );
     }
 
-    throw lastError || new ApiError(`Failed to ${method} ${endpoint}`, {
-      url: url.toString(),
-      method,
-    });
+    throw (
+      lastError ||
+      new ApiError(`Failed to ${method} ${endpoint}`, {
+        url: url.toString(),
+        method,
+      })
+    );
   }
 
   /**
    * GET request
    */
   async get<T>(endpoint: string, options?: RequestOptions): Promise<T> {
-    return this.request<T>('GET', endpoint, undefined, options);
+    return this.request<T>("GET", endpoint, undefined, options);
   }
 
   /**
    * POST request
    */
-  async post<T>(endpoint: string, data: unknown, options?: RequestOptions): Promise<T> {
-    return this.request<T>('POST', endpoint, data, options);
+  async post<T>(
+    endpoint: string,
+    data: unknown,
+    options?: RequestOptions,
+  ): Promise<T> {
+    return this.request<T>("POST", endpoint, data, options);
   }
 
   /**
    * PATCH request
    */
-  async patch<T>(endpoint: string, data: unknown, options?: RequestOptions): Promise<T> {
-    return this.request<T>('PATCH', endpoint, data, options);
+  async patch<T>(
+    endpoint: string,
+    data: unknown,
+    options?: RequestOptions,
+  ): Promise<T> {
+    return this.request<T>("PATCH", endpoint, data, options);
   }
 
   /**
    * DELETE request (returns void)
    */
   async delete(endpoint: string, options?: RequestOptions): Promise<void> {
-    await this.request<void>('DELETE', endpoint, undefined, options);
+    await this.request<void>("DELETE", endpoint, undefined, options);
   }
 }
 

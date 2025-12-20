@@ -13,7 +13,7 @@ export function getDeviceToken(): string | null {
 export function getAuthHeaders(): Record<string, string> {
   const headers: Record<string, string> = {};
   if (cachedDeviceToken) {
-    headers['X-ZEKE-Device-Token'] = cachedDeviceToken;
+    headers["X-ZEKE-Device-Token"] = cachedDeviceToken;
   }
   return headers;
 }
@@ -26,7 +26,7 @@ export function getAuthHeaders(): Record<string, string> {
  */
 export function getApiUrl(): string {
   // TEMPORARY: Force to zekeai.replit.app for config lock testing
-  return 'https://zekeai.replit.app';
+  return "https://zekeai.replit.app";
 }
 
 /**
@@ -43,13 +43,12 @@ export function isZekeSyncMode(): boolean {
  */
 export function getLocalApiUrl(): string {
   // TEMPORARY: Force to zekeai.replit.app for config lock testing
-  return 'https://zekeai.replit.app';
+  return "https://zekeai.replit.app";
 }
-
 
 async function throwIfResNotOk(res: Response): Promise<void> {
   if (!res.ok) {
-    const text = await res.text().catch(() => 'Unknown error');
+    const text = await res.text().catch(() => "Unknown error");
     throw new Error(`HTTP ${res.status}: ${text}`);
   }
 }
@@ -58,10 +57,10 @@ type UnauthorizedBehavior = "returnNull" | "throw";
 
 /**
  * @deprecated Use ZekeApiClient (apiClient.get/post/patch/delete) instead
- * 
+ *
  * This is the legacy default query function. All new queries should use
  * custom queryFn with ZekeApiClient for centralized retry, timeout, and auth handling.
- * 
+ *
  * See: client/lib/api-client.ts and client/lib/zeke-api-adapter.ts
  */
 export const getQueryFn: <T>(options: {
@@ -70,12 +69,15 @@ export const getQueryFn: <T>(options: {
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
     // Development-only deprecation warning
-    const isDev = typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV === 'development';
+    const isDev =
+      typeof __DEV__ !== "undefined"
+        ? __DEV__
+        : process.env.NODE_ENV === "development";
     if (isDev) {
       console.warn(
         `[DEPRECATION] getQueryFn is legacy. Use ZekeApiClient instead.\n` +
-        `queryKey: ${queryKey.join('/')}\n` +
-        `Replace with: useQuery({ queryKey, queryFn: async () => apiClient.get(...) })`
+          `queryKey: ${queryKey.join("/")}\n` +
+          `Replace with: useQuery({ queryKey, queryFn: async () => apiClient.get(...) })`,
       );
     }
 

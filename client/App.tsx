@@ -1,6 +1,10 @@
 import React, { useEffect, useRef } from "react";
-import { StyleSheet, Platform, ActivityIndicator, View } from "react-native";
-import { NavigationContainer, DefaultTheme, NavigationContainerRef } from "@react-navigation/native";
+import { StyleSheet, Platform } from "react-native";
+import {
+  NavigationContainer,
+  DefaultTheme,
+  NavigationContainerRef,
+} from "@react-navigation/native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -55,25 +59,27 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
 function AppContent() {
   const navigationRef = useRef<NavigationContainerRef<any>>(null);
-  const notificationResponseListener = useRef<Notifications.Subscription | null>(null);
+  const notificationResponseListener =
+    useRef<Notifications.Subscription | null>(null);
 
   useEffect(() => {
-    if (Platform.OS === 'web') return;
+    if (Platform.OS === "web") return;
 
-    notificationResponseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
-      const data = response.notification.request.content.data;
-      
-      if (data?.type === 'grocery_prompt' && data?.screen === 'Grocery') {
-        if (navigationRef.current?.isReady()) {
-          navigationRef.current.navigate('Main', {
-            screen: 'TasksTab',
-            params: {
-              screen: 'Grocery',
-            },
-          });
+    notificationResponseListener.current =
+      Notifications.addNotificationResponseReceivedListener((response) => {
+        const data = response.notification.request.content.data;
+
+        if (data?.type === "grocery_prompt" && data?.screen === "Grocery") {
+          if (navigationRef.current?.isReady()) {
+            navigationRef.current.navigate("Main", {
+              screen: "TasksTab",
+              params: {
+                screen: "Grocery",
+              },
+            });
+          }
         }
-      }
-    });
+      });
 
     return () => {
       if (notificationResponseListener.current) {
@@ -94,8 +100,8 @@ function AppContent() {
 export default function App() {
   // One-time console log on app boot
   useEffect(() => {
-    console.log('[config] apiUrl=' + getApiUrl());
-    console.log('[config] localApiUrl=' + getLocalApiUrl());
+    console.log("[config] apiUrl=" + getApiUrl());
+    console.log("[config] localApiUrl=" + getLocalApiUrl());
   }, []);
 
   return (
@@ -123,8 +129,8 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     backgroundColor: Colors.dark.backgroundRoot,
   },
 });

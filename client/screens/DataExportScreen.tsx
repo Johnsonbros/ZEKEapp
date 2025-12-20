@@ -1,5 +1,13 @@
 import React, { useState, useEffect } from "react";
-import { View, StyleSheet, ScrollView, Alert, ActivityIndicator, Platform, Pressable } from "react-native";
+import {
+  View,
+  StyleSheet,
+  ScrollView,
+  Alert,
+  ActivityIndicator,
+  Platform,
+  Pressable,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { Feather } from "@expo/vector-icons";
@@ -14,7 +22,13 @@ import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Colors } from "@/constants/theme";
 import { Memory } from "@/lib/storage";
 import { Message } from "@/components/ChatBubble";
-import { getRecentMemories, getConversations, getConversationMessages, ZekeMemory, ZekeMessage } from "@/lib/zeke-api-adapter";
+import {
+  getRecentMemories,
+  getConversations,
+  getConversationMessages,
+  ZekeMemory,
+  ZekeMessage,
+} from "@/lib/zeke-api-adapter";
 
 type ExportType = "memories" | "conversations" | "all";
 type ExportFormat = "pdf" | "markdown";
@@ -27,7 +41,13 @@ interface RadioOptionProps {
   onSelect: () => void;
 }
 
-function RadioOption({ icon, label, description, selected, onSelect }: RadioOptionProps) {
+function RadioOption({
+  icon,
+  label,
+  description,
+  selected,
+  onSelect,
+}: RadioOptionProps) {
   const { theme } = useTheme();
 
   return (
@@ -42,15 +62,44 @@ function RadioOption({ icon, label, description, selected, onSelect }: RadioOpti
         selected && { borderColor: Colors.dark.primary, borderWidth: 2 },
       ]}
     >
-      <View style={[styles.radioIconContainer, { backgroundColor: selected ? Colors.dark.primary : theme.backgroundSecondary }]}>
-        <Feather name={icon} size={20} color={selected ? "#FFFFFF" : theme.textSecondary} />
+      <View
+        style={[
+          styles.radioIconContainer,
+          {
+            backgroundColor: selected
+              ? Colors.dark.primary
+              : theme.backgroundSecondary,
+          },
+        ]}
+      >
+        <Feather
+          name={icon}
+          size={20}
+          color={selected ? "#FFFFFF" : theme.textSecondary}
+        />
       </View>
       <View style={styles.radioTextContainer}>
-        <ThemedText type="body" style={{ fontWeight: "600" }}>{label}</ThemedText>
-        <ThemedText type="caption" secondary>{description}</ThemedText>
+        <ThemedText type="body" style={{ fontWeight: "600" }}>
+          {label}
+        </ThemedText>
+        <ThemedText type="caption" secondary>
+          {description}
+        </ThemedText>
       </View>
-      <View style={[styles.radioCircle, { borderColor: selected ? Colors.dark.primary : theme.border }]}>
-        {selected ? <View style={[styles.radioCircleFilled, { backgroundColor: Colors.dark.primary }]} /> : null}
+      <View
+        style={[
+          styles.radioCircle,
+          { borderColor: selected ? Colors.dark.primary : theme.border },
+        ]}
+      >
+        {selected ? (
+          <View
+            style={[
+              styles.radioCircleFilled,
+              { backgroundColor: Colors.dark.primary },
+            ]}
+          />
+        ) : null}
       </View>
     </Pressable>
   );
@@ -58,32 +107,34 @@ function RadioOption({ icon, label, description, selected, onSelect }: RadioOpti
 
 function convertZekeMemoryToMemory(zekeMemory: ZekeMemory): Memory {
   const date = new Date(zekeMemory.createdAt);
-  const formattedDate = date.toLocaleDateString('en-US', { 
-    month: 'short', 
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit'
+  const formattedDate = date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
   });
-  
+
   return {
     id: zekeMemory.id,
     title: zekeMemory.title,
     transcript: zekeMemory.transcript,
     timestamp: formattedDate,
-    deviceType: 'omi',
+    deviceType: "omi",
     speakers: Array.isArray(zekeMemory.speakers) ? zekeMemory.speakers : [],
     isStarred: zekeMemory.isStarred,
-    duration: zekeMemory.duration ? `${Math.round(zekeMemory.duration / 60)} min` : undefined,
+    duration: zekeMemory.duration
+      ? `${Math.round(zekeMemory.duration / 60)} min`
+      : undefined,
   };
 }
 
 function convertZekeMessageToMessage(zekeMessage: ZekeMessage): Message {
   const date = new Date(zekeMessage.createdAt);
-  const formattedTime = date.toLocaleTimeString('en-US', { 
-    hour: 'numeric',
-    minute: '2-digit'
+  const formattedTime = date.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
   });
-  
+
   return {
     id: zekeMessage.id,
     content: zekeMessage.content,
@@ -109,11 +160,11 @@ export default function DataExportScreen() {
       try {
         const [memories, conversations] = await Promise.all([
           getRecentMemories(100),
-          getConversations()
+          getConversations(),
         ]);
-        
+
         setMemoriesCount(memories.length);
-        
+
         let totalMessages = 0;
         for (const conv of conversations.slice(0, 5)) {
           const messages = await getConversationMessages(conv.id);
@@ -121,12 +172,12 @@ export default function DataExportScreen() {
         }
         setMessagesCount(totalMessages);
       } catch (error) {
-        console.error('Error checking data availability:', error);
+        console.error("Error checking data availability:", error);
       } finally {
         setIsLoading(false);
       }
     }
-    
+
     checkDataAvailability();
   }, []);
 
@@ -192,7 +243,9 @@ export default function DataExportScreen() {
             <strong>Exported on:</strong> ${new Date().toLocaleDateString()}<br>
             <strong>Total memories:</strong> ${memories.length}
           </div>
-          ${memories.map((memory, index) => `
+          ${memories
+            .map(
+              (memory, index) => `
             <div class="memory">
               <h2>${index + 1}. ${memory.title}</h2>
               <div class="meta">
@@ -208,7 +261,9 @@ export default function DataExportScreen() {
               </div>
             </div>
             <div class="divider"></div>
-          `).join("")}
+          `,
+            )
+            .join("")}
         </body>
       </html>
     `;
@@ -239,7 +294,9 @@ export default function DataExportScreen() {
             <strong>Exported on:</strong> ${new Date().toLocaleDateString()}<br>
             <strong>Total messages:</strong> ${messages.length}
           </div>
-          ${messages.map((message) => `
+          ${messages
+            .map(
+              (message) => `
             <div class="message ${message.role}">
               <div class="sender">
                 ${message.role === "user" ? "You" : "ZEKE AI"} 
@@ -247,7 +304,9 @@ export default function DataExportScreen() {
               </div>
               <div class="content">${message.content}</div>
             </div>
-          `).join("")}
+          `,
+            )
+            .join("")}
         </body>
       </html>
     `;
@@ -257,16 +316,16 @@ export default function DataExportScreen() {
     if (Platform.OS === "web") {
       Alert.alert(
         "Export Not Available",
-        "File export is not available on web. Please use the ZEKE app on your mobile device to export data."
+        "File export is not available on web. Please use the ZEKE app on your mobile device to export data.",
       );
       return false;
     }
-    
+
     const isAvailable = await Sharing.isAvailableAsync();
     if (!isAvailable) {
       Alert.alert(
         "Sharing Not Available",
-        "File sharing is not available on this device. Please try on a different device."
+        "File sharing is not available on this device. Please try on a different device.",
       );
       return false;
     }
@@ -275,10 +334,10 @@ export default function DataExportScreen() {
 
   const exportData = async (format: ExportFormat) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
+
     const canShare = await checkSharingAvailability();
     if (!canShare) return;
-    
+
     setIsExporting(true);
 
     try {
@@ -293,7 +352,7 @@ export default function DataExportScreen() {
       if (exportType !== "memories") {
         const conversations = await getConversations();
         const allMessages: Message[] = [];
-        
+
         for (const conv of conversations) {
           const convMessages = await getConversationMessages(conv.id);
           allMessages.push(...convMessages.map(convertZekeMessageToMessage));
@@ -304,7 +363,7 @@ export default function DataExportScreen() {
       if (memories.length === 0 && messages.length === 0) {
         Alert.alert(
           "No Data Available",
-          "There is no data available to export. Start recording memories or chatting with ZEKE to create exportable data."
+          "There is no data available to export. Start recording memories or chatting with ZEKE to create exportable data.",
         );
         return;
       }
@@ -316,7 +375,10 @@ export default function DataExportScreen() {
       }
     } catch (error) {
       console.error("Export error:", error);
-      Alert.alert("Export Failed", "There was an error exporting your data. Please try again.");
+      Alert.alert(
+        "Export Failed",
+        "There was an error exporting your data. Please try again.",
+      );
     } finally {
       setIsExporting(false);
     }
@@ -353,8 +415,9 @@ export default function DataExportScreen() {
     if (memories.length > 0 && messages.length > 0) {
       const memoriesHTML = generateMemoriesHTML(memories);
       const conversationsHTML = generateConversationsHTML(messages);
-      html = memoriesHTML.replace("</body></html>", "") + 
-        '<div style="page-break-before: always;"></div>' + 
+      html =
+        memoriesHTML.replace("</body></html>", "") +
+        '<div style="page-break-before: always;"></div>' +
         conversationsHTML.replace(/<!DOCTYPE html>[\s\S]*?<body>/, "");
       filename = "zeke-export";
     } else if (memories.length > 0) {
@@ -381,14 +444,22 @@ export default function DataExportScreen() {
   };
 
   const hasNoData = memoriesCount === 0 && messagesCount === 0;
-  const canExportSelection = 
+  const canExportSelection =
     (exportType === "all" && (memoriesCount > 0 || messagesCount > 0)) ||
     (exportType === "memories" && memoriesCount > 0) ||
     (exportType === "conversations" && messagesCount > 0);
 
   if (isLoading) {
     return (
-      <View style={[styles.loadingScreen, { backgroundColor: theme.backgroundRoot, paddingTop: headerHeight + Spacing.xl }]}>
+      <View
+        style={[
+          styles.loadingScreen,
+          {
+            backgroundColor: theme.backgroundRoot,
+            paddingTop: headerHeight + Spacing.xl,
+          },
+        ]}
+      >
         <ActivityIndicator size="large" color={Colors.dark.primary} />
         <ThemedText type="body" secondary style={{ marginTop: Spacing.lg }}>
           Checking available data...
@@ -408,35 +479,70 @@ export default function DataExportScreen() {
       scrollIndicatorInsets={{ bottom: insets.bottom }}
       showsVerticalScrollIndicator={false}
     >
-      <View style={[styles.infoCard, { backgroundColor: theme.backgroundDefault }]}>
+      <View
+        style={[styles.infoCard, { backgroundColor: theme.backgroundDefault }]}
+      >
         <ThemedText type="body">
-          Export your memories and conversations to share or backup your data. Choose what to include and your preferred format.
+          Export your memories and conversations to share or backup your data.
+          Choose what to include and your preferred format.
         </ThemedText>
       </View>
 
-      <View style={[styles.dataStatusCard, { backgroundColor: theme.backgroundDefault }]}>
+      <View
+        style={[
+          styles.dataStatusCard,
+          { backgroundColor: theme.backgroundDefault },
+        ]}
+      >
         <View style={styles.dataStatusRow}>
-          <Feather name="file-text" size={18} color={memoriesCount > 0 ? Colors.dark.success : theme.textSecondary} />
+          <Feather
+            name="file-text"
+            size={18}
+            color={
+              memoriesCount > 0 ? Colors.dark.success : theme.textSecondary
+            }
+          />
           <ThemedText type="body" style={{ marginLeft: Spacing.sm }}>
-            {memoriesCount} {memoriesCount === 1 ? 'memory' : 'memories'} available
+            {memoriesCount} {memoriesCount === 1 ? "memory" : "memories"}{" "}
+            available
           </ThemedText>
         </View>
         <View style={styles.dataStatusRow}>
-          <Feather name="message-circle" size={18} color={messagesCount > 0 ? Colors.dark.success : theme.textSecondary} />
+          <Feather
+            name="message-circle"
+            size={18}
+            color={
+              messagesCount > 0 ? Colors.dark.success : theme.textSecondary
+            }
+          />
           <ThemedText type="body" style={{ marginLeft: Spacing.sm }}>
-            {messagesCount} {messagesCount === 1 ? 'message' : 'messages'} available
+            {messagesCount} {messagesCount === 1 ? "message" : "messages"}{" "}
+            available
           </ThemedText>
         </View>
       </View>
 
       {hasNoData ? (
-        <View style={[styles.emptyState, { backgroundColor: theme.backgroundDefault }]}>
+        <View
+          style={[
+            styles.emptyState,
+            { backgroundColor: theme.backgroundDefault },
+          ]}
+        >
           <Feather name="inbox" size={48} color={theme.textSecondary} />
-          <ThemedText type="h4" style={{ marginTop: Spacing.lg, textAlign: 'center' }}>
+          <ThemedText
+            type="h4"
+            style={{ marginTop: Spacing.lg, textAlign: "center" }}
+          >
             No Data to Export
           </ThemedText>
-          <ThemedText type="body" secondary style={{ marginTop: Spacing.sm, textAlign: 'center' }}>
-            Start recording memories or chatting with ZEKE to create exportable data.
+          <ThemedText
+            type="body"
+            secondary
+            style={{ marginTop: Spacing.sm, textAlign: "center" }}
+          >
+            Start recording memories or chatting with ZEKE to create exportable
+            data.
           </ThemedText>
         </View>
       ) : (
@@ -476,7 +582,9 @@ export default function DataExportScreen() {
                 onPress={() => exportData("pdf")}
                 disabled={isExporting || !canExportSelection}
               />
-              <View style={[styles.divider, { backgroundColor: theme.border }]} />
+              <View
+                style={[styles.divider, { backgroundColor: theme.border }]}
+              />
               <SettingsRow
                 icon="hash"
                 label="Export as Markdown"
@@ -494,7 +602,11 @@ export default function DataExportScreen() {
               </View>
             ) : null}
             {!canExportSelection && !isExporting ? (
-              <ThemedText type="caption" secondary style={{ marginTop: Spacing.sm, marginLeft: Spacing.lg }}>
+              <ThemedText
+                type="caption"
+                secondary
+                style={{ marginTop: Spacing.sm, marginLeft: Spacing.lg }}
+              >
                 No data available for selected export type.
               </ThemedText>
             ) : null}
@@ -503,17 +615,24 @@ export default function DataExportScreen() {
       )}
 
       {Platform.OS === "web" ? (
-        <View style={[styles.webWarning, { backgroundColor: theme.backgroundDefault }]}>
+        <View
+          style={[
+            styles.webWarning,
+            { backgroundColor: theme.backgroundDefault },
+          ]}
+        >
           <Feather name="info" size={16} color={Colors.dark.warning} />
           <ThemedText type="caption" style={styles.webWarningText}>
-            Export is only available in the mobile app. Use Expo Go to access this feature.
+            Export is only available in the mobile app. Use Expo Go to access
+            this feature.
           </ThemedText>
         </View>
       ) : null}
 
       {!hasNoData ? (
         <ThemedText type="caption" secondary style={styles.footerNote}>
-          Exported files can be shared via email, saved to your files, or sent to other apps on your device.
+          Exported files can be shared via email, saved to your files, or sent
+          to other apps on your device.
         </ThemedText>
       ) : null}
     </ScrollView>

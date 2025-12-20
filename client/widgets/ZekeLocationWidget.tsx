@@ -1,66 +1,70 @@
-import React from 'react';
-import { FlexWidget, TextWidget } from 'react-native-android-widget';
+import React from "react";
+import { FlexWidget, TextWidget } from "react-native-android-widget";
 
 interface ZekeLocationWidgetProps {
-  status?: 'idle' | 'saving' | 'saved' | 'error';
+  status?: "idle" | "saving" | "saved" | "error";
   lastSaved?: string;
   errorMessage?: string;
 }
 
-export function ZekeLocationWidget({ status = 'idle', lastSaved, errorMessage }: ZekeLocationWidgetProps) {
+export function ZekeLocationWidget({
+  status = "idle",
+  lastSaved,
+  errorMessage,
+}: ZekeLocationWidgetProps) {
   const getStatusText = () => {
     switch (status) {
-      case 'saving':
-        return 'Saving...';
-      case 'saved':
-        return lastSaved ? `Saved: ${lastSaved}` : 'Location Saved!';
-      case 'error':
-        return errorMessage || 'Tap to open app';
+      case "saving":
+        return "Saving...";
+      case "saved":
+        return lastSaved ? `Saved: ${lastSaved}` : "Location Saved!";
+      case "error":
+        return errorMessage || "Tap to open app";
       default:
-        return 'Tap to save location';
+        return "Tap to save location";
     }
   };
 
   const getButtonColor = () => {
     switch (status) {
-      case 'saving':
-        return '#64748B';
-      case 'saved':
-        return '#22C55E';
-      case 'error':
-        return '#EF4444';
+      case "saving":
+        return "#64748B";
+      case "saved":
+        return "#22C55E";
+      case "error":
+        return "#EF4444";
       default:
-        return '#6366F1';
+        return "#6366F1";
     }
   };
 
   const getIconSymbol = () => {
     switch (status) {
-      case 'saving':
-        return '...';
-      case 'saved':
-        return 'OK';
-      case 'error':
-        return '!';
+      case "saving":
+        return "...";
+      case "saved":
+        return "OK";
+      case "error":
+        return "!";
       default:
-        return 'LOC';
+        return "LOC";
     }
   };
 
   return (
     <FlexWidget
       style={{
-        height: 'match_parent',
-        width: 'match_parent',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: '#0F172A',
+        height: "match_parent",
+        width: "match_parent",
+        flexDirection: "column",
+        justifyContent: "center",
+        alignItems: "center",
+        backgroundColor: "#0F172A",
         borderRadius: 24,
         padding: 16,
       }}
       clickAction="SAVE_LOCATION"
-      clickActionData={{ action: 'save_location' }}
+      clickActionData={{ action: "save_location" }}
     >
       <FlexWidget
         style={{
@@ -68,8 +72,8 @@ export function ZekeLocationWidget({ status = 'idle', lastSaved, errorMessage }:
           height: 56,
           backgroundColor: getButtonColor(),
           borderRadius: 28,
-          justifyContent: 'center',
-          alignItems: 'center',
+          justifyContent: "center",
+          alignItems: "center",
           marginBottom: 8,
         }}
       >
@@ -77,8 +81,8 @@ export function ZekeLocationWidget({ status = 'idle', lastSaved, errorMessage }:
           text={getIconSymbol()}
           style={{
             fontSize: 16,
-            fontWeight: '700',
-            color: '#FFFFFF',
+            fontWeight: "700",
+            color: "#FFFFFF",
           }}
         />
       </FlexWidget>
@@ -87,8 +91,8 @@ export function ZekeLocationWidget({ status = 'idle', lastSaved, errorMessage }:
         text="ZEKE"
         style={{
           fontSize: 18,
-          fontWeight: '700',
-          color: '#F8FAFC',
+          fontWeight: "700",
+          color: "#F8FAFC",
           marginBottom: 4,
         }}
       />
@@ -97,8 +101,8 @@ export function ZekeLocationWidget({ status = 'idle', lastSaved, errorMessage }:
         text={getStatusText()}
         style={{
           fontSize: 12,
-          color: '#94A3B8',
-          textAlign: 'center',
+          color: "#94A3B8",
+          textAlign: "center",
         }}
       />
     </FlexWidget>

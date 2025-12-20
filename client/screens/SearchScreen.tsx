@@ -1,5 +1,11 @@
 import React, { useState, useCallback } from "react";
-import { View, FlatList, StyleSheet, Pressable, ScrollView, ActivityIndicator } from "react-native";
+import {
+  View,
+  StyleSheet,
+  Pressable,
+  ScrollView,
+  ActivityIndicator,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
@@ -14,7 +20,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { Memory } from "@/lib/storage";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, Colors, BorderRadius } from "@/constants/theme";
-import { getApiUrl, isZekeSyncMode } from "@/lib/query-client";
+import { isZekeSyncMode } from "@/lib/query-client";
 import { searchMemories as searchZekeMemories } from "@/lib/zeke-api-adapter";
 
 interface ApiDevice {
@@ -44,11 +50,17 @@ function formatTimestamp(dateStr: string) {
   const yesterday = new Date(now);
   yesterday.setDate(yesterday.getDate() - 1);
   const isYesterday = date.toDateString() === yesterday.toDateString();
-  
-  const timeStr = date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+  const timeStr = date.toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  });
   if (isToday) return `Today, ${timeStr}`;
   if (isYesterday) return `Yesterday, ${timeStr}`;
-  return date.toLocaleDateString([], { month: "short", day: "numeric" }) + `, ${timeStr}`;
+  return (
+    date.toLocaleDateString([], { month: "short", day: "numeric" }) +
+    `, ${timeStr}`
+  );
 }
 
 function formatDuration(seconds: number) {
@@ -56,7 +68,10 @@ function formatDuration(seconds: number) {
   return `${mins} min`;
 }
 
-function mapApiMemoryToMemory(memory: ApiMemory, deviceType: "omi" | "limitless"): Memory {
+function mapApiMemoryToMemory(
+  memory: ApiMemory,
+  deviceType: "omi" | "limitless",
+): Memory {
   return {
     id: memory.id,
     title: memory.title,
@@ -78,10 +93,12 @@ export default function SearchScreen() {
 
   const [query, setQuery] = useState("");
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
-  const [activeSearchQuery, setActiveSearchQuery] = useState<string | null>(null);
+  const [activeSearchQuery, setActiveSearchQuery] = useState<string | null>(
+    null,
+  );
 
   const { data: devicesData } = useQuery<ApiDevice[]>({
-    queryKey: ['/api/devices'],
+    queryKey: ["/api/devices"],
     enabled: !isSyncMode,
   });
 
@@ -96,17 +113,24 @@ export default function SearchScreen() {
     totalMatches: number;
   }
 
-  const { data: searchResponse, isLoading: isSearching, isError } = useQuery<SemanticSearchResponse>({
-    queryKey: isSyncMode ? ['zeke-search', activeSearchQuery] : ['/api/memories/search', activeSearchQuery],
+  const {
+    data: searchResponse,
+    isLoading: isSearching,
+    isError,
+  } = useQuery<SemanticSearchResponse>({
+    queryKey: isSyncMode
+      ? ["zeke-search", activeSearchQuery]
+      : ["/api/memories/search", activeSearchQuery],
     queryFn: async () => {
-      if (!activeSearchQuery) return { results: [], query: '', totalMatches: 0 };
-      
+      if (!activeSearchQuery)
+        return { results: [], query: "", totalMatches: 0 };
+
       if (isSyncMode) {
         const results = await searchZekeMemories(activeSearchQuery);
         return {
-          results: results.map(m => ({
+          results: results.map((m) => ({
             id: m.id,
-            deviceId: m.deviceId || 'zeke-main',
+            deviceId: m.deviceId || "zeke-main",
             title: m.title,
             summary: m.summary || null,
             transcript: m.transcript,
@@ -122,23 +146,26 @@ export default function SearchScreen() {
           totalMatches: results.length,
         };
       } else {
-        const { apiClient } = await import('@/lib/api-client');
-        return await apiClient.post<SemanticSearchResponse>('/api/memories/search', {
-          query: activeSearchQuery,
-          limit: 10
-        });
+        const { apiClient } = await import("@/lib/api-client");
+        return await apiClient.post<SemanticSearchResponse>(
+          "/api/memories/search",
+          {
+            query: activeSearchQuery,
+            limit: 10,
+          },
+        );
       }
     },
     enabled: !!activeSearchQuery,
   });
 
   const deviceTypeMap = new Map<string, "omi" | "limitless">();
-  (devicesData ?? []).forEach(d => {
+  (devicesData ?? []).forEach((d) => {
     deviceTypeMap.set(d.id, d.type as "omi" | "limitless");
   });
 
-  const results: Memory[] = (searchResponse?.results ?? []).map(m => 
-    mapApiMemoryToMemory(m, deviceTypeMap.get(m.deviceId) ?? "omi")
+  const results: Memory[] = (searchResponse?.results ?? []).map((m) =>
+    mapApiMemoryToMemory(m, deviceTypeMap.get(m.deviceId) ?? "omi"),
   );
 
   const handleSearch = useCallback(() => {
@@ -195,18 +222,26 @@ export default function SearchScreen() {
               onPress={() => handleRecentSearch(search)}
               style={({ pressed }) => [
                 styles.recentChip,
-                { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.8 : 1 },
+                {
+                  backgroundColor: theme.backgroundDefault,
+                  opacity: pressed ? 0.8 : 1,
+                },
               ]}
             >
               <Feather name="clock" size={14} color={theme.textSecondary} />
-              <ThemedText type="small" style={{ color: Colors.dark.primary, marginLeft: Spacing.xs }}>
+              <ThemedText
+                type="small"
+                style={{ color: Colors.dark.primary, marginLeft: Spacing.xs }}
+              >
                 {search}
               </ThemedText>
             </Pressable>
           ))}
         </ScrollView>
       ) : (
-        <ThemedText type="body" secondary>No recent searches</ThemedText>
+        <ThemedText type="body" secondary>
+          No recent searches
+        </ThemedText>
       )}
 
       <View style={styles.suggestionsSection}>
@@ -214,7 +249,8 @@ export default function SearchScreen() {
           AI-Powered Search
         </ThemedText>
         <ThemedText type="body" secondary>
-          Try natural language queries like "meetings about budgets" or "what action items do I have?"
+          Try natural language queries like &quot;meetings about budgets&quot;
+          or &quot;what action items do I have?&quot;
         </ThemedText>
       </View>
     </View>
@@ -264,13 +300,26 @@ export default function SearchScreen() {
             style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1 })}
           >
             <Card style={styles.resultCard}>
-              <ThemedText type="body" style={{ fontWeight: "600" }} numberOfLines={1}>
+              <ThemedText
+                type="body"
+                style={{ fontWeight: "600" }}
+                numberOfLines={1}
+              >
                 {memory.title}
               </ThemedText>
-              <ThemedText type="small" secondary style={{ marginTop: Spacing.xs }}>
+              <ThemedText
+                type="small"
+                secondary
+                style={{ marginTop: Spacing.xs }}
+              >
                 {memory.timestamp} - {memory.duration}
               </ThemedText>
-              <ThemedText type="caption" secondary numberOfLines={2} style={{ marginTop: Spacing.sm }}>
+              <ThemedText
+                type="caption"
+                secondary
+                numberOfLines={2}
+                style={{ marginTop: Spacing.sm }}
+              >
                 {memory.transcript}
               </ThemedText>
             </Card>

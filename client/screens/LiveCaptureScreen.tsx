@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { View, StyleSheet, ScrollView, Pressable, Alert, Platform } from "react-native";
+import { View, StyleSheet, ScrollView, Pressable, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useNavigation } from "@react-navigation/native";
@@ -29,9 +29,13 @@ export default function LiveCaptureScreen() {
   const navigation = useNavigation();
   const { theme } = useTheme();
 
-  const [connectedDevice, setConnectedDevice] = useState<BLEDevice | null>(null);
-  const [bleConnectionState, setBleConnectionState] = useState<ConnectionState>("disconnected");
-  const [deepgramState, setDeepgramState] = useState<DeepgramConnectionState>("disconnected");
+  const [connectedDevice, setConnectedDevice] = useState<BLEDevice | null>(
+    null,
+  );
+  const [bleConnectionState, setBleConnectionState] =
+    useState<ConnectionState>("disconnected");
+  const [deepgramState, setDeepgramState] =
+    useState<DeepgramConnectionState>("disconnected");
   const [isCapturing, setIsCapturing] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [interimTranscript, setInterimTranscript] = useState("");
@@ -41,7 +45,7 @@ export default function LiveCaptureScreen() {
   const pulseAnim = useSharedValue(0);
   const durationInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const transcriptScrollRef = useRef<ScrollView>(null);
-  const [isConfigLoading, setIsConfigLoading] = useState(true);
+  const [, setIsConfigLoading] = useState(true);
   const [isConfigured, setIsConfigured] = useState(false);
 
   useEffect(() => {
@@ -56,24 +60,30 @@ export default function LiveCaptureScreen() {
     };
     initialize();
 
-    const unsubscribeBle = bluetoothService.onConnectionStateChange((state, device) => {
-      setBleConnectionState(state);
-      setConnectedDevice(device);
-    });
+    const unsubscribeBle = bluetoothService.onConnectionStateChange(
+      (state, device) => {
+        setBleConnectionState(state);
+        setConnectedDevice(device);
+      },
+    );
 
-    const unsubscribeDeepgram = deepgramService.onConnectionStateChange((state) => {
-      setDeepgramState(state);
-    });
+    const unsubscribeDeepgram = deepgramService.onConnectionStateChange(
+      (state) => {
+        setDeepgramState(state);
+      },
+    );
 
-    const unsubscribeTranscript = deepgramService.onTranscription((text, isFinal) => {
-      if (isFinal) {
-        setTranscript((prev) => (prev ? `${prev} ${text}` : text));
-        setInterimTranscript("");
-      } else {
-        setInterimTranscript(text);
-      }
-      transcriptScrollRef.current?.scrollToEnd({ animated: true });
-    });
+    const unsubscribeTranscript = deepgramService.onTranscription(
+      (text, isFinal) => {
+        if (isFinal) {
+          setTranscript((prev) => (prev ? `${prev} ${text}` : text));
+          setInterimTranscript("");
+        } else {
+          setInterimTranscript(text);
+        }
+        transcriptScrollRef.current?.scrollToEnd({ animated: true });
+      },
+    );
 
     const unsubscribeError = deepgramService.onError((err) => {
       setError(err);
@@ -91,6 +101,7 @@ export default function LiveCaptureScreen() {
         clearInterval(durationInterval.current);
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -98,14 +109,15 @@ export default function LiveCaptureScreen() {
       pulseAnim.value = withRepeat(
         withSequence(
           withTiming(1, { duration: 1000 }),
-          withTiming(0, { duration: 1000 })
+          withTiming(0, { duration: 1000 }),
         ),
         -1,
-        false
+        false,
       );
     } else {
       pulseAnim.value = withTiming(0);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isCapturing]);
 
   const startCapture = useCallback(async () => {
@@ -113,7 +125,7 @@ export default function LiveCaptureScreen() {
       Alert.alert(
         "No Device Connected",
         "Please connect to an Omi or Limitless device first in Settings.",
-        [{ text: "OK" }]
+        [{ text: "OK" }],
       );
       return;
     }
@@ -122,7 +134,7 @@ export default function LiveCaptureScreen() {
       Alert.alert(
         "Transcription Not Available",
         "Real-time transcription is not configured. Please add the DEEPGRAM_API_KEY secret.",
-        [{ text: "OK" }]
+        [{ text: "OK" }],
       );
       return;
     }
@@ -143,7 +155,7 @@ export default function LiveCaptureScreen() {
       Alert.alert(
         "Capture Failed",
         "Could not start audio capture. Please check your device connection.",
-        [{ text: "OK" }]
+        [{ text: "OK" }],
       );
     }
   }, [connectedDevice, isConfigured]);
@@ -161,20 +173,56 @@ export default function LiveCaptureScreen() {
 
   const handleSaveCapture = useCallback(async () => {
     if (!transcript.trim()) {
-      Alert.alert("Nothing to Save", "No transcript was captured.", [{ text: "OK" }]);
+      Alert.alert("Nothing to Save", "No transcript was captured.", [
+        { text: "OK" },
+      ]);
       return;
     }
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-    Alert.prompt
-      ? Alert.prompt(
-          "Save Capture",
-          "Enter a title for this memory (optional):",
-          async (title) => {
-            const success = await deepgramService.sendCaptureToZeke(title || undefined);
+    if (typeof (Alert as any).prompt === "function") {
+      (Alert as any).prompt(
+        "Save Capture",
+        "Enter a title for this memory (optional):",
+        async (title: string) => {
+          const success = await deepgramService.sendCaptureToZeke(
+            title || undefined,
+          );
+          if (success) {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            Alert.alert("Saved!", "Your capture has been saved to ZEKE.", [
+              {
+                text: "OK",
+                onPress: () => {
+                  deepgramService.clearSession();
+                  setTranscript("");
+                  navigation.goBack();
+                },
+              },
+            ]);
+          } else {
+            Alert.alert(
+              "Save Failed",
+              "Could not save the capture. Please try again.",
+              [{ text: "OK" }],
+            );
+          }
+        },
+        "plain-text",
+        "",
+      );
+    } else {
+      Alert.alert("Save Capture", "Save this transcript to ZEKE memories?", [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Save",
+          onPress: async () => {
+            const success = await deepgramService.sendCaptureToZeke();
             if (success) {
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Haptics.notificationAsync(
+                Haptics.NotificationFeedbackType.Success,
+              );
               Alert.alert("Saved!", "Your capture has been saved to ZEKE.", [
                 {
                   text: "OK",
@@ -186,44 +234,16 @@ export default function LiveCaptureScreen() {
                 },
               ]);
             } else {
-              Alert.alert("Save Failed", "Could not save the capture. Please try again.", [
-                { text: "OK" },
-              ]);
+              Alert.alert(
+                "Save Failed",
+                "Could not save the capture. Please try again.",
+                [{ text: "OK" }],
+              );
             }
           },
-          "plain-text",
-          ""
-        )
-      : Alert.alert(
-          "Save Capture",
-          "Save this transcript to ZEKE memories?",
-          [
-            { text: "Cancel", style: "cancel" },
-            {
-              text: "Save",
-              onPress: async () => {
-                const success = await deepgramService.sendCaptureToZeke();
-                if (success) {
-                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                  Alert.alert("Saved!", "Your capture has been saved to ZEKE.", [
-                    {
-                      text: "OK",
-                      onPress: () => {
-                        deepgramService.clearSession();
-                        setTranscript("");
-                        navigation.goBack();
-                      },
-                    },
-                  ]);
-                } else {
-                  Alert.alert("Save Failed", "Could not save the capture. Please try again.", [
-                    { text: "OK" },
-                  ]);
-                }
-              },
-            },
-          ]
-        );
+        },
+      ]);
+    }
   }, [transcript, navigation]);
 
   const handleDiscardCapture = useCallback(() => {
@@ -233,18 +253,22 @@ export default function LiveCaptureScreen() {
       return;
     }
 
-    Alert.alert("Discard Capture?", "This will delete the current transcript.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Discard",
-        style: "destructive",
-        onPress: () => {
-          deepgramService.clearSession();
-          setTranscript("");
-          navigation.goBack();
+    Alert.alert(
+      "Discard Capture?",
+      "This will delete the current transcript.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Discard",
+          style: "destructive",
+          onPress: () => {
+            deepgramService.clearSession();
+            setTranscript("");
+            navigation.goBack();
+          },
         },
-      },
-    ]);
+      ],
+    );
   }, [transcript, navigation]);
 
   const formatDuration = (seconds: number): string => {
@@ -257,7 +281,7 @@ export default function LiveCaptureScreen() {
     const backgroundColor = interpolateColor(
       pulseAnim.value,
       [0, 1],
-      [Colors.dark.error, "rgba(239, 68, 68, 0.5)"]
+      [Colors.dark.error, "rgba(239, 68, 68, 0.5)"],
     );
     return {
       backgroundColor,
@@ -283,7 +307,9 @@ export default function LiveCaptureScreen() {
     <ThemedView style={styles.container}>
       <View style={[styles.header, { paddingTop: headerHeight + Spacing.md }]}>
         <View style={styles.statusRow}>
-          <View style={[styles.statusDot, { backgroundColor: getStatusColor() }]} />
+          <View
+            style={[styles.statusDot, { backgroundColor: getStatusColor() }]}
+          />
           <ThemedText type="small" secondary>
             {getStatusText()}
           </ThemedText>
@@ -314,7 +340,10 @@ export default function LiveCaptureScreen() {
               {transcript}
             </ThemedText>
             {interimTranscript ? (
-              <ThemedText type="body" style={[styles.transcriptText, styles.interimText]}>
+              <ThemedText
+                type="body"
+                style={[styles.transcriptText, styles.interimText]}
+              >
                 {interimTranscript}
               </ThemedText>
             ) : null}
@@ -330,8 +359,8 @@ export default function LiveCaptureScreen() {
               {isCapturing
                 ? "Listening for audio..."
                 : connectedDevice
-                ? "Tap the button below to start capturing"
-                : "Connect a device to begin"}
+                  ? "Tap the button below to start capturing"
+                  : "Connect a device to begin"}
             </ThemedText>
           </View>
         )}
@@ -340,7 +369,10 @@ export default function LiveCaptureScreen() {
       {error ? (
         <Card elevation={1} style={styles.errorCard}>
           <Feather name="alert-circle" size={16} color={Colors.dark.error} />
-          <ThemedText type="small" style={{ color: Colors.dark.error, marginLeft: Spacing.sm }}>
+          <ThemedText
+            type="small"
+            style={{ color: Colors.dark.error, marginLeft: Spacing.sm }}
+          >
             {error}
           </ThemedText>
         </Card>
@@ -372,7 +404,10 @@ export default function LiveCaptureScreen() {
               onPress={handleDiscardCapture}
               style={({ pressed }) => [
                 styles.secondaryButton,
-                { opacity: pressed ? 0.8 : 1, backgroundColor: theme.backgroundSecondary },
+                {
+                  opacity: pressed ? 0.8 : 1,
+                  backgroundColor: theme.backgroundSecondary,
+                },
               ]}
             >
               <Feather name="trash-2" size={20} color={Colors.dark.error} />
@@ -381,9 +416,15 @@ export default function LiveCaptureScreen() {
               onPress={handleSaveCapture}
               style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1 })}
             >
-              <LinearGradient colors={Gradients.primary} style={styles.saveButton}>
+              <LinearGradient
+                colors={Gradients.primary}
+                style={styles.saveButton}
+              >
                 <Feather name="check" size={24} color="#FFFFFF" />
-                <ThemedText type="body" style={{ color: "#FFFFFF", marginLeft: Spacing.sm }}>
+                <ThemedText
+                  type="body"
+                  style={{ color: "#FFFFFF", marginLeft: Spacing.sm }}
+                >
                   Save Capture
                 </ThemedText>
               </LinearGradient>
@@ -395,10 +436,14 @@ export default function LiveCaptureScreen() {
               onPress={startCapture}
               disabled={bleConnectionState !== "connected"}
               style={({ pressed }) => ({
-                opacity: pressed || bleConnectionState !== "connected" ? 0.6 : 1,
+                opacity:
+                  pressed || bleConnectionState !== "connected" ? 0.6 : 1,
               })}
             >
-              <LinearGradient colors={Gradients.primary} style={styles.captureButton}>
+              <LinearGradient
+                colors={Gradients.primary}
+                style={styles.captureButton}
+              >
                 <Feather name="mic" size={32} color="#FFFFFF" />
               </LinearGradient>
             </Pressable>

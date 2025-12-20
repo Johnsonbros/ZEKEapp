@@ -15,25 +15,40 @@ export type {
   InsertStarredPlace,
   DeviceToken,
   InsertDeviceToken,
-} from '@shared/schema';
+} from "@shared/schema";
 
-export type AccessLevel = 'family' | 'close_friend' | 'friend' | 'acquaintance' | 'unknown';
+export type AccessLevel =
+  | "family"
+  | "close_friend"
+  | "friend"
+  | "acquaintance"
+  | "unknown";
 
-export const accessLevels: AccessLevel[] = ['family', 'close_friend', 'friend', 'acquaintance', 'unknown'];
+export const accessLevels: AccessLevel[] = [
+  "family",
+  "close_friend",
+  "friend",
+  "acquaintance",
+  "unknown",
+];
 
-export type CustomListType = 'grocery' | 'todo' | 'custom';
-export const customListTypes: CustomListType[] = ['grocery', 'todo', 'custom'];
+export type CustomListType = "grocery" | "todo" | "custom";
+export const customListTypes: CustomListType[] = ["grocery", "todo", "custom"];
 
-export type CustomListItemPriority = 'low' | 'medium' | 'high';
-export const customListItemPriorities: CustomListItemPriority[] = ['low', 'medium', 'high'];
+export type CustomListItemPriority = "low" | "medium" | "high";
+export const customListItemPriorities: CustomListItemPriority[] = [
+  "low",
+  "medium",
+  "high",
+];
 
 export interface Task {
   id: string;
   title: string;
   description?: string;
   dueDate?: string;
-  priority?: 'low' | 'medium' | 'high';
-  status?: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+  priority?: "low" | "medium" | "high";
+  status?: "pending" | "in_progress" | "completed" | "cancelled";
   createdAt: string;
   updatedAt: string;
 }
@@ -115,7 +130,7 @@ export interface Message {
   id: string;
   conversationId: string;
   content: string;
-  role: 'user' | 'assistant';
+  role: "user" | "assistant";
   createdAt: string;
 }
 
@@ -130,7 +145,7 @@ export interface MemoryNote {
   id: string;
   content: string;
   category?: string;
-  importance?: 'low' | 'medium' | 'high';
+  importance?: "low" | "medium" | "high";
   createdAt: string;
   updatedAt: string;
 }

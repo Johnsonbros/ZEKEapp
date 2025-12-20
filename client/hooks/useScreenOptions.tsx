@@ -1,8 +1,7 @@
-import { Platform, StatusBar, View, StyleSheet } from "react-native";
+import { Platform, View, StyleSheet } from "react-native";
 import { NativeStackNavigationOptions } from "@react-navigation/native-stack";
 import { BlurView } from "expo-blur";
 import { isLiquidGlassAvailable, GlassView } from "expo-glass-effect";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme } from "@/hooks/useTheme";
 
@@ -14,13 +13,6 @@ export function useScreenOptions({
   transparent = true,
 }: UseScreenOptionsParams = {}): NativeStackNavigationOptions {
   const { theme, isDark } = useTheme();
-  const insets = useSafeAreaInsets();
-
-  const statusBarHeight = Platform.select({
-    android: StatusBar.currentHeight || insets.top || 24,
-    ios: insets.top,
-    default: insets.top,
-  });
 
   const isIOS = Platform.OS === "ios";
   const isAndroid = Platform.OS === "android";

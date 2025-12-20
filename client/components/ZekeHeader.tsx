@@ -43,7 +43,11 @@ function GradientIcon({
         </View>
       }
     >
-      <LinearGradient colors={colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+      <LinearGradient
+        colors={colors}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
         <Feather name={name} size={size} color="transparent" />
       </LinearGradient>
     </MaskedView>
@@ -70,18 +74,36 @@ export function ZekeHeaderButtons() {
       <Pressable
         onPress={handleChatPress}
         hitSlop={hitSlop}
-        android_ripple={{ color: "rgba(255,255,255,0.2)", borderless: true, radius: 22 }}
-        style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
+        android_ripple={{
+          color: "rgba(255,255,255,0.2)",
+          borderless: true,
+          radius: 22,
+        }}
+        style={({ pressed }) => [
+          styles.button,
+          pressed && styles.buttonPressed,
+        ]}
       >
         <View style={styles.chatButtonGlow} />
-        <GradientIcon name="message-circle" size={24} colors={Gradients.accent} />
+        <GradientIcon
+          name="message-circle"
+          size={24}
+          colors={Gradients.accent}
+        />
       </Pressable>
       <View style={styles.divider} pointerEvents="none" />
       <Pressable
         onPress={handleSettingsPress}
         hitSlop={hitSlop}
-        android_ripple={{ color: "rgba(255,255,255,0.2)", borderless: true, radius: 22 }}
-        style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
+        android_ripple={{
+          color: "rgba(255,255,255,0.2)",
+          borderless: true,
+          radius: 22,
+        }}
+        style={({ pressed }) => [
+          styles.button,
+          pressed && styles.buttonPressed,
+        ]}
       >
         <Feather name="settings" size={22} color={Colors.dark.textSecondary} />
       </Pressable>
@@ -91,14 +113,22 @@ export function ZekeHeaderButtons() {
   if (Platform.OS === "ios") {
     return (
       <View style={styles.glassContainer} pointerEvents="box-none">
-        <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} pointerEvents="none" />
+        <BlurView
+          intensity={40}
+          tint="dark"
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        />
         <View style={styles.glassInner}>{ButtonContent}</View>
       </View>
     );
   }
 
   return (
-    <View style={[styles.glassContainer, styles.glassContainerFallback]} pointerEvents="box-none">
+    <View
+      style={[styles.glassContainer, styles.glassContainerFallback]}
+      pointerEvents="box-none"
+    >
       <View style={styles.glassInner}>{ButtonContent}</View>
     </View>
   );

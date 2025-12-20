@@ -1,16 +1,16 @@
 /**
  * API Client Smoke Test Harness
- * 
+ *
  * Manual validation of retry logic, timeout handling, and abort behavior.
  * NOT shipped to production - only imported in dev builds for manual testing.
- * 
+ *
  * Usage:
  *   In dev: import { testRetryBehavior, testAbortBehavior } from '@/lib/__dev__/api-client-smoke'
  *   Call: await testRetryBehavior()
  *         await testAbortBehavior()
  */
 
-import { apiClient, ApiError } from '../api-client';
+import { apiClient, ApiError } from "../api-client";
 
 interface SmokeTestResult {
   testName: string;
@@ -30,23 +30,23 @@ export async function testRetryBehavior(): Promise<SmokeTestResult> {
   const startTime = Date.now();
   let retryCount = 0;
   let finalError: string | null = null;
-  let errorType = 'none';
+  let errorType = "none";
   let success = false;
 
-  console.log('[API Smoke Test] Starting retry behavior test...');
+  console.log("[API Smoke Test] Starting retry behavior test...");
 
   try {
     // Try to call a deliberately slow endpoint with very short timeout to force retries
     const result = await apiClient.get<any>(
-      '/api/slow-endpoint-for-testing', // This endpoint likely doesn't exist, will timeout
-      { timeoutMs: 500 } // 500ms timeout to force retry logic
+      "/api/slow-endpoint-for-testing", // This endpoint likely doesn't exist, will timeout
+      { timeoutMs: 500 }, // 500ms timeout to force retry logic
     );
     success = true;
-    console.log('[API Smoke Test] Endpoint responded:', result);
+    console.log("[API Smoke Test] Endpoint responded:", result);
   } catch (error) {
     if (error instanceof ApiError) {
       finalError = error.message;
-      errorType = `ApiError (${error.status || 'network'})`;
+      errorType = `ApiError (${error.status || "network"})`;
       console.error(`[API Smoke Test] ApiError: ${error.message}`, {
         status: error.status,
         url: error.url,
@@ -54,20 +54,20 @@ export async function testRetryBehavior(): Promise<SmokeTestResult> {
       });
     } else if (error instanceof Error) {
       finalError = error.message;
-      errorType = error.name || 'Error';
+      errorType = error.name || "Error";
       console.error(`[API Smoke Test] ${errorType}: ${error.message}`);
     } else {
       finalError = String(error);
-      errorType = 'Unknown';
-      console.error('[API Smoke Test] Unknown error:', error);
+      errorType = "Unknown";
+      console.error("[API Smoke Test] Unknown error:", error);
     }
   }
 
   const elapsedMs = Date.now() - startTime;
 
   const result: SmokeTestResult = {
-    testName: 'testRetryBehavior',
-    endpoint: '/api/slow-endpoint-for-testing',
+    testName: "testRetryBehavior",
+    endpoint: "/api/slow-endpoint-for-testing",
     elapsedMs,
     retryCount, // Note: actual retry count would need instrumentation in apiClient
     finalError,
@@ -75,7 +75,7 @@ export async function testRetryBehavior(): Promise<SmokeTestResult> {
     success,
   };
 
-  console.log('[API Smoke Test] Retry behavior result:', {
+  console.log("[API Smoke Test] Retry behavior result:", {
     ...result,
     elapsedMs: `${elapsedMs}ms`,
   });
@@ -90,10 +90,10 @@ export async function testRetryBehavior(): Promise<SmokeTestResult> {
 export async function testAbortBehavior(): Promise<SmokeTestResult> {
   const startTime = Date.now();
   let finalError: string | null = null;
-  let errorType = 'none';
+  let errorType = "none";
   let success = false;
 
-  console.log('[API Smoke Test] Starting abort behavior test...');
+  console.log("[API Smoke Test] Starting abort behavior test...");
 
   try {
     // Create abort controller
@@ -101,44 +101,44 @@ export async function testAbortBehavior(): Promise<SmokeTestResult> {
 
     // Start a request with a long timeout so it doesn't naturally timeout
     const requestPromise = apiClient.get<any>(
-      '/api/memories', // Use a real endpoint that should work
-      { signal: controller.signal, timeoutMs: 30000 }
+      "/api/memories", // Use a real endpoint that should work
+      { signal: controller.signal, timeoutMs: 30000 },
     );
 
     // Abort immediately (simulate user cancellation)
     setTimeout(() => {
-      console.log('[API Smoke Test] Aborting request...');
+      console.log("[API Smoke Test] Aborting request...");
       controller.abort();
     }, 100);
 
     const result = await requestPromise;
     success = true;
-    console.log('[API Smoke Test] Request completed before abort:', result);
+    console.log("[API Smoke Test] Request completed before abort:", result);
   } catch (error) {
     if (error instanceof ApiError) {
       finalError = error.message;
-      errorType = `ApiError (${error.status || 'abort'})`;
+      errorType = `ApiError (${error.status || "abort"})`;
       console.error(`[API Smoke Test] ApiError during abort: ${error.message}`);
     } else if (error instanceof Error) {
       finalError = error.message;
-      errorType = error.name || 'Error';
+      errorType = error.name || "Error";
       // Expect AbortError here
-      if (error.name === 'AbortError') {
-        console.log('[API Smoke Test] ✓ Correctly caught AbortError');
+      if (error.name === "AbortError") {
+        console.log("[API Smoke Test] ✓ Correctly caught AbortError");
       } else {
         console.error(`[API Smoke Test] Unexpected error type: ${error.name}`);
       }
     } else {
       finalError = String(error);
-      errorType = 'Unknown';
+      errorType = "Unknown";
     }
   }
 
   const elapsedMs = Date.now() - startTime;
 
   const result: SmokeTestResult = {
-    testName: 'testAbortBehavior',
-    endpoint: '/api/memories',
+    testName: "testAbortBehavior",
+    endpoint: "/api/memories",
     elapsedMs,
     retryCount: 0, // Abort doesn't retry
     finalError,
@@ -146,7 +146,7 @@ export async function testAbortBehavior(): Promise<SmokeTestResult> {
     success,
   };
 
-  console.log('[API Smoke Test] Abort behavior result:', {
+  console.log("[API Smoke Test] Abort behavior result:", {
     ...result,
     elapsedMs: `${elapsedMs}ms`,
   });
@@ -161,43 +161,40 @@ export async function testAbortBehavior(): Promise<SmokeTestResult> {
 export async function testHeaderInjection(): Promise<SmokeTestResult> {
   const startTime = Date.now();
   let finalError: string | null = null;
-  let errorType = 'none';
+  let errorType = "none";
   let success = false;
 
-  console.log('[API Smoke Test] Starting header injection test...');
+  console.log("[API Smoke Test] Starting header injection test...");
 
   try {
     // Call endpoint with custom header
-    const result = await apiClient.get<any>(
-      '/api/memories',
-      {
-        headers: {
-          'X-Custom-Header': 'test-value',
-        },
-      }
-    );
+    const result = await apiClient.get<any>("/api/memories", {
+      headers: {
+        "X-Custom-Header": "test-value",
+      },
+    });
     success = true;
-    console.log('[API Smoke Test] Header injection successful:', result);
+    console.log("[API Smoke Test] Header injection successful:", result);
   } catch (error) {
     if (error instanceof ApiError) {
       finalError = error.message;
-      errorType = `ApiError (${error.status || 'network'})`;
+      errorType = `ApiError (${error.status || "network"})`;
       console.error(`[API Smoke Test] ApiError: ${error.message}`);
     } else if (error instanceof Error) {
       finalError = error.message;
-      errorType = error.name || 'Error';
+      errorType = error.name || "Error";
       console.error(`[API Smoke Test] ${errorType}: ${error.message}`);
     } else {
       finalError = String(error);
-      errorType = 'Unknown';
+      errorType = "Unknown";
     }
   }
 
   const elapsedMs = Date.now() - startTime;
 
   const result: SmokeTestResult = {
-    testName: 'testHeaderInjection',
-    endpoint: '/api/memories',
+    testName: "testHeaderInjection",
+    endpoint: "/api/memories",
     elapsedMs,
     retryCount: 0,
     finalError,
@@ -205,7 +202,7 @@ export async function testHeaderInjection(): Promise<SmokeTestResult> {
     success,
   };
 
-  console.log('[API Smoke Test] Header injection result:', {
+  console.log("[API Smoke Test] Header injection result:", {
     ...result,
     elapsedMs: `${elapsedMs}ms`,
   });
@@ -217,9 +214,9 @@ export async function testHeaderInjection(): Promise<SmokeTestResult> {
  * Run all smoke tests
  */
 export async function runAllSmokeTests(): Promise<SmokeTestResult[]> {
-  console.log('\n========================================');
-  console.log('[API Smoke Test] Running all smoke tests');
-  console.log('========================================\n');
+  console.log("\n========================================");
+  console.log("[API Smoke Test] Running all smoke tests");
+  console.log("========================================\n");
 
   const results: SmokeTestResult[] = [];
 
@@ -228,48 +225,48 @@ export async function runAllSmokeTests(): Promise<SmokeTestResult[]> {
     const result = await testRetryBehavior();
     results.push(result);
   } catch (error) {
-    console.error('[API Smoke Test] testRetryBehavior crashed:', error);
+    console.error("[API Smoke Test] testRetryBehavior crashed:", error);
   }
 
   // Brief pause between tests
-  await new Promise(resolve => setTimeout(resolve, 500));
+  await new Promise((resolve) => setTimeout(resolve, 500));
 
   // Test 2: Abort behavior
   try {
     const result = await testAbortBehavior();
     results.push(result);
   } catch (error) {
-    console.error('[API Smoke Test] testAbortBehavior crashed:', error);
+    console.error("[API Smoke Test] testAbortBehavior crashed:", error);
   }
 
   // Brief pause between tests
-  await new Promise(resolve => setTimeout(resolve, 500));
+  await new Promise((resolve) => setTimeout(resolve, 500));
 
   // Test 3: Header injection
   try {
     const result = await testHeaderInjection();
     results.push(result);
   } catch (error) {
-    console.error('[API Smoke Test] testHeaderInjection crashed:', error);
+    console.error("[API Smoke Test] testHeaderInjection crashed:", error);
   }
 
   // Summary
-  console.log('\n========================================');
-  console.log('[API Smoke Test] Summary');
-  console.log('========================================');
-  results.forEach(r => {
-    const status = r.success ? '✓' : '✗';
+  console.log("\n========================================");
+  console.log("[API Smoke Test] Summary");
+  console.log("========================================");
+  results.forEach((r) => {
+    const status = r.success ? "✓" : "✗";
     console.log(
-      `${status} ${r.testName}: ${r.elapsedMs}ms | ${r.errorType} | Retries: ${r.retryCount}`
+      `${status} ${r.testName}: ${r.elapsedMs}ms | ${r.errorType} | Retries: ${r.retryCount}`,
     );
   });
-  console.log('========================================\n');
+  console.log("========================================\n");
 
   return results;
 }
 
 // Development-only export: manually call for debugging
-if (process.env.NODE_ENV === 'development') {
+if (process.env.NODE_ENV === "development") {
   (globalThis as any).__apiClientSmoke = {
     testRetryBehavior,
     testAbortBehavior,

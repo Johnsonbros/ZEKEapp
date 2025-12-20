@@ -1,12 +1,19 @@
 import React, { useState } from "react";
-import { View, StyleSheet, ScrollView, Pressable, Alert, ActivityIndicator, Platform } from "react-native";
+import {
+  View,
+  StyleSheet,
+  ScrollView,
+  Pressable,
+  Alert,
+  ActivityIndicator,
+  Platform,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import * as DocumentPicker from "expo-document-picker";
-import * as FileSystem from "expo-file-system/legacy";
 import { useNavigation } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
 
@@ -53,7 +60,7 @@ export default function AudioUploadScreen() {
   const [uploadProgress, setUploadProgress] = useState(0);
 
   const { data: devicesData } = useQuery<ApiDevice[]>({
-    queryKey: ['/api/devices'],
+    queryKey: ["/api/devices"],
   });
 
   const formatFileSize = (bytes: number): string => {
@@ -109,28 +116,28 @@ export default function AudioUploadScreen() {
 
     try {
       let deviceId: string;
-      
+
       if (devicesData && devicesData.length > 0) {
         deviceId = devicesData[0].id;
       } else {
         setUploadProgress(10);
         const baseUrl = getApiUrl();
-        const createUrl = new URL('/api/devices', baseUrl);
+        const createUrl = new URL("/api/devices", baseUrl);
         const createRes = await fetch(createUrl.toString(), {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
             ...getAuthHeaders(),
           },
-          credentials: 'include',
+          credentials: "include",
           body: JSON.stringify({
-            name: 'Manual Upload',
-            type: 'omi',
+            name: "Manual Upload",
+            type: "omi",
             isConnected: false,
           }),
         });
         if (!createRes.ok) {
-          throw new Error('Failed to create device');
+          throw new Error("Failed to create device");
         }
         const newDevice = await createRes.json();
         deviceId = newDevice.id;
@@ -139,45 +146,50 @@ export default function AudioUploadScreen() {
       setUploadProgress(20);
 
       const formData = new FormData();
-      
-      if (Platform.OS === 'web') {
+
+      if (Platform.OS === "web") {
         const response = await fetch(selectedFile.uri);
         const blob = await response.blob();
-        formData.append('audio', blob, selectedFile.name);
+        formData.append("audio", blob, selectedFile.name);
       } else {
         // React Native FormData expects { uri, name, type } object for file uploads
-        formData.append('audio', {
+        formData.append("audio", {
           uri: selectedFile.uri,
           name: selectedFile.name,
           type: selectedFile.mimeType,
         } as any);
       }
-      
-      formData.append('deviceId', deviceId);
+
+      formData.append("deviceId", deviceId);
 
       setUploadProgress(40);
 
       const baseUrl = getApiUrl();
-      const url = new URL('/api/transcribe-and-create-memory', baseUrl);
+      const url = new URL("/api/transcribe-and-create-memory", baseUrl);
 
       const response = await fetch(url.toString(), {
-        method: 'POST',
+        method: "POST",
         body: formData,
-        credentials: 'include',
+        credentials: "include",
       });
 
       setUploadProgress(80);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Upload failed with status ${response.status}`);
+        throw new Error(
+          errorData.error || `Upload failed with status ${response.status}`,
+        );
       }
 
       const memory = await response.json();
 
       setUploadProgress(100);
 
-      await queryClient.invalidateQueries({ queryKey: ['/api/memories'], exact: false });
+      await queryClient.invalidateQueries({
+        queryKey: ["/api/memories"],
+        exact: false,
+      });
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
@@ -196,14 +208,16 @@ export default function AudioUploadScreen() {
             text: "Upload Another",
             onPress: () => setSelectedFile(null),
           },
-        ]
+        ],
       );
     } catch (error) {
       console.error("Upload error:", error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert(
         "Upload Failed",
-        error instanceof Error ? error.message : "Failed to upload and transcribe audio. Please try again."
+        error instanceof Error
+          ? error.message
+          : "Failed to upload and transcribe audio. Please try again.",
       );
     } finally {
       setIsUploading(false);
@@ -223,10 +237,7 @@ export default function AudioUploadScreen() {
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.iconSection}>
-        <LinearGradient
-          colors={Gradients.accent}
-          style={styles.iconContainer}
-        >
+        <LinearGradient colors={Gradients.accent} style={styles.iconContainer}>
           <Feather name="upload-cloud" size={48} color="#FFFFFF" />
         </LinearGradient>
         <ThemedText type="h2" style={styles.title}>
@@ -246,11 +257,20 @@ export default function AudioUploadScreen() {
       {selectedFile ? (
         <Card elevation={1} style={styles.fileCard}>
           <View style={styles.fileRow}>
-            <View style={[styles.fileIcon, { backgroundColor: Colors.dark.primary }]}>
+            <View
+              style={[
+                styles.fileIcon,
+                { backgroundColor: Colors.dark.primary },
+              ]}
+            >
               <Feather name="music" size={24} color="#FFFFFF" />
             </View>
             <View style={styles.fileInfo}>
-              <ThemedText type="body" numberOfLines={1} style={{ fontWeight: "600" }}>
+              <ThemedText
+                type="body"
+                numberOfLines={1}
+                style={{ fontWeight: "600" }}
+              >
                 {selectedFile.name}
               </ThemedText>
               <ThemedText type="caption" secondary>
@@ -271,12 +291,27 @@ export default function AudioUploadScreen() {
           onPress={handlePickFile}
           style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1 })}
         >
-          <View style={[styles.dropzone, { borderColor: theme.border, backgroundColor: theme.backgroundDefault }]}>
+          <View
+            style={[
+              styles.dropzone,
+              {
+                borderColor: theme.border,
+                backgroundColor: theme.backgroundDefault,
+              },
+            ]}
+          >
             <Feather name="file-plus" size={40} color={Colors.dark.primary} />
-            <ThemedText type="body" style={{ marginTop: Spacing.md, fontWeight: "600" }}>
+            <ThemedText
+              type="body"
+              style={{ marginTop: Spacing.md, fontWeight: "600" }}
+            >
               Tap to Select Audio File
             </ThemedText>
-            <ThemedText type="small" secondary style={{ marginTop: Spacing.xs }}>
+            <ThemedText
+              type="small"
+              secondary
+              style={{ marginTop: Spacing.xs }}
+            >
               Choose from your device
             </ThemedText>
           </View>
@@ -285,7 +320,12 @@ export default function AudioUploadScreen() {
 
       {isUploading ? (
         <View style={styles.uploadingSection}>
-          <View style={[styles.progressContainer, { backgroundColor: theme.backgroundDefault }]}>
+          <View
+            style={[
+              styles.progressContainer,
+              { backgroundColor: theme.backgroundDefault },
+            ]}
+          >
             <View
               style={[
                 styles.progressBar,
@@ -302,19 +342,17 @@ export default function AudioUploadScreen() {
               {uploadProgress < 40
                 ? "Uploading audio..."
                 : uploadProgress < 80
-                ? "Transcribing with Whisper..."
-                : "Creating memory..."}
+                  ? "Transcribing with Whisper..."
+                  : "Creating memory..."}
             </ThemedText>
           </View>
         </View>
       ) : (
         <View style={styles.buttonSection}>
           {selectedFile ? (
-            <Button onPress={handleUpload}>
-              Upload & Transcribe
-            </Button>
+            <Button onPress={handleUpload}>Upload & Transcribe</Button>
           ) : null}
-          
+
           {selectedFile ? (
             <Pressable
               onPress={handlePickFile}
@@ -323,8 +361,15 @@ export default function AudioUploadScreen() {
                 { opacity: pressed ? 0.7 : 1 },
               ]}
             >
-              <Feather name="refresh-cw" size={18} color={Colors.dark.primary} />
-              <ThemedText type="body" style={{ color: Colors.dark.primary, marginLeft: Spacing.sm }}>
+              <Feather
+                name="refresh-cw"
+                size={18}
+                color={Colors.dark.primary}
+              />
+              <ThemedText
+                type="body"
+                style={{ color: Colors.dark.primary, marginLeft: Spacing.sm }}
+              >
                 Choose Different File
               </ThemedText>
             </Pressable>
