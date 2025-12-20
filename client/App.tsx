@@ -9,7 +9,7 @@ import * as SplashScreen from "expo-splash-screen";
 import * as Notifications from "expo-notifications";
 
 import { QueryClientProvider } from "@tanstack/react-query";
-import { queryClient } from "@/lib/query-client";
+import { queryClient, getApiUrl, getLocalApiUrl } from "@/lib/query-client";
 
 import RootStackNavigator from "@/navigation/RootStackNavigator";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -92,6 +92,12 @@ function AppContent() {
 }
 
 export default function App() {
+  // One-time console log on app boot
+  useEffect(() => {
+    console.log('[config] apiUrl=' + getApiUrl());
+    console.log('[config] localApiUrl=' + getLocalApiUrl());
+  }, []);
+
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>

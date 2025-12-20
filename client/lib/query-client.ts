@@ -25,27 +25,8 @@ export function getAuthHeaders(): Record<string, string> {
  * @returns {string} The API base URL
  */
 export function getApiUrl(): string {
-  // Check for external ZEKE backend URL first (for sync mode)
-  const zekeBackendUrl = process.env.EXPO_PUBLIC_ZEKE_BACKEND_URL;
-  if (zekeBackendUrl) {
-    // Ensure URL has protocol
-    if (zekeBackendUrl.startsWith('http')) {
-      return zekeBackendUrl.endsWith('/') ? zekeBackendUrl : `${zekeBackendUrl}/`;
-    }
-    return `https://${zekeBackendUrl}/`;
-  }
-
-  // Fall back to local domain
-  let host = process.env.EXPO_PUBLIC_DOMAIN;
-
-  if (!host) {
-    // Fallback for standalone builds - use the main ZEKE backend
-    return 'https://zekeai.replit.app/';
-  }
-
-  let url = new URL(`https://${host}`);
-
-  return url.href;
+  // TEMPORARY: Force to zekeai.replit.app for config lock testing
+  return 'https://zekeai.replit.app';
 }
 
 /**
@@ -61,16 +42,8 @@ export function isZekeSyncMode(): boolean {
  * @returns {string} The local API base URL
  */
 export function getLocalApiUrl(): string {
-  let host = process.env.EXPO_PUBLIC_DOMAIN;
-
-  if (!host) {
-    // Fallback for standalone builds - use the main ZEKE backend
-    return 'https://zekeai.replit.app/';
-  }
-
-  let url = new URL(`https://${host}`);
-
-  return url.href;
+  // TEMPORARY: Force to zekeai.replit.app for config lock testing
+  return 'https://zekeai.replit.app';
 }
 
 
