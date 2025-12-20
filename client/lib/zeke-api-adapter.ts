@@ -502,19 +502,10 @@ export async function getTwilioPhoneNumber(): Promise<string | null> {
 
 export async function getHealthStatus(): Promise<{ status: string; connected: boolean }> {
   try {
-    const baseUrl = getApiUrl();
-    const url = new URL('/healthz', baseUrl);
-    
-    const res = await fetch(url, { 
-      credentials: 'include',
-      headers: getAuthHeaders(),
-      signal: createTimeoutSignal(5000)
-    });
-    
-    return { 
-      status: res.ok ? 'healthy' : 'unhealthy', 
-      connected: res.ok 
-    };
+    // Retry and timeout now handled centrally by ZekeApiClient
+    // Does NOT use emptyArrayOn404 - health is boolean, not a list
+    await apiClient.get<any>('/healthz', { timeoutMs: 5000 });
+    return { status: 'healthy', connected: true };
   } catch {
     return { status: 'unreachable', connected: false };
   }
@@ -522,22 +513,12 @@ export async function getHealthStatus(): Promise<{ status: string; connected: bo
 
 export async function getZekeDevices(): Promise<ZekeDevice[]> {
   try {
-    const baseUrl = getApiUrl();
-    
     if (isZekeSyncMode()) {
-      const url = new URL('/api/omi/devices', baseUrl);
-      
-      const res = await fetch(url, { 
-        credentials: 'include',
-        headers: getAuthHeaders(),
-        signal: createTimeoutSignal(5000)
-      });
-      
-      if (!res.ok) {
-        return getDefaultZekeDevices();
-      }
-      
-      const data = await res.json();
+      // Retry, timeout, and auth now handled centrally by ZekeApiClient
+      const data = await apiClient.get<{ devices?: ZekeDevice[] }>(
+        '/api/omi/devices',
+        { timeoutMs: 5000 }
+      );
       return data.devices || data || getDefaultZekeDevices();
     }
     
@@ -560,19 +541,12 @@ function getDefaultZekeDevices(): ZekeDevice[] {
 }
 
 export async function getDashboardSummary(): Promise<DashboardSummary> {
-  const baseUrl = getApiUrl();
-  
   try {
-    const url = new URL('/api/dashboard/summary', baseUrl);
-    const res = await fetch(url, { 
-      credentials: 'include',
-      headers: getAuthHeaders(),
-      signal: createTimeoutSignal(5000)
-    });
-    
-    if (res.ok) {
-      return res.json();
-    }
+    // Retry and timeout now handled centrally by ZekeApiClient
+    return await apiClient.get<DashboardSummary>(
+      '/api/dashboard/summary',
+      { timeoutMs: 5000 }
+    );
   } catch {
   }
   
@@ -1002,28 +976,13 @@ export interface StarredPlace {
 }
 
 export async function syncLocationSamples(samples: LocationSample[]): Promise<{ synced: number }> {
-  const baseUrl = getApiUrl();
-  const url = new URL('/api/location/samples', baseUrl);
-  
   try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-      credentials: 'include',
-      body: JSON.stringify({ samples }),
-      signal: createTimeoutSignal(10000),
-    });
-    
-    if (!res.ok) {
-      return { synced: 0 };
-    }
-    
-    const contentType = res.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-      return { synced: 0 };
-    }
-    
-    const data = await res.json();
+    // Retry, timeout, and auth now handled centrally by ZekeApiClient
+    const data = await apiClient.post<{ synced?: number }>(
+      '/api/location/samples',
+      { samples },
+      { timeoutMs: 10000 }
+    );
     return { synced: data.synced || 0 };
   } catch {
     return { synced: 0 };
@@ -1031,33 +990,16 @@ export async function syncLocationSamples(samples: LocationSample[]): Promise<{ 
 }
 
 export async function getLocationSamplesFromBackend(since?: string, limit?: number): Promise<LocationSample[]> {
-  const baseUrl = getApiUrl();
-  const url = new URL('/api/location/samples', baseUrl);
-  
-  if (since) {
-    url.searchParams.set('since', since);
-  }
-  if (limit) {
-    url.searchParams.set('limit', limit.toString());
-  }
-  
   try {
-    const res = await fetch(url, {
-      credentials: 'include',
-      headers: getAuthHeaders(),
-      signal: createTimeoutSignal(10000),
-    });
+    // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
+    const query: Record<string, string> = {};
+    if (since) query.since = since;
+    if (limit) query.limit = limit.toString();
     
-    if (!res.ok) {
-      return [];
-    }
-    
-    const contentType = res.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-      return [];
-    }
-    
-    const data = await res.json();
+    const data = await apiClient.get<{ samples?: LocationSample[] }>(
+      '/api/location/samples',
+      { query: Object.keys(query).length > 0 ? query : undefined, emptyArrayOn404: true, timeoutMs: 10000 }
+    );
     return data.samples || data || [];
   } catch {
     return [];
@@ -1065,28 +1007,13 @@ export async function getLocationSamplesFromBackend(since?: string, limit?: numb
 }
 
 export async function syncStarredPlaces(places: StarredPlace[]): Promise<{ synced: number }> {
-  const baseUrl = getApiUrl();
-  const url = new URL('/api/location/starred', baseUrl);
-  
   try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-      credentials: 'include',
-      body: JSON.stringify({ places }),
-      signal: createTimeoutSignal(10000),
-    });
-    
-    if (!res.ok) {
-      return { synced: 0 };
-    }
-    
-    const contentType = res.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-      return { synced: 0 };
-    }
-    
-    const data = await res.json();
+    // Retry, timeout, and auth now handled centrally by ZekeApiClient
+    const data = await apiClient.post<{ synced?: number }>(
+      '/api/location/starred',
+      { places },
+      { timeoutMs: 10000 }
+    );
     return { synced: data.synced || 0 };
   } catch {
     return { synced: 0 };
@@ -1094,26 +1021,12 @@ export async function syncStarredPlaces(places: StarredPlace[]): Promise<{ synce
 }
 
 export async function getStarredPlacesFromBackend(): Promise<StarredPlace[]> {
-  const baseUrl = getApiUrl();
-  const url = new URL('/api/location/starred', baseUrl);
-  
   try {
-    const res = await fetch(url, {
-      credentials: 'include',
-      headers: getAuthHeaders(),
-      signal: createTimeoutSignal(10000),
-    });
-    
-    if (!res.ok) {
-      return [];
-    }
-    
-    const contentType = res.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-      return [];
-    }
-    
-    const data = await res.json();
+    // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
+    const data = await apiClient.get<{ places?: StarredPlace[] }>(
+      '/api/location/starred',
+      { emptyArrayOn404: true, timeoutMs: 10000 }
+    );
     return data.places || data || [];
   } catch {
     return [];
@@ -1238,28 +1151,13 @@ export async function deleteLocationList(id: string): Promise<void> {
 }
 
 export async function syncGeofencesToBackend(geofences: Geofence[]): Promise<{ synced: number }> {
-  const baseUrl = getApiUrl();
-  const url = new URL('/api/geofences', baseUrl);
-  
   try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-      credentials: 'include',
-      body: JSON.stringify({ geofences }),
-      signal: createTimeoutSignal(10000),
-    });
-    
-    if (!res.ok) {
-      return { synced: 0 };
-    }
-    
-    const contentType = res.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-      return { synced: 0 };
-    }
-    
-    const data = await res.json();
+    // Retry, timeout, and auth now handled centrally by ZekeApiClient
+    const data = await apiClient.post<{ synced?: number }>(
+      '/api/geofences',
+      { geofences },
+      { timeoutMs: 10000 }
+    );
     return { synced: data.synced || 0 };
   } catch {
     return { synced: 0 };
@@ -1267,26 +1165,12 @@ export async function syncGeofencesToBackend(geofences: Geofence[]): Promise<{ s
 }
 
 export async function getGeofencesFromBackend(): Promise<Geofence[]> {
-  const baseUrl = getApiUrl();
-  const url = new URL('/api/geofences', baseUrl);
-  
   try {
-    const res = await fetch(url, {
-      credentials: 'include',
-      headers: getAuthHeaders(),
-      signal: createTimeoutSignal(10000),
-    });
-    
-    if (!res.ok) {
-      return [];
-    }
-    
-    const contentType = res.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-      return [];
-    }
-    
-    const data = await res.json();
+    // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
+    const data = await apiClient.get<{ geofences?: Geofence[] }>(
+      '/api/geofences',
+      { emptyArrayOn404: true, timeoutMs: 10000 }
+    );
     return data.geofences || data || [];
   } catch {
     return [];
@@ -1341,9 +1225,6 @@ export async function markTriggerEventsSynced(eventIds: string[]): Promise<void>
 }
 
 export async function syncTriggerEventsToBackend(): Promise<{ synced: number }> {
-  const baseUrl = getApiUrl();
-  const url = new URL('/api/geofence-events', baseUrl);
-  
   try {
     const events = await getGeofenceTriggerEvents();
     const unsyncedEvents = events.filter(e => !e.synced);
@@ -1352,24 +1233,12 @@ export async function syncTriggerEventsToBackend(): Promise<{ synced: number }> 
       return { synced: 0 };
     }
     
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-      credentials: 'include',
-      body: JSON.stringify({ events: unsyncedEvents }),
-      signal: createTimeoutSignal(10000),
-    });
-    
-    if (!res.ok) {
-      return { synced: 0 };
-    }
-    
-    const contentType = res.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-      return { synced: 0 };
-    }
-    
-    const data = await res.json();
+    // Retry, timeout, and auth now handled centrally by ZekeApiClient
+    const data = await apiClient.post<{ synced?: number }>(
+      '/api/geofence-events',
+      { events: unsyncedEvents },
+      { timeoutMs: 10000 }
+    );
     const syncedCount = data.synced || unsyncedEvents.length;
     
     await markTriggerEventsSynced(unsyncedEvents.map(e => e.id));
@@ -1507,43 +1376,16 @@ export interface ZekeSavedPlace {
 }
 
 export async function syncLocationToZeke(location: ZekeLocationUpdate): Promise<{ success: boolean; id?: string }> {
-  const baseUrl = getLocalApiUrl();
-  const url = new URL('/api/zeke/location/update', baseUrl);
-  
   try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        ...getAuthHeaders() 
-      },
-      credentials: 'include',
-      body: JSON.stringify(location),
-      signal: createTimeoutSignal(10000),
-    });
-    
-    if (!res.ok) {
-      console.log('[ZEKE Location] Sync failed:', res.status);
-      return { success: false };
-    }
-    
-    const contentType = res.headers.get('content-type');
-    
-    if (contentType?.includes('application/json')) {
-      try {
-        const text = await res.text();
-        if (text && text.trim()) {
-          const data = JSON.parse(text);
-          console.log('[ZEKE Location] Location synced to Zeke backend');
-          return { success: true, id: data.id };
-        }
-      } catch {
-        // Ignore parse errors for empty responses
-      }
-    }
-    
+    // Retry, timeout, and auth now handled centrally by ZekeApiClient
+    // Routes to local API via isLocalEndpoint() check
+    const data = await apiClient.post<{ id?: string }>(
+      '/api/zeke/location/update',
+      location,
+      { timeoutMs: 10000 }
+    );
     console.log('[ZEKE Location] Location synced to Zeke backend');
-    return { success: true };
+    return { success: true, id: data.id };
   } catch (error) {
     console.error('[ZEKE Location] Sync error:', error);
     return { success: false };
@@ -1555,43 +1397,17 @@ export async function syncLocationBatchToZeke(samples: ZekeLocationSample[]): Pr
     return { success: true, synced: 0 };
   }
   
-  const baseUrl = getLocalApiUrl();
-  const url = new URL('/api/zeke/location/batch', baseUrl);
-  
   try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        ...getAuthHeaders() 
-      },
-      credentials: 'include',
-      body: JSON.stringify({ samples }),
-      signal: createTimeoutSignal(15000),
-    });
-    
-    if (!res.ok) {
-      console.log('[ZEKE Location] Batch sync failed:', res.status);
-      return { success: false, synced: 0 };
-    }
-    
-    const contentType = res.headers.get('content-type');
-    
-    if (contentType?.includes('application/json')) {
-      try {
-        const text = await res.text();
-        if (text && text.trim()) {
-          const data = JSON.parse(text);
-          console.log('[ZEKE Location] Batch synced:', data.synced || samples.length, 'samples');
-          return { success: true, synced: data.synced || samples.length };
-        }
-      } catch {
-        // Ignore parse errors for empty responses
-      }
-    }
-    
-    console.log('[ZEKE Location] Batch synced:', samples.length, 'samples');
-    return { success: true, synced: samples.length };
+    // Retry, timeout, and auth now handled centrally by ZekeApiClient
+    // Routes to local API via isLocalEndpoint() check
+    const data = await apiClient.post<{ synced?: number }>(
+      '/api/zeke/location/batch',
+      { samples },
+      { timeoutMs: 15000 }
+    );
+    const syncedCount = data.synced || samples.length;
+    console.log('[ZEKE Location] Batch synced:', syncedCount, 'samples');
+    return { success: true, synced: syncedCount };
   } catch (error) {
     console.error('[ZEKE Location] Batch sync error:', error);
     return { success: false, synced: 0 };
@@ -1599,17 +1415,13 @@ export async function syncLocationBatchToZeke(samples: ZekeLocationSample[]): Pr
 }
 
 export async function getZekeCurrentLocation(): Promise<ZekeLocationUpdate | null> {
-  const baseUrl = getLocalApiUrl();
-  const url = new URL('/api/zeke/location/current', baseUrl);
-  
   try {
-    const res = await fetch(url, { 
-      credentials: 'include',
-      headers: getAuthHeaders(),
-      signal: createTimeoutSignal(5000)
-    });
-    if (!res.ok) return null;
-    return res.json();
+    // Retry and timeout now handled centrally by ZekeApiClient
+    // Routes to local API via isLocalEndpoint() check
+    return await apiClient.get<ZekeLocationUpdate>(
+      '/api/zeke/location/current',
+      { timeoutMs: 5000 }
+    );
   } catch {
     return null;
   }
@@ -1620,21 +1432,18 @@ export async function getZekeLocationHistory(options?: {
   startDate?: string; 
   endDate?: string 
 }): Promise<ZekeLocationUpdate[]> {
-  const baseUrl = getLocalApiUrl();
-  const url = new URL('/api/zeke/location/history', baseUrl);
-  
-  if (options?.limit) url.searchParams.set('limit', options.limit.toString());
-  if (options?.startDate) url.searchParams.set('startDate', options.startDate);
-  if (options?.endDate) url.searchParams.set('endDate', options.endDate);
-  
   try {
-    const res = await fetch(url, { 
-      credentials: 'include',
-      headers: getAuthHeaders(),
-      signal: createTimeoutSignal(5000)
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
+    // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
+    // Routes to local API via isLocalEndpoint() check
+    const query: Record<string, string> = {};
+    if (options?.limit) query.limit = options.limit.toString();
+    if (options?.startDate) query.startDate = options.startDate;
+    if (options?.endDate) query.endDate = options.endDate;
+    
+    const data = await apiClient.get<{ locations?: ZekeLocationUpdate[] }>(
+      '/api/zeke/location/history',
+      { query: Object.keys(query).length > 0 ? query : undefined, emptyArrayOn404: true, timeoutMs: 5000 }
+    );
     return data.locations || data || [];
   } catch {
     return [];
@@ -1642,17 +1451,13 @@ export async function getZekeLocationHistory(options?: {
 }
 
 export async function getZekeSavedPlaces(): Promise<ZekeSavedPlace[]> {
-  const baseUrl = getLocalApiUrl();
-  const url = new URL('/api/zeke/saved-places', baseUrl);
-  
   try {
-    const res = await fetch(url, { 
-      credentials: 'include',
-      headers: getAuthHeaders(),
-      signal: createTimeoutSignal(5000)
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
+    // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
+    // Routes to local API via isLocalEndpoint() check
+    const data = await apiClient.get<{ places?: ZekeSavedPlace[] }>(
+      '/api/zeke/saved-places',
+      { emptyArrayOn404: true, timeoutMs: 5000 }
+    );
     return data.places || data || [];
   } catch {
     return [];
@@ -1660,64 +1465,39 @@ export async function getZekeSavedPlaces(): Promise<ZekeSavedPlace[]> {
 }
 
 export async function createZekeSavedPlace(place: Omit<ZekeSavedPlace, 'id' | 'createdAt'>): Promise<ZekeSavedPlace | null> {
-  const baseUrl = getLocalApiUrl();
-  const url = new URL('/api/zeke/saved-places', baseUrl);
-  
   try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        ...getAuthHeaders() 
-      },
-      credentials: 'include',
-      body: JSON.stringify(place),
-      signal: createTimeoutSignal(10000),
-    });
-    
-    if (!res.ok) return null;
-    return res.json();
+    // Retry, timeout, and auth now handled centrally by ZekeApiClient
+    // Routes to local API via isLocalEndpoint() check
+    return await apiClient.post<ZekeSavedPlace>(
+      '/api/zeke/saved-places',
+      place,
+      { timeoutMs: 10000 }
+    );
   } catch {
     return null;
   }
 }
 
 export async function updateZekeSavedPlace(id: string, updates: Partial<ZekeSavedPlace>): Promise<ZekeSavedPlace | null> {
-  const baseUrl = getLocalApiUrl();
-  const url = new URL(`/api/zeke/saved-places/${id}`, baseUrl);
-  
   try {
-    const res = await fetch(url, {
-      method: 'PATCH',
-      headers: { 
-        'Content-Type': 'application/json',
-        ...getAuthHeaders() 
-      },
-      credentials: 'include',
-      body: JSON.stringify(updates),
-      signal: createTimeoutSignal(10000),
-    });
-    
-    if (!res.ok) return null;
-    return res.json();
+    // Retry, timeout, and auth now handled centrally by ZekeApiClient
+    // Routes to local API via isLocalEndpoint() check
+    return await apiClient.patch<ZekeSavedPlace>(
+      `/api/zeke/saved-places/${id}`,
+      updates,
+      { timeoutMs: 10000 }
+    );
   } catch {
     return null;
   }
 }
 
 export async function deleteZekeSavedPlace(id: string): Promise<boolean> {
-  const baseUrl = getLocalApiUrl();
-  const url = new URL(`/api/zeke/saved-places/${id}`, baseUrl);
-  
   try {
-    const res = await fetch(url, {
-      method: 'DELETE',
-      headers: getAuthHeaders(),
-      credentials: 'include',
-      signal: createTimeoutSignal(10000),
-    });
-    
-    return res.ok;
+    // Retry, timeout, and auth now handled centrally by ZekeApiClient
+    // Routes to local API via isLocalEndpoint() check
+    await apiClient.delete(`/api/zeke/saved-places/${id}`, { timeoutMs: 10000 });
+    return true;
   } catch {
     return false;
   }
