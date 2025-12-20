@@ -127,16 +127,16 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   iconWrapper: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     alignItems: "center",
     justifyContent: "center",
   },
   iconGlow: {
     position: "absolute",
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: 48,
+    height: 48,
+    borderRadius: 14,
     backgroundColor: Gradients.primary[0],
     ...Platform.select({
       ios: {
@@ -154,9 +154,9 @@ const styles = StyleSheet.create({
     }),
   },
   icon: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
+    width: 42,
+    height: 42,
+    borderRadius: 11,
     flexShrink: 0,
     borderWidth: 1.5,
     borderColor: Gradients.primary[0],
@@ -167,10 +167,10 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   title: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: "700",
-    lineHeight: 26,
-    letterSpacing: 1,
+    lineHeight: 28,
+    letterSpacing: 1.2,
   },
   statusContainer: {
     flexDirection: "row",

@@ -28,11 +28,11 @@ export function ZekeHeaderTitle() {
 
 function GradientIcon({
   name,
-  size,
+  size = 26,
   colors = Gradients.primary,
 }: {
   name: React.ComponentProps<typeof Feather>["name"];
-  size: number;
+  size?: number;
   colors?: readonly [string, string, ...string[]];
 }) {
   return (
@@ -87,7 +87,7 @@ export function ZekeHeaderButtons() {
         <View style={styles.chatButtonGlow} />
         <GradientIcon
           name="message-circle"
-          size={24}
+          size={26}
           colors={Gradients.accent}
         />
       </Pressable>
@@ -105,7 +105,7 @@ export function ZekeHeaderButtons() {
           pressed && styles.buttonPressed,
         ]}
       >
-        <Feather name="settings" size={22} color={Colors.dark.textSecondary} />
+        <Feather name="settings" size={24} color={Colors.dark.textSecondary} />
       </Pressable>
     </>
   );
@@ -147,21 +147,21 @@ const styles = StyleSheet.create({
   glassInner: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
   },
   divider: {
     width: 1,
-    height: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
-    marginHorizontal: Spacing.xs,
+    height: 24,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    marginHorizontal: Spacing.sm,
   },
   button: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: BorderRadius.sm,
+    borderRadius: BorderRadius.md,
   },
   buttonPressed: {
     opacity: 0.7,
