@@ -199,43 +199,46 @@ export async function chatWithZeke(message: string, phone?: string): Promise<{ r
 }
 
 export async function getRecentMemories(limit: number = 10): Promise<ZekeMemory[]> {
-  const baseUrl = getApiUrl();
-  
-  if (isZekeSyncMode()) {
-    const url = new URL('/api/omi/memories', baseUrl);
-    url.searchParams.set('limit', limit.toString());
-    
-    const res = await fetch(url, { credentials: 'include', headers: getAuthHeaders() });
-    if (!res.ok) {
-      if (res.status === 404) {
-        return [];
-      }
-      throw new Error(`Failed to fetch memories: ${res.statusText}`);
+  try {
+    if (isZekeSyncMode()) {
+      // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
+      const data = await apiClient.get<{ memories?: ZekeMemory[] }>(
+        '/api/omi/memories',
+        { query: { limit }, emptyArrayOn404: true }
+      );
+      return data.memories || data || [];
+    } else {
+      // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
+      return await apiClient.get<ZekeMemory[]>(
+        '/api/memories',
+        { query: { limit }, emptyArrayOn404: true }
+      );
     }
-    const data = await res.json();
-    return data.memories || data || [];
-  } else {
-    const url = new URL(`/api/memories?limit=${limit}`, baseUrl);
-    const res = await fetch(url, { credentials: 'include', headers: getAuthHeaders() });
-    if (!res.ok) {
-      return [];
-    }
-    return res.json();
+  } catch (error) {
+    console.error('[Memories] Failed to fetch recent memories:', error);
+    return [];
   }
 }
 
 export async function searchMemories(query: string): Promise<ZekeMemory[]> {
   try {
     if (isZekeSyncMode()) {
-      const res = await apiRequest('POST', '/api/semantic-search', { query, limit: 20 });
-      const data = await res.json();
+      // Retry, timeout, and auth now handled centrally by ZekeApiClient
+      const data = await apiClient.post<{ results?: ZekeMemory[] }>(
+        '/api/semantic-search',
+        { query, limit: 20 }
+      );
       return data.results || [];
     } else {
-      const res = await apiRequest('POST', '/api/memories/search', { query });
-      const data = await res.json();
+      // Retry, timeout, and auth now handled centrally by ZekeApiClient
+      const data = await apiClient.post<{ results?: ZekeMemory[] }>(
+        '/api/memories/search',
+        { query }
+      );
       return data.results || [];
     }
-  } catch {
+  } catch (error) {
+    console.error('[Memories] Failed to search memories:', error);
     return [];
   }
 }
