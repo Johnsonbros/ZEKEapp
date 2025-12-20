@@ -297,20 +297,12 @@ export async function getReminders(): Promise<ZekeReminder[]> {
 }
 
 export async function getContacts(): Promise<ZekeContact[]> {
-  const baseUrl = getLocalApiUrl();
-  const url = new URL('/api/zeke/contacts', baseUrl);
-  
   try {
-    const res = await fetch(url, { 
-      credentials: 'include',
-      headers: getAuthHeaders(),
-      signal: createTimeoutSignal(5000)
-    });
-    if (!res.ok) {
-      console.log('[ZEKE Proxy] Contacts fetch failed:', res.status);
-      return [];
-    }
-    const data = await res.json();
+    // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
+    const data = await apiClient.get<{ contacts?: ZekeContact[] }>(
+      '/api/zeke/contacts',
+      { emptyArrayOn404: true }
+    );
     console.log('[ZEKE Proxy] Contacts fetched:', data.contacts?.length || 0);
     return data.contacts || data || [];
   } catch (error) {
@@ -320,65 +312,28 @@ export async function getContacts(): Promise<ZekeContact[]> {
 }
 
 export async function getContact(id: string): Promise<ZekeContact | null> {
-  const baseUrl = getLocalApiUrl();
-  const url = new URL(`/api/zeke/contacts/${id}`, baseUrl);
-  
   try {
-    const res = await fetch(url, { 
-      credentials: 'include',
-      headers: getAuthHeaders(),
-      signal: createTimeoutSignal(5000)
-    });
-    if (!res.ok) {
-      return null;
-    }
-    return res.json();
-  } catch {
+    // Retry and timeout now handled centrally by ZekeApiClient
+    return await apiClient.get<ZekeContact>(`/api/zeke/contacts/${id}`);
+  } catch (error) {
+    console.error('[Contacts] Failed to fetch contact:', error);
     return null;
   }
 }
 
 export async function createContact(data: Partial<ZekeContact>): Promise<ZekeContact> {
-  const baseUrl = getLocalApiUrl();
-  const url = new URL('/api/zeke/contacts', baseUrl);
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-    credentials: 'include',
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) {
-    throw new Error(`Failed to create contact: ${res.statusText}`);
-  }
-  return res.json();
+  // Retry, timeout, and auth now handled centrally by ZekeApiClient
+  return await apiClient.post<ZekeContact>('/api/zeke/contacts', data);
 }
 
 export async function updateContact(id: string, updates: Partial<ZekeContact>): Promise<ZekeContact> {
-  const baseUrl = getLocalApiUrl();
-  const url = new URL(`/api/zeke/contacts/${id}`, baseUrl);
-  const res = await fetch(url, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-    credentials: 'include',
-    body: JSON.stringify(updates),
-  });
-  if (!res.ok) {
-    throw new Error(`Failed to update contact: ${res.statusText}`);
-  }
-  return res.json();
+  // Retry, timeout, and auth now handled centrally by ZekeApiClient
+  return await apiClient.patch<ZekeContact>(`/api/zeke/contacts/${id}`, updates);
 }
 
 export async function deleteContact(id: string): Promise<void> {
-  const baseUrl = getLocalApiUrl();
-  const url = new URL(`/api/zeke/contacts/${id}`, baseUrl);
-  const res = await fetch(url, {
-    method: 'DELETE',
-    credentials: 'include',
-    headers: getAuthHeaders(),
-  });
-  if (!res.ok) {
-    throw new Error(`Failed to delete contact: ${res.statusText}`);
-  }
+  // Retry, timeout, and auth now handled centrally by ZekeApiClient
+  await apiClient.delete(`/api/zeke/contacts/${id}`);
 }
 
 export interface ImportContactData {
