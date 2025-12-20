@@ -15,7 +15,7 @@ import { ChatBubble, Message, TypingIndicator } from "@/components/ChatBubble";
 import { VoiceInputButton } from "@/components/VoiceInputButton";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, Colors, BorderRadius, Gradients } from "@/constants/theme";
-import { queryClient, apiRequest, getApiUrl, isZekeSyncMode } from "@/lib/query-client";
+import { queryClient, getApiUrl, isZekeSyncMode } from "@/lib/query-client";
 import { chatWithZeke, createConversation, getConversationMessages, sendMessage as sendZekeMessage } from "@/lib/zeke-api-adapter";
 
 const CHAT_SESSION_KEY = "zeke_chat_session_id";
@@ -209,8 +209,8 @@ export default function ChatScreen() {
         setOptimisticMessages([]);
         await queryClient.invalidateQueries({ queryKey: ['/api/conversations', sessionId, 'messages'] });
       } else {
-        const res = await apiRequest('POST', `/api/chat/sessions/${sessionId!}/messages`, { content: messageContent });
-        await res.json();
+        const { apiClient } = await import('@/lib/api-client');
+        await apiClient.post(`/api/chat/sessions/${sessionId!}/messages`, { content: messageContent });
         setOptimisticMessages([]);
         await queryClient.invalidateQueries({ queryKey: ['/api/chat/sessions', sessionId, 'messages'] });
       }

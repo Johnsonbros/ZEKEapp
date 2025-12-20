@@ -1,4 +1,4 @@
-import { getApiUrl, getLocalApiUrl, isZekeSyncMode, apiRequest, getAuthHeaders } from "./query-client";
+import { getApiUrl, getLocalApiUrl, isZekeSyncMode, getAuthHeaders } from "./query-client";
 import { apiClient } from "./api-client";
 import type {
   Task,
@@ -206,7 +206,7 @@ export async function getRecentMemories(limit: number = 10): Promise<ZekeMemory[
         '/api/omi/memories',
         { query: { limit }, emptyArrayOn404: true }
       );
-      return data.memories || data || [];
+      return data.memories || [];
     } else {
       // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
       return await apiClient.get<ZekeMemory[]>(
@@ -251,7 +251,7 @@ export async function getTasks(): Promise<ZekeTask[]> {
       { emptyArrayOn404: true }
     );
     console.log('[ZEKE Proxy] Tasks fetched:', data.tasks?.length || 0);
-    return data.tasks || data || [];
+    return data.tasks || [];
   } catch (error) {
     console.error('[ZEKE Proxy] Tasks error:', error);
     return [];
@@ -266,7 +266,7 @@ export async function getGroceryItems(): Promise<ZekeGroceryItem[]> {
       { emptyArrayOn404: true }
     );
     console.log('[ZEKE Proxy] Grocery items fetched:', data.items?.length || 0);
-    return data.items || data || [];
+    return data.items || [];
   } catch (error) {
     console.error('[ZEKE Proxy] Grocery error:', error);
     return [];
@@ -289,7 +289,7 @@ export async function getReminders(): Promise<ZekeReminder[]> {
       '/api/reminders',
       { emptyArrayOn404: true }
     );
-    return data.reminders || data || [];
+    return data.reminders || [];
   } catch (error) {
     console.error('[Reminders] Failed to fetch reminders:', error);
     return [];
@@ -304,7 +304,7 @@ export async function getContacts(): Promise<ZekeContact[]> {
       { emptyArrayOn404: true }
     );
     console.log('[ZEKE Proxy] Contacts fetched:', data.contacts?.length || 0);
-    return data.contacts || data || [];
+    return data.contacts || [];
   } catch (error) {
     console.error('[ZEKE Proxy] Contacts error:', error);
     return [];
@@ -386,7 +386,7 @@ export async function getSmsConversations(): Promise<ZekeContactConversation[]> 
       '/api/sms-log',
       { emptyArrayOn404: true }
     );
-    return data.conversations || data || [];
+    return data.conversations || [];
   } catch (error) {
     console.error('[SMS] Failed to fetch SMS conversations:', error);
     return [];
@@ -519,7 +519,7 @@ export async function getZekeDevices(): Promise<ZekeDevice[]> {
         '/api/omi/devices',
         { timeoutMs: 5000 }
       );
-      return data.devices || data || getDefaultZekeDevices();
+      return data.devices || getDefaultZekeDevices();
     }
     
     return getDefaultZekeDevices();
@@ -582,7 +582,7 @@ export async function getEventsForDateRange(startDate: Date, endDate: Date): Pro
       }
     );
     console.log('[Calendar] Fetched range events count:', Array.isArray(data) ? data.length : (data.events?.length ?? 0));
-    return data.events || data || [];
+    return data.events || [];
   } catch (error) {
     console.error('[Calendar] Range fetch error, trying ZEKE proxy:', error);
     return getEventsFromZekeProxy(startDate, endDate);
@@ -602,7 +602,7 @@ async function getEventsFromZekeProxy(startDate: Date, endDate: Date): Promise<Z
         timeoutMs: 10000
       }
     );
-    return data.events || data || [];
+    return data.events || [];
   } catch (error) {
     console.error('[Calendar] ZEKE proxy fetch error:', error);
     return [];
@@ -620,7 +620,7 @@ export async function getTodayEvents(): Promise<ZekeEvent[]> {
       { timeoutMs: 10000 }
     );
     console.log('[Calendar] Fetched events count:', Array.isArray(data) ? data.length : (data.events?.length ?? 0));
-    return data.events || data || [];
+    return data.events || [];
   } catch (error) {
     console.error('[Calendar] Fetch error, trying ZEKE proxy:', error);
     return getTodayEventsFromZekeProxy();
@@ -635,7 +635,7 @@ async function getTodayEventsFromZekeProxy(): Promise<ZekeEvent[]> {
       { timeoutMs: 10000 }
     );
     console.log('[Calendar] ZEKE proxy fetched events count:', Array.isArray(data) ? data.length : (data.events?.length ?? 0));
-    return data.events || data || [];
+    return data.events || [];
   } catch (error) {
     console.error('[Calendar] ZEKE proxy fetch error:', error);
     return [];
@@ -650,7 +650,7 @@ export async function getPendingTasks(): Promise<ZekeTask[]> {
       '/api/zeke/tasks',
       { query: { status: 'pending' }, emptyArrayOn404: true, timeoutMs: 5000 }
     );
-    return (data.tasks || data || []).filter((t: ZekeTask) => t.status === 'pending');
+    return (data.tasks || []).filter((t: ZekeTask) => t.status === 'pending');
   } catch {
     return [];
   }
@@ -701,7 +701,7 @@ export async function getAllTasks(): Promise<ZekeTask[]> {
       { emptyArrayOn404: true, timeoutMs: 5000 }
     );
     console.log('[ZEKE Proxy] getAllTasks fetched:', data.tasks?.length || 0);
-    return data.tasks || data || [];
+    return data.tasks || [];
   } catch (error) {
     console.error('[ZEKE Proxy] getAllTasks error:', error);
     return [];
@@ -781,7 +781,7 @@ export async function getUpcomingEvents(limit: number = 10): Promise<ZekeEvent[]
       '/api/calendar/upcoming',
       { query: { limit }, emptyArrayOn404: true }
     );
-    return data.events || data || [];
+    return data.events || [];
   } catch (error) {
     console.error('[Calendar] Failed to fetch upcoming events:', error);
     return [];
@@ -986,7 +986,7 @@ export async function getLocationSamplesFromBackend(since?: string, limit?: numb
       '/api/location/samples',
       { query: Object.keys(query).length > 0 ? query : undefined, emptyArrayOn404: true, timeoutMs: 10000 }
     );
-    return data.samples || data || [];
+    return data.samples || [];
   } catch {
     return [];
   }
@@ -1013,7 +1013,7 @@ export async function getStarredPlacesFromBackend(): Promise<StarredPlace[]> {
       '/api/location/starred',
       { emptyArrayOn404: true, timeoutMs: 10000 }
     );
-    return data.places || data || [];
+    return data.places || [];
   } catch {
     return [];
   }
@@ -1157,7 +1157,7 @@ export async function getGeofencesFromBackend(): Promise<Geofence[]> {
       '/api/geofences',
       { emptyArrayOn404: true, timeoutMs: 10000 }
     );
-    return data.geofences || data || [];
+    return data.geofences || [];
   } catch {
     return [];
   }
@@ -1430,7 +1430,7 @@ export async function getZekeLocationHistory(options?: {
       '/api/zeke/location/history',
       { query: Object.keys(query).length > 0 ? query : undefined, emptyArrayOn404: true, timeoutMs: 5000 }
     );
-    return data.locations || data || [];
+    return data.locations || [];
   } catch {
     return [];
   }
@@ -1444,7 +1444,7 @@ export async function getZekeSavedPlaces(): Promise<ZekeSavedPlace[]> {
       '/api/zeke/saved-places',
       { emptyArrayOn404: true, timeoutMs: 5000 }
     );
-    return data.places || data || [];
+    return data.places || [];
   } catch {
     return [];
   }

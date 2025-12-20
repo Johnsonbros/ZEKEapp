@@ -603,8 +603,8 @@ export class SyncService {
         apiClient.get<{ items?: any[] }>('/api/grocery', { emptyArrayOn404: true }).catch(() => ({ items: [] })),
       ]);
       
-      let lists: any[] = listsData.lists || listsData || [];
-      let grocery: any[] = groceryData.items || groceryData || [];
+      let lists: any[] = listsData.lists || [];
+      let grocery: any[] = groceryData.items || [];
       let listItems: any[] = [];
       
       if (lists.length > 0) {

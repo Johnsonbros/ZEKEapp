@@ -74,6 +74,13 @@ export function getLocalApiUrl(): string {
 }
 
 
+async function throwIfResNotOk(res: Response): Promise<void> {
+  if (!res.ok) {
+    const text = await res.text().catch(() => 'Unknown error');
+    throw new Error(`HTTP ${res.status}: ${text}`);
+  }
+}
+
 type UnauthorizedBehavior = "returnNull" | "throw";
 export const getQueryFn: <T>(options: {
   on401: UnauthorizedBehavior;
