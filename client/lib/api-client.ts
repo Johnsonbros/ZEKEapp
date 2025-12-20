@@ -1,6 +1,27 @@
 import { getApiUrl, getLocalApiUrl, getAuthHeaders } from './query-client';
 
 /**
+ * Custom API error with detailed context
+ */
+export class ApiError extends Error {
+  status?: number;
+  url: string;
+  method: string;
+  bodyText?: string;
+  details?: unknown;
+
+  constructor(message: string, init: { status?: number; url: string; method: string; bodyText?: string; details?: unknown }) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = init.status;
+    this.url = init.url;
+    this.method = init.method;
+    this.bodyText = init.bodyText;
+    this.details = init.details;
+  }
+}
+
+/**
  * Request configuration options
  */
 export type RequestOptions = {
@@ -8,6 +29,7 @@ export type RequestOptions = {
   signal?: AbortSignal;
   headers?: Record<string, string>;
   query?: Record<string, string | number | boolean | undefined>;
+  emptyArrayOn404?: boolean;
 };
 
 /**
@@ -27,6 +49,27 @@ function isLocalEndpoint(endpoint: string): boolean {
 }
 
 /**
+ * Parse response body based on content-type
+ */
+async function parseResponseBody<T>(response: Response): Promise<T> {
+  const contentType = response.headers.get('content-type');
+
+  if (contentType?.includes('application/json')) {
+    return await response.json();
+  }
+
+  // Non-JSON response with ok status
+  const text = await response.text();
+  if (text) {
+    // Return text as-is for non-JSON types
+    return text as unknown as T;
+  }
+
+  // Empty response body - return undefined
+  return undefined as unknown as T;
+}
+
+/**
  * Centralized API client with singleton pattern
  * Handles:
  * - Timeout management (10s default via AbortController)
@@ -34,6 +77,7 @@ function isLocalEndpoint(endpoint: string): boolean {
  * - Automatic auth header injection
  * - Automatic routing (local vs core API)
  * - Query parameter handling
+ * - Proper error reporting via ApiError
  */
 class ZekeApiClient {
   private static instance: ZekeApiClient;
@@ -57,9 +101,10 @@ class ZekeApiClient {
   private async request<T>(
     method: string,
     endpoint: string,
+    body?: unknown,
     options: RequestOptions = {},
   ): Promise<T> {
-    const { timeoutMs = this.DEFAULT_TIMEOUT_MS, signal, headers: customHeaders = {}, query } = options;
+    const { timeoutMs = this.DEFAULT_TIMEOUT_MS, signal, headers: customHeaders = {}, query, emptyArrayOn404 } = options;
 
     // Determine base URL based on endpoint type
     const baseUrl = isLocalEndpoint(endpoint) ? getLocalApiUrl() : getApiUrl();
@@ -81,8 +126,8 @@ class ZekeApiClient {
       ...customHeaders,
     };
 
-    // Add Content-Type for non-GET requests with body
-    if (method !== 'GET' && !('body' in options) && !finalHeaders['Content-Type']) {
+    // Add Content-Type for requests with body
+    if (body && !finalHeaders['Content-Type']) {
       finalHeaders['Content-Type'] = 'application/json';
     }
 
@@ -105,7 +150,7 @@ class ZekeApiClient {
     const maxAttempts = 3;
     const retryDelays = [1000, 2000, 4000]; // ms
 
-    let lastError: Error | undefined;
+    let lastError: ApiError | undefined;
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
@@ -113,17 +158,26 @@ class ZekeApiClient {
           method,
           headers: finalHeaders,
           signal: finalSignal,
+          body: body ? JSON.stringify(body) : undefined,
           credentials: 'include',
         });
 
         // Clear timeout on success
         if (timeoutId) clearTimeout(timeoutId);
 
+        // Handle 404 with emptyArrayOn404 fallback
+        if (response.status === 404 && emptyArrayOn404) {
+          if (__DEV__) {
+            console.log(`[ZekeApiClient] ${method} ${endpoint} - 404, returning empty array`);
+          }
+          return [] as unknown as T;
+        }
+
         // Handle non-ok responses
         if (!response.ok) {
-          const text = await response.text();
-          const errorMsg = `${response.status}: ${text || response.statusText}`;
-          
+          const bodyText = await response.text();
+          const errorMsg = `${response.status} ${response.statusText}`;
+
           // Only retry on specific status codes
           const retryableStatuses = [408, 429, 500, 502, 503, 504];
           if (retryableStatuses.includes(response.status) && attempt < maxAttempts - 1) {
@@ -136,17 +190,19 @@ class ZekeApiClient {
             continue;
           }
 
-          throw new Error(errorMsg);
+          // Create ApiError for non-retryable failures
+          lastError = new ApiError(errorMsg, {
+            status: response.status,
+            url: url.toString(),
+            method,
+            bodyText,
+          });
+
+          throw lastError;
         }
 
         // Parse response
-        const contentType = response.headers.get('content-type');
-        let data: T;
-        if (contentType?.includes('application/json')) {
-          data = await response.json();
-        } else {
-          data = (await response.text()) as unknown as T;
-        }
+        const data = await parseResponseBody<T>(response);
 
         if (__DEV__) {
           console.log(`[ZekeApiClient] ${method} ${endpoint} (${attempt + 1}/${maxAttempts}) - OK`);
@@ -154,7 +210,19 @@ class ZekeApiClient {
 
         return data;
       } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
+        // If already an ApiError, keep it
+        if (error instanceof ApiError) {
+          lastError = error;
+          throw lastError;
+        }
+
+        // Convert other errors to ApiError
+        const message = error instanceof Error ? error.message : String(error);
+        lastError = new ApiError(message, {
+          url: url.toString(),
+          method,
+          bodyText: error instanceof Error ? error.message : undefined,
+        });
 
         // Check if this is a network error or retryable status
         const isNetworkError = error instanceof TypeError && error.message.includes('fetch');
@@ -171,7 +239,7 @@ class ZekeApiClient {
         }
 
         // Don't retry further
-        break;
+        throw lastError;
       }
     }
 
@@ -182,134 +250,38 @@ class ZekeApiClient {
       console.log(`[ZekeApiClient] ${method} ${endpoint} - FAILED after ${maxAttempts} attempts`);
     }
 
-    throw lastError || new Error(`Failed to ${method} ${endpoint}`);
+    throw lastError || new ApiError(`Failed to ${method} ${endpoint}`, {
+      url: url.toString(),
+      method,
+    });
   }
 
   /**
    * GET request
    */
   async get<T>(endpoint: string, options?: RequestOptions): Promise<T> {
-    return this.request<T>('GET', endpoint, options);
+    return this.request<T>('GET', endpoint, undefined, options);
   }
 
   /**
    * POST request
    */
-  async post<T>(
-    endpoint: string,
-    body?: unknown,
-    options?: RequestOptions,
-  ): Promise<T> {
-    const finalOptions: RequestOptions = { ...options };
-    const headers: Record<string, string> = { ...options?.headers };
-
-    // Add Content-Type for JSON body
-    if (body) {
-      headers['Content-Type'] = 'application/json';
-    }
-
-    const response = await fetch(
-      new URL(
-        endpoint,
-        isLocalEndpoint(endpoint) ? getLocalApiUrl() : getApiUrl(),
-      ).toString(),
-      {
-        method: 'POST',
-        headers: {
-          ...getAuthHeaders(),
-          ...headers,
-        },
-        body: body ? JSON.stringify(body) : undefined,
-        signal: options?.signal,
-        credentials: 'include',
-      },
-    );
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`${response.status}: ${text || response.statusText}`);
-    }
-
-    const contentType = response.headers.get('content-type');
-    if (contentType?.includes('application/json')) {
-      return await response.json();
-    }
-    return (await response.text()) as unknown as T;
+  async post<T>(endpoint: string, data: unknown, options?: RequestOptions): Promise<T> {
+    return this.request<T>('POST', endpoint, data, options);
   }
 
   /**
-   * PUT request
+   * PATCH request
    */
-  async put<T>(
-    endpoint: string,
-    body?: unknown,
-    options?: RequestOptions,
-  ): Promise<T> {
-    const headers: Record<string, string> = { ...options?.headers };
-
-    if (body) {
-      headers['Content-Type'] = 'application/json';
-    }
-
-    const response = await fetch(
-      new URL(
-        endpoint,
-        isLocalEndpoint(endpoint) ? getLocalApiUrl() : getApiUrl(),
-      ).toString(),
-      {
-        method: 'PUT',
-        headers: {
-          ...getAuthHeaders(),
-          ...headers,
-        },
-        body: body ? JSON.stringify(body) : undefined,
-        signal: options?.signal,
-        credentials: 'include',
-      },
-    );
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`${response.status}: ${text || response.statusText}`);
-    }
-
-    const contentType = response.headers.get('content-type');
-    if (contentType?.includes('application/json')) {
-      return await response.json();
-    }
-    return (await response.text()) as unknown as T;
+  async patch<T>(endpoint: string, data: unknown, options?: RequestOptions): Promise<T> {
+    return this.request<T>('PATCH', endpoint, data, options);
   }
 
   /**
-   * DELETE request
+   * DELETE request (returns void)
    */
-  async delete<T>(endpoint: string, options?: RequestOptions): Promise<T> {
-    const response = await fetch(
-      new URL(
-        endpoint,
-        isLocalEndpoint(endpoint) ? getLocalApiUrl() : getApiUrl(),
-      ).toString(),
-      {
-        method: 'DELETE',
-        headers: {
-          ...getAuthHeaders(),
-          ...options?.headers,
-        },
-        signal: options?.signal,
-        credentials: 'include',
-      },
-    );
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`${response.status}: ${text || response.statusText}`);
-    }
-
-    const contentType = response.headers.get('content-type');
-    if (contentType?.includes('application/json')) {
-      return await response.json();
-    }
-    return (await response.text()) as unknown as T;
+  async delete(endpoint: string, options?: RequestOptions): Promise<void> {
+    await this.request<void>('DELETE', endpoint, undefined, options);
   }
 }
 
