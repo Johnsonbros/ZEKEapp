@@ -26,7 +26,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
-import { apiRequest } from "@/lib/query-client";
+// apiRequest moved to ZekeApiClient - import if needed from @/lib/api-client
 import { CommunicationStackParamList } from "@/navigation/CommunicationStackNavigator";
 
 type VoIPCallingScreenRouteProp = RouteProp<CommunicationStackParamList, "VoIPCalling">;

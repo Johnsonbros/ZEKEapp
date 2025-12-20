@@ -15,7 +15,7 @@ import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Colors, Gradients } from "@/constants/theme";
-import { queryClient, getApiUrl, apiRequest } from "@/lib/query-client";
+import { queryClient, getApiUrl } from "@/lib/query-client";
 
 interface SelectedFile {
   uri: string;
