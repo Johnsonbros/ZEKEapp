@@ -73,39 +73,6 @@ export function getLocalApiUrl(): string {
   return url.href;
 }
 
-async function throwIfResNotOk(res: Response) {
-  if (!res.ok) {
-    const text = (await res.text()) || res.statusText;
-    throw new Error(`${res.status}: ${text}`);
-  }
-}
-
-export async function apiRequest(
-  method: string,
-  route: string,
-  data?: unknown | undefined,
-): Promise<Response> {
-  const baseUrl = getApiUrl();
-  const url = new URL(route, baseUrl);
-
-  const headers: Record<string, string> = {
-    ...getAuthHeaders(),
-  };
-  
-  if (data) {
-    headers["Content-Type"] = "application/json";
-  }
-
-  const res = await fetch(url, {
-    method,
-    headers,
-    body: data ? JSON.stringify(data) : undefined,
-    credentials: "include",
-  });
-
-  await throwIfResNotOk(res);
-  return res;
-}
 
 type UnauthorizedBehavior = "returnNull" | "throw";
 export const getQueryFn: <T>(options: {
