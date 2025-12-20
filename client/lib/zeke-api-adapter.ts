@@ -592,30 +592,21 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
 }
 
 export async function getEventsForDateRange(startDate: Date, endDate: Date): Promise<ZekeEvent[]> {
-  const baseUrl = getLocalApiUrl();
-  
   console.log('[Calendar] Fetching events for range:', startDate.toISOString(), 'to', endDate.toISOString());
   
   try {
-    const url = new URL('/api/calendar/events', baseUrl);
-    url.searchParams.set('timeMin', startDate.toISOString());
-    url.searchParams.set('timeMax', endDate.toISOString());
-    
-    const res = await fetch(url, { 
-      credentials: 'include',
-      headers: getAuthHeaders(),
-      signal: createTimeoutSignal(10000)
-    });
-    console.log('[Calendar] Range response status:', res.status);
-    if (!res.ok) {
-      if (res.status === 503) {
-        console.log('[Calendar] Local calendar not connected, trying ZEKE proxy');
-        return getEventsFromZekeProxy(startDate, endDate);
+    // Retry and timeout now handled centrally by ZekeApiClient
+    // Routes to local API via isLocalEndpoint() check
+    const data = await apiClient.get<{ events?: ZekeEvent[] }>(
+      '/api/calendar/events',
+      { 
+        query: { 
+          timeMin: startDate.toISOString(),
+          timeMax: endDate.toISOString()
+        },
+        timeoutMs: 10000 
       }
-      console.log('[Calendar] Range response not OK, falling back to today events');
-      return getTodayEvents();
-    }
-    const data = await res.json();
+    );
     console.log('[Calendar] Fetched range events count:', Array.isArray(data) ? data.length : (data.events?.length ?? 0));
     return data.events || data || [];
   } catch (error) {
@@ -625,21 +616,18 @@ export async function getEventsForDateRange(startDate: Date, endDate: Date): Pro
 }
 
 async function getEventsFromZekeProxy(startDate: Date, endDate: Date): Promise<ZekeEvent[]> {
-  const baseUrl = getLocalApiUrl();
-  const url = new URL('/api/zeke/calendar/events', baseUrl);
-  url.searchParams.set('timeMin', startDate.toISOString());
-  url.searchParams.set('timeMax', endDate.toISOString());
-  
   try {
-    const res = await fetch(url, { 
-      credentials: 'include',
-      headers: getAuthHeaders(),
-      signal: createTimeoutSignal(10000)
-    });
-    if (!res.ok) {
-      return [];
-    }
-    const data = await res.json();
+    // Retry and timeout now handled centrally by ZekeApiClient
+    const data = await apiClient.get<{ events?: ZekeEvent[] }>(
+      '/api/zeke/calendar/events',
+      { 
+        query: {
+          timeMin: startDate.toISOString(),
+          timeMax: endDate.toISOString()
+        },
+        timeoutMs: 10000
+      }
+    );
     return data.events || data || [];
   } catch (error) {
     console.error('[Calendar] ZEKE proxy fetch error:', error);
@@ -648,30 +636,15 @@ async function getEventsFromZekeProxy(startDate: Date, endDate: Date): Promise<Z
 }
 
 export async function getTodayEvents(): Promise<ZekeEvent[]> {
-  const baseUrl = getLocalApiUrl();
-  
   console.log('[Calendar] Fetching today events');
   
   try {
-    const url = new URL('/api/calendar/today', baseUrl);
-    
-    console.log('[Calendar] Fetching events from:', url.toString());
-    
-    const res = await fetch(url, { 
-      credentials: 'include',
-      headers: getAuthHeaders(),
-      signal: createTimeoutSignal(10000)
-    });
-    console.log('[Calendar] Response status:', res.status);
-    if (!res.ok) {
-      if (res.status === 503) {
-        console.log('[Calendar] Local calendar not connected, trying ZEKE proxy');
-        return getTodayEventsFromZekeProxy();
-      }
-      console.log('[Calendar] Response not OK');
-      return [];
-    }
-    const data = await res.json();
+    // Retry and timeout now handled centrally by ZekeApiClient
+    // Routes to local API via isLocalEndpoint() check
+    const data = await apiClient.get<{ events?: ZekeEvent[] }>(
+      '/api/calendar/today',
+      { timeoutMs: 10000 }
+    );
     console.log('[Calendar] Fetched events count:', Array.isArray(data) ? data.length : (data.events?.length ?? 0));
     return data.events || data || [];
   } catch (error) {
@@ -681,19 +654,12 @@ export async function getTodayEvents(): Promise<ZekeEvent[]> {
 }
 
 async function getTodayEventsFromZekeProxy(): Promise<ZekeEvent[]> {
-  const baseUrl = getLocalApiUrl();
-  const url = new URL('/api/zeke/calendar/today', baseUrl);
-  
   try {
-    const res = await fetch(url, { 
-      credentials: 'include',
-      headers: getAuthHeaders(),
-      signal: createTimeoutSignal(10000)
-    });
-    if (!res.ok) {
-      return [];
-    }
-    const data = await res.json();
+    // Retry and timeout now handled centrally by ZekeApiClient
+    const data = await apiClient.get<{ events?: ZekeEvent[] }>(
+      '/api/zeke/calendar/today',
+      { timeoutMs: 10000 }
+    );
     console.log('[Calendar] ZEKE proxy fetched events count:', Array.isArray(data) ? data.length : (data.events?.length ?? 0));
     return data.events || data || [];
   } catch (error) {
@@ -819,20 +785,16 @@ export async function createCalendarEvent(
   calendarId?: string,
   description?: string
 ): Promise<ZekeEvent> {
-  const baseUrl = getLocalApiUrl();
-  const url = new URL('/api/calendar/events', baseUrl);
-  
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-    credentials: 'include',
-    body: JSON.stringify({ title, startTime, endTime, location, calendarId, description }),
+  // Retry, timeout, and auth now handled centrally by ZekeApiClient
+  // Routes to local API via isLocalEndpoint() check
+  return await apiClient.post<ZekeEvent>('/api/calendar/events', {
+    title,
+    startTime,
+    endTime,
+    location,
+    calendarId,
+    description
   });
-  
-  if (!res.ok) {
-    throw new Error(`Failed to create event: ${res.statusText}`);
-  }
-  return res.json();
 }
 
 export async function updateCalendarEvent(
@@ -846,95 +808,57 @@ export async function updateCalendarEvent(
     calendarId?: string;
   }
 ): Promise<ZekeEvent> {
-  const baseUrl = getLocalApiUrl();
-  const url = new URL(`/api/calendar/events/${eventId}`, baseUrl);
-  
-  const res = await fetch(url, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-    credentials: 'include',
-    body: JSON.stringify(updates),
-  });
-  
-  if (!res.ok) {
-    throw new Error(`Failed to update event: ${res.statusText}`);
-  }
-  return res.json();
+  // Retry, timeout, and auth now handled centrally by ZekeApiClient
+  // Routes to local API via isLocalEndpoint() check
+  return await apiClient.patch<ZekeEvent>(`/api/calendar/events/${eventId}`, updates);
 }
 
 export async function getUpcomingEvents(limit: number = 10): Promise<ZekeEvent[]> {
-  const baseUrl = getLocalApiUrl();
-  const url = new URL('/api/calendar/upcoming', baseUrl);
-  url.searchParams.set('limit', limit.toString());
-  
   try {
-    const res = await fetch(url, { 
-      credentials: 'include',
-      headers: getAuthHeaders(),
-      signal: createTimeoutSignal(5000)
-    });
-    if (!res.ok) {
-      return [];
-    }
-    const data = await res.json();
+    // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
+    // Routes to local API via isLocalEndpoint() check
+    const data = await apiClient.get<{ events?: ZekeEvent[] }>(
+      '/api/calendar/upcoming',
+      { query: { limit }, emptyArrayOn404: true }
+    );
     return data.events || data || [];
-  } catch {
+  } catch (error) {
+    console.error('[Calendar] Failed to fetch upcoming events:', error);
     return [];
   }
 }
 
 export async function deleteCalendarEvent(id: string, calendarId?: string): Promise<void> {
-  const baseUrl = getLocalApiUrl();
-  const url = new URL(`/api/calendar/events/${id}`, baseUrl);
-  if (calendarId) {
-    url.searchParams.set('calendarId', calendarId);
-  }
-  
-  const res = await fetch(url, {
-    method: 'DELETE',
-    headers: getAuthHeaders(),
-    credentials: 'include',
-  });
-  
-  if (!res.ok) {
-    throw new Error(`Failed to delete event: ${res.statusText}`);
-  }
+  // Retry, timeout, and auth now handled centrally by ZekeApiClient
+  // Routes to local API via isLocalEndpoint() check
+  const endpoint = `/api/calendar/events/${id}`;
+  await apiClient.delete(endpoint, calendarId ? { query: { calendarId } } : undefined);
 }
 
 export async function getCalendarList(): Promise<ZekeCalendar[]> {
-  const baseUrl = getLocalApiUrl();
-  const url = new URL('/api/calendar/calendars', baseUrl);
-  
   try {
-    const res = await fetch(url, { 
-      credentials: 'include',
-      headers: getAuthHeaders(),
-      signal: createTimeoutSignal(10000)
-    });
-    if (!res.ok) {
-      return [];
-    }
-    return res.json();
-  } catch {
+    // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
+    // Routes to local API via isLocalEndpoint() check
+    return await apiClient.get<ZekeCalendar[]>(
+      '/api/calendar/calendars',
+      { emptyArrayOn404: true, timeoutMs: 10000 }
+    );
+  } catch (error) {
+    console.error('[Calendar] Failed to fetch calendar list:', error);
     return [];
   }
 }
 
 export async function getZekeCalendar(): Promise<ZekeCalendar | null> {
-  const baseUrl = getLocalApiUrl();
-  const url = new URL('/api/calendar/zeke', baseUrl);
-  
   try {
-    const res = await fetch(url, { 
-      credentials: 'include',
-      headers: getAuthHeaders(),
-      signal: createTimeoutSignal(10000)
-    });
-    if (!res.ok) {
-      return null;
-    }
-    return res.json();
-  } catch {
+    // Retry and timeout now handled centrally by ZekeApiClient
+    // Routes to local API via isLocalEndpoint() check
+    return await apiClient.get<ZekeCalendar>(
+      '/api/calendar/zeke',
+      { timeoutMs: 10000 }
+    );
+  } catch (error) {
+    console.error('[Calendar] Failed to fetch ZEKE calendar:', error);
     return null;
   }
 }

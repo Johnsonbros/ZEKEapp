@@ -50,7 +50,7 @@ function isLocalEndpoint(endpoint: string): boolean {
     '/api/zeke/',
   ];
   const isLocal = localPrefixes.some(prefix => endpoint.startsWith(prefix));
-  if (__DEV__ && (endpoint.includes('/api/twilio/') || endpoint === '/api/sms-log')) {
+  if (__DEV__ && (endpoint.includes('/api/calendar/') || endpoint.includes('/api/twilio/') || endpoint === '/api/sms-log')) {
     console.log(`[ZekeApiClient] Routing ${endpoint} to LOCAL API`);
   }
   return isLocal;
