@@ -82,11 +82,30 @@ async function throwIfResNotOk(res: Response): Promise<void> {
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
+
+/**
+ * @deprecated Use ZekeApiClient (apiClient.get/post/patch/delete) instead
+ * 
+ * This is the legacy default query function. All new queries should use
+ * custom queryFn with ZekeApiClient for centralized retry, timeout, and auth handling.
+ * 
+ * See: client/lib/api-client.ts and client/lib/zeke-api-adapter.ts
+ */
 export const getQueryFn: <T>(options: {
   on401: UnauthorizedBehavior;
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
+    // Development-only deprecation warning
+    const isDev = typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV === 'development';
+    if (isDev) {
+      console.warn(
+        `[DEPRECATION] getQueryFn is legacy. Use ZekeApiClient instead.\n` +
+        `queryKey: ${queryKey.join('/')}\n` +
+        `Replace with: useQuery({ queryKey, queryFn: async () => apiClient.get(...) })`
+      );
+    }
+
     const baseUrl = getApiUrl();
     const url = new URL(queryKey.join("/") as string, baseUrl);
 
