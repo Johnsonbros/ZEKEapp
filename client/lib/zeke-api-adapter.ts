@@ -244,20 +244,12 @@ export async function searchMemories(query: string): Promise<ZekeMemory[]> {
 }
 
 export async function getTasks(): Promise<ZekeTask[]> {
-  const baseUrl = getLocalApiUrl();
-  const url = new URL('/api/zeke/tasks', baseUrl);
-  
   try {
-    const res = await fetch(url, { 
-      credentials: 'include',
-      headers: getAuthHeaders(),
-      signal: createTimeoutSignal(5000)
-    });
-    if (!res.ok) {
-      console.log('[ZEKE Proxy] Tasks fetch failed:', res.status);
-      return [];
-    }
-    const data = await res.json();
+    // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
+    const data = await apiClient.get<{ tasks?: ZekeTask[] }>(
+      '/api/zeke/tasks',
+      { emptyArrayOn404: true }
+    );
     console.log('[ZEKE Proxy] Tasks fetched:', data.tasks?.length || 0);
     return data.tasks || data || [];
   } catch (error) {
@@ -267,20 +259,12 @@ export async function getTasks(): Promise<ZekeTask[]> {
 }
 
 export async function getGroceryItems(): Promise<ZekeGroceryItem[]> {
-  const baseUrl = getLocalApiUrl();
-  const url = new URL('/api/zeke/grocery', baseUrl);
-  
   try {
-    const res = await fetch(url, { 
-      credentials: 'include',
-      headers: getAuthHeaders(),
-      signal: createTimeoutSignal(5000)
-    });
-    if (!res.ok) {
-      console.log('[ZEKE Proxy] Grocery fetch failed:', res.status);
-      return [];
-    }
-    const data = await res.json();
+    // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
+    const data = await apiClient.get<{ items?: ZekeGroceryItem[] }>(
+      '/api/zeke/grocery',
+      { emptyArrayOn404: true }
+    );
     console.log('[ZEKE Proxy] Grocery items fetched:', data.items?.length || 0);
     return data.items || data || [];
   } catch (error) {
@@ -299,21 +283,15 @@ export interface ZekeReminder {
 }
 
 export async function getReminders(): Promise<ZekeReminder[]> {
-  const baseUrl = getApiUrl();
-  const url = new URL('/api/reminders', baseUrl);
-  
   try {
-    const res = await fetch(url, { 
-      credentials: 'include',
-      headers: getAuthHeaders(),
-      signal: createTimeoutSignal(5000)
-    });
-    if (!res.ok) {
-      return [];
-    }
-    const data = await res.json();
+    // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
+    const data = await apiClient.get<{ reminders?: ZekeReminder[] }>(
+      '/api/reminders',
+      { emptyArrayOn404: true }
+    );
     return data.reminders || data || [];
-  } catch {
+  } catch (error) {
+    console.error('[Reminders] Failed to fetch reminders:', error);
     return [];
   }
 }
@@ -832,56 +810,27 @@ export async function addGroceryItem(
   unit?: string,
   category?: string
 ): Promise<ZekeGroceryItem> {
-  const baseUrl = getLocalApiUrl();
-  const url = new URL('/api/zeke/grocery', baseUrl);
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-    credentials: 'include',
-    body: JSON.stringify({ 
-      name, 
-      quantity: quantity !== undefined ? String(quantity) : "1", 
-      unit: unit || "", 
-      category: category || "General",
-      addedBy: "mobile-app"
-    }),
+  // Retry, timeout, and auth now handled centrally by ZekeApiClient
+  return await apiClient.post<ZekeGroceryItem>('/api/zeke/grocery', {
+    name,
+    quantity: quantity !== undefined ? String(quantity) : "1",
+    unit: unit || "",
+    category: category || "General",
+    addedBy: "mobile-app"
   });
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.error || `Failed to add grocery item: ${res.statusText}`);
-  }
-  return res.json();
 }
 
 export async function updateGroceryItem(
   id: string,
   updates: Partial<ZekeGroceryItem>
 ): Promise<ZekeGroceryItem> {
-  const baseUrl = getLocalApiUrl();
-  const url = new URL(`/api/zeke/grocery/${id}`, baseUrl);
-  const res = await fetch(url, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-    credentials: 'include',
-    body: JSON.stringify(updates),
-  });
-  if (!res.ok) {
-    throw new Error(`Failed to update grocery item: ${res.statusText}`);
-  }
-  return res.json();
+  // Retry, timeout, and auth now handled centrally by ZekeApiClient
+  return await apiClient.patch<ZekeGroceryItem>(`/api/zeke/grocery/${id}`, updates);
 }
 
 export async function deleteGroceryItem(id: string): Promise<void> {
-  const baseUrl = getLocalApiUrl();
-  const url = new URL(`/api/zeke/grocery/${id}`, baseUrl);
-  const res = await fetch(url, {
-    method: 'DELETE',
-    headers: getAuthHeaders(),
-    credentials: 'include',
-  });
-  if (!res.ok) {
-    throw new Error(`Failed to delete grocery item: ${res.statusText}`);
-  }
+  // Retry, timeout, and auth now handled centrally by ZekeApiClient
+  await apiClient.delete(`/api/zeke/grocery/${id}`);
 }
 
 export async function toggleGroceryPurchased(
@@ -919,49 +868,21 @@ export async function createTask(
   dueDate?: string,
   priority?: string
 ): Promise<ZekeTask> {
-  const baseUrl = getLocalApiUrl();
-  const url = new URL('/api/zeke/tasks', baseUrl);
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-    credentials: 'include',
-    body: JSON.stringify({ title, dueDate, priority }),
-  });
-  if (!res.ok) {
-    throw new Error(`Failed to create task: ${res.statusText}`);
-  }
-  return res.json();
+  // Retry, timeout, and auth now handled centrally by ZekeApiClient
+  return await apiClient.post<ZekeTask>('/api/zeke/tasks', { title, dueDate, priority });
 }
 
 export async function updateTask(
   id: string,
   updates: Partial<ZekeTask>
 ): Promise<ZekeTask> {
-  const baseUrl = getLocalApiUrl();
-  const url = new URL(`/api/zeke/tasks/${id}`, baseUrl);
-  const res = await fetch(url, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-    credentials: 'include',
-    body: JSON.stringify(updates),
-  });
-  if (!res.ok) {
-    throw new Error(`Failed to update task: ${res.statusText}`);
-  }
-  return res.json();
+  // Retry, timeout, and auth now handled centrally by ZekeApiClient
+  return await apiClient.patch<ZekeTask>(`/api/zeke/tasks/${id}`, updates);
 }
 
 export async function deleteTask(id: string): Promise<void> {
-  const baseUrl = getLocalApiUrl();
-  const url = new URL(`/api/zeke/tasks/${id}`, baseUrl);
-  const res = await fetch(url, {
-    method: 'DELETE',
-    headers: getAuthHeaders(),
-    credentials: 'include',
-  });
-  if (!res.ok) {
-    throw new Error(`Failed to delete task: ${res.statusText}`);
-  }
+  // Retry, timeout, and auth now handled centrally by ZekeApiClient
+  await apiClient.delete(`/api/zeke/tasks/${id}`);
 }
 
 export async function toggleTaskComplete(
@@ -1642,69 +1563,58 @@ export type ZekeListWithItems = CustomListWithItems & {
 
 // Lists API functions
 export async function getLists(): Promise<ZekeList[]> {
-  const baseUrl = getApiUrl();
-  const url = new URL('/api/lists', baseUrl);
-  
   try {
-    const res = await fetch(url, { 
-      credentials: 'include',
-      headers: getAuthHeaders(),
-      signal: createTimeoutSignal(5000)
-    });
-    if (!res.ok) return [];
-    return res.json();
-  } catch {
+    // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
+    return await apiClient.get<ZekeList[]>('/api/lists', { emptyArrayOn404: true });
+  } catch (error) {
+    console.error('[Lists] Failed to fetch lists:', error);
     return [];
   }
 }
 
 export async function getListWithItems(id: string): Promise<ZekeListWithItems | null> {
-  const baseUrl = getApiUrl();
-  const url = new URL(`/api/lists/${id}`, baseUrl);
-  
   try {
-    const res = await fetch(url, { 
-      credentials: 'include',
-      headers: getAuthHeaders(),
-      signal: createTimeoutSignal(5000)
-    });
-    if (!res.ok) return null;
-    return res.json();
-  } catch {
+    // Retry and timeout now handled centrally by ZekeApiClient
+    return await apiClient.get<ZekeListWithItems>(`/api/lists/${id}`);
+  } catch (error) {
+    console.error('[Lists] Failed to fetch list with items:', error);
     return null;
   }
 }
 
 export async function createList(name: string, description?: string, color?: string): Promise<ZekeList> {
-  const res = await apiRequest('POST', '/api/lists', { name, description, color });
-  return res.json();
+  // Retry, timeout, and auth now handled centrally by ZekeApiClient
+  return await apiClient.post<ZekeList>('/api/lists', { name, description, color });
 }
 
 export async function updateList(id: string, updates: Partial<ZekeList>): Promise<ZekeList> {
-  const res = await apiRequest('PATCH', `/api/lists/${id}`, updates);
-  return res.json();
+  // Retry, timeout, and auth now handled centrally by ZekeApiClient
+  return await apiClient.patch<ZekeList>(`/api/lists/${id}`, updates);
 }
 
 export async function deleteList(id: string): Promise<void> {
-  await apiRequest('DELETE', `/api/lists/${id}`);
+  // Retry, timeout, and auth now handled centrally by ZekeApiClient
+  await apiClient.delete(`/api/lists/${id}`);
 }
 
 export async function addListItem(listId: string, text: string): Promise<ZekeListItem> {
-  const res = await apiRequest('POST', `/api/lists/${listId}/items`, { text });
-  return res.json();
+  // Retry, timeout, and auth now handled centrally by ZekeApiClient
+  return await apiClient.post<ZekeListItem>(`/api/lists/${listId}/items`, { text });
 }
 
 export async function toggleListItem(listId: string, itemId: string): Promise<ZekeListItem> {
-  const res = await apiRequest('POST', `/api/lists/${listId}/items/${itemId}/toggle`, {});
-  return res.json();
+  // Retry, timeout, and auth now handled centrally by ZekeApiClient
+  return await apiClient.post<ZekeListItem>(`/api/lists/${listId}/items/${itemId}/toggle`, {});
 }
 
 export async function deleteListItem(listId: string, itemId: string): Promise<void> {
-  await apiRequest('DELETE', `/api/lists/${listId}/items/${itemId}`);
+  // Retry, timeout, and auth now handled centrally by ZekeApiClient
+  await apiClient.delete(`/api/lists/${listId}/items/${itemId}`);
 }
 
 export async function clearCheckedItems(listId: string): Promise<void> {
-  await apiRequest('POST', `/api/lists/${listId}/clear-checked`, {});
+  // Retry, timeout, and auth now handled centrally by ZekeApiClient
+  await apiClient.post(`/api/lists/${listId}/clear-checked`, {});
 }
 
 export interface ZekeLocationUpdate {
