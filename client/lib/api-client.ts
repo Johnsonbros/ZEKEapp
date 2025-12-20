@@ -33,27 +33,74 @@ export type RequestOptions = {
 };
 
 /**
+ * Backend ownership documentation:
+ * 
+ * LOCAL API (available only on local backend):
+ * - /api/calendar/*    → Google Calendar integration (events, availability)
+ * - /api/twilio/*      → Twilio SMS & call management (conversations, calls)
+ * - /api/sms-log       → SMS conversation history
+ * - /api/conversations/* → Conversation & message management
+ * - /api/zeke/*        → ZEKE core (tasks, grocery, location sync, chat)
+ * 
+ * CORE API (main backend):
+ * - /api/memories/*    → Memory notes & metadata
+ * - /api/omi/*         → Omi device sync & settings
+ * - /api/semantic-search → Vector search across memories
+ * - /api/chat/*        → Chat session management (non-ZEKE)
+ * - /api/reminders     → Reminder management
+ * - /healthz           → Health check endpoint
+ * - /api/dashboard/*   → Dashboard summaries
+ */
+
+const LOCAL_API_PREFIXES = [
+  '/api/calendar/',
+  '/api/twilio/',
+  '/api/sms-log',
+  '/api/conversations',
+  '/api/zeke/',
+];
+
+const CORE_API_PREFIXES = [
+  '/api/memories',
+  '/api/omi/',
+  '/api/semantic-search',
+  '/api/chat/',
+  '/api/reminders',
+  '/healthz',
+  '/api/dashboard/',
+];
+
+/**
+ * Classify endpoint as 'local' or 'core' backend
+ * With development safety check to catch routing conflicts
+ */
+export function classifyEndpoint(endpoint: string): 'local' | 'core' {
+  const isLocal = LOCAL_API_PREFIXES.some(prefix => endpoint.startsWith(prefix));
+  
+  // Development-only safety check: catch ambiguous routing
+  if (__DEV__) {
+    const couldBeCore = CORE_API_PREFIXES.some(prefix => endpoint.startsWith(prefix));
+    if (isLocal && couldBeCore) {
+      console.error(
+        `[ZekeApiClient] ROUTING CONFLICT: "${endpoint}" matches BOTH local and core prefixes. ` +
+        `Endpoints must route to exactly one backend. Fix the prefix definitions. ` +
+        `Local: [${LOCAL_API_PREFIXES.join(', ')}] | Core: [${CORE_API_PREFIXES.join(', ')}]`
+      );
+    }
+    
+    if (isLocal && (endpoint.includes('/api/calendar/') || endpoint.includes('/api/twilio/') || endpoint === '/api/sms-log')) {
+      console.log(`[ZekeApiClient] Routing ${endpoint} to LOCAL API`);
+    }
+  }
+  
+  return isLocal ? 'local' : 'core';
+}
+
+/**
  * Determines if an endpoint should use local API URL instead of main API URL
- * Local endpoints are integrations and core app features available only on the local backend:
- * - Google Calendar (/api/calendar/*)
- * - Twilio SMS & Calls (/api/twilio/*)
- * - SMS Log (/api/sms-log)
- * - Conversations & Messages (/api/conversations/*)
- * - ZEKE Core Chat & Tasks (/api/zeke/*)
  */
 function isLocalEndpoint(endpoint: string): boolean {
-  const localPrefixes = [
-    '/api/calendar/',
-    '/api/twilio/',
-    '/api/sms-log',
-    '/api/conversations',
-    '/api/zeke/',
-  ];
-  const isLocal = localPrefixes.some(prefix => endpoint.startsWith(prefix));
-  if (__DEV__ && (endpoint.includes('/api/calendar/') || endpoint.includes('/api/twilio/') || endpoint === '/api/sms-log')) {
-    console.log(`[ZekeApiClient] Routing ${endpoint} to LOCAL API`);
-  }
-  return isLocal;
+  return classifyEndpoint(endpoint) === 'local';
 }
 
 /**
