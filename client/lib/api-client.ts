@@ -34,16 +34,20 @@ export type RequestOptions = {
 
 /**
  * Determines if an endpoint should use local API URL instead of main API URL
- * Local endpoints are integrations available only on the local backend:
+ * Local endpoints are integrations and core app features available only on the local backend:
  * - Google Calendar (/api/calendar/*)
  * - Twilio SMS & Calls (/api/twilio/*)
  * - SMS Log (/api/sms-log)
+ * - Conversations & Messages (/api/conversations/*)
+ * - ZEKE Core Chat & Tasks (/api/zeke/*)
  */
 function isLocalEndpoint(endpoint: string): boolean {
   const localPrefixes = [
     '/api/calendar/',
     '/api/twilio/',
     '/api/sms-log',
+    '/api/conversations',
+    '/api/zeke/',
   ];
   return localPrefixes.some(prefix => endpoint.startsWith(prefix));
 }

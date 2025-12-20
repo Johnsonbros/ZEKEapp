@@ -1,4 +1,5 @@
 import { getApiUrl, getLocalApiUrl, isZekeSyncMode, apiRequest, getAuthHeaders } from "./query-client";
+import { apiClient } from "./api-client";
 import type {
   Task,
   GroceryItem,
@@ -129,22 +130,11 @@ export interface DashboardSummary {
 }
 
 export async function getConversations(): Promise<ZekeConversation[]> {
-  const baseUrl = getLocalApiUrl();
-  const url = new URL('/api/conversations', baseUrl);
-  
   try {
-    const res = await fetch(url, { 
-      credentials: 'include', 
-      headers: getAuthHeaders(),
-      signal: createTimeoutSignal(10000)
+    // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
+    return await apiClient.get<ZekeConversation[]>('/api/conversations', {
+      emptyArrayOn404: true,
     });
-    if (!res.ok) {
-      if (res.status === 404) {
-        return [];
-      }
-      throw new Error(`Failed to fetch conversations: ${res.statusText}`);
-    }
-    return res.json();
   } catch (error) {
     console.error('[ZEKE Chat] Failed to fetch conversations:', error);
     return [];
@@ -152,35 +142,12 @@ export async function getConversations(): Promise<ZekeConversation[]> {
 }
 
 export async function createConversation(title?: string): Promise<ZekeConversation> {
-  const baseUrl = getLocalApiUrl();
-  const url = new URL('/api/conversations', baseUrl);
+  console.log('[ZEKE Chat] Creating conversation...');
   
-  console.log('[ZEKE Chat] Creating conversation at:', url.toString());
-  
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 
-      'Content-Type': 'application/json',
-      ...getAuthHeaders() 
-    },
-    credentials: 'include',
-    body: JSON.stringify({ title: title || 'Chat with ZEKE' }),
-    signal: createTimeoutSignal(15000)
-  });
-  
-  if (!res.ok) {
-    const errorText = await res.text().catch(() => res.statusText);
-    console.error('[ZEKE Chat] Create conversation failed:', res.status, errorText);
-    throw new Error(`Failed to create conversation: ${res.status} ${errorText}`);
-  }
-  
-  const contentType = res.headers.get('content-type');
-  if (!contentType || !contentType.includes('application/json')) {
-    console.error('[ZEKE Chat] Non-JSON response received when creating conversation');
-    throw new Error('Server returned non-JSON response');
-  }
-  
-  const data = await res.json();
+  // Retry, timeout, and auth now handled centrally by ZekeApiClient
+  const data = await apiClient.post<ZekeConversation>('/api/conversations', {
+    title: title || 'Chat with ZEKE',
+  }, { timeoutMs: 15000 });
   
   if (!data?.id || data.id === 'undefined' || data.id === 'null') {
     console.error('[ZEKE Chat] Invalid conversation ID in response:', data);
@@ -197,27 +164,12 @@ export async function getConversationMessages(conversationId: string): Promise<Z
     return [];
   }
   
-  const baseUrl = getLocalApiUrl();
-  const url = new URL(`/api/conversations/${conversationId}/messages`, baseUrl);
-  
   try {
-    const res = await fetch(url, { 
-      credentials: 'include', 
-      headers: getAuthHeaders(),
-      signal: createTimeoutSignal(10000)
-    });
-    if (!res.ok) {
-      if (res.status === 404) {
-        return [];
-      }
-      throw new Error(`Failed to fetch messages: ${res.statusText}`);
-    }
-    const contentType = res.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-      console.error('[ZEKE Chat] Non-JSON response received for messages');
-      return [];
-    }
-    return res.json();
+    // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
+    return await apiClient.get<ZekeMessage[]>(
+      `/api/conversations/${conversationId}/messages`,
+      { emptyArrayOn404: true }
+    );
   } catch (error) {
     console.error('[ZEKE Chat] Failed to fetch messages:', error);
     return [];
@@ -229,56 +181,21 @@ export async function sendMessage(conversationId: string, content: string): Prom
     throw new Error('Invalid conversation ID');
   }
   
-  const baseUrl = getLocalApiUrl();
-  const url = new URL(`/api/conversations/${conversationId}/messages`, baseUrl);
-  
-  console.log('[ZEKE Chat] Sending message to:', url.toString());
-  
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 
-      'Content-Type': 'application/json',
-      ...getAuthHeaders() 
-    },
-    credentials: 'include',
-    body: JSON.stringify({ content }),
-    signal: createTimeoutSignal(30000)
-  });
-  
-  if (!res.ok) {
-    const errorText = await res.text().catch(() => res.statusText);
-    console.error('[ZEKE Chat] Send message failed:', res.status, errorText);
-    throw new Error(`Failed to send message: ${res.status} ${errorText}`);
-  }
-  
-  const contentType = res.headers.get('content-type');
-  if (!contentType || !contentType.includes('application/json')) {
-    throw new Error('Server returned non-JSON response');
-  }
-  
-  return res.json();
+  // Retry, timeout, and auth now handled centrally by ZekeApiClient
+  return await apiClient.post<{ userMessage: ZekeMessage; assistantMessage: ZekeMessage }>(
+    `/api/conversations/${conversationId}/messages`,
+    { content },
+    { timeoutMs: 30000 }
+  );
 }
 
 export async function chatWithZeke(message: string, phone?: string): Promise<{ response: string; conversationId?: string }> {
-  const baseUrl = getLocalApiUrl();
-  const url = new URL('/api/zeke/chat', baseUrl);
-  
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 
-      'Content-Type': 'application/json',
-      ...getAuthHeaders() 
-    },
-    credentials: 'include',
-    body: JSON.stringify({ message, phone: phone || 'mobile-app' }),
-    signal: createTimeoutSignal(30000)
-  });
-  
-  if (!res.ok) {
-    throw new Error(`Failed to chat: ${res.statusText}`);
-  }
-  
-  return res.json();
+  // Retry, timeout, and auth now handled centrally by ZekeApiClient
+  return await apiClient.post<{ response: string; conversationId?: string }>(
+    '/api/zeke/chat',
+    { message, phone: phone || 'mobile-app' },
+    { timeoutMs: 30000 }
+  );
 }
 
 export async function getRecentMemories(limit: number = 10): Promise<ZekeMemory[]> {
