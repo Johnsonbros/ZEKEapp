@@ -81,3 +81,26 @@ See `MONOREPO_SETUP.md` and `SYNC_GUIDE.md` for commands.
 
 ### Privacy Note
 The `backend/android/` folder is excluded from ZekeAssistant (public) via .gitignore. It remains only in the private Zeke repo.
+
+## Testing Documentation
+
+### Airstrike Testing Methodology
+Comprehensive backend integration testing documentation is available at `docs/AIRSTRIKE_TEST_DOCUMENTATION.md`. This includes:
+- 10 structured test scripts for validating API routing, auth, error handling, and offline recovery
+- GO/NO-GO decision matrix for deployment readiness
+- Quick reference checklist for pre-deployment validation
+- Troubleshooting guide for common issues
+
+### Key Test Files
+- `client/lib/api-client.ts` — Centralized API client with retry/timeout/auth
+- `client/lib/zeke-api-adapter.ts` — Endpoint-specific API functions
+- `client/lib/query-client.ts` — React Query configuration and URL helpers
+
+### Minimum Shippable Criteria
+Airstrikes 1-6 must PASS for production deployment:
+1. CONFIG LOCK — API URLs hardcoded
+2. ROUTING PROOF — Endpoint classification working
+3. AUTH PIPELINE — Token injection working
+4. FAILURE MODES — Retry/timeout/error handling
+5. CHAT PIPELINE — Message send/receive
+6. CRUD GAUNTLET — Task/Grocery operations
