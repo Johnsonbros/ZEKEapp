@@ -96,7 +96,7 @@ export default function SettingsScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     Alert.alert(
       "Clear All Data",
-      "This will remove all your memories, chat history, and device settings. This action cannot be undone.",
+      "This will remove your chat history and device settings. This action cannot be undone.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -225,17 +225,6 @@ export default function SettingsScreen() {
             Add Device
           </ThemedText>
         </Pressable>
-        <View style={{ marginTop: Spacing.md }}>
-          <SettingsRow
-            icon="mic"
-            label="Live Capture"
-            value="Real-time transcription"
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              navigation.navigate("LiveCapture");
-            }}
-          />
-        </View>
       </SettingsSection>
 
       <SettingsSection title="PREFERENCES">
@@ -267,25 +256,6 @@ export default function SettingsScreen() {
             onPress={() =>
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
             }
-          />
-          <View style={[styles.divider, { backgroundColor: theme.border }]} />
-          <SettingsRow
-            icon="download"
-            label="Export Data"
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              navigation.navigate("DataExport");
-            }}
-          />
-          <View style={[styles.divider, { backgroundColor: theme.border }]} />
-          <SettingsRow
-            icon="bar-chart-2"
-            label="Analytics"
-            value="View your stats"
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              navigation.navigate("Analytics");
-            }}
           />
           <View style={[styles.divider, { backgroundColor: theme.border }]} />
           <SettingsRow

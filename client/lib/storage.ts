@@ -2,20 +2,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { DeviceInfo } from "@/components/DeviceCard";
 import { Message } from "@/components/ChatBubble";
 
-export interface Memory {
-  id: string;
-  title: string;
-  transcript: string;
-  timestamp: string;
-  deviceType: "omi" | "limitless";
-  speakers?: string[];
-  isStarred: boolean;
-  duration?: string;
-}
-
 const STORAGE_KEYS = {
   DEVICES: "@zeke/devices",
-  MEMORIES: "@zeke/memories",
   CHAT_MESSAGES: "@zeke/chat_messages",
   SETTINGS: "@zeke/settings",
   RECENT_SEARCHES: "@zeke/recent_searches",
@@ -84,24 +72,6 @@ export async function saveDevices(devices: DeviceInfo[]): Promise<void> {
     await AsyncStorage.setItem(STORAGE_KEYS.DEVICES, JSON.stringify(devices));
   } catch (error) {
     console.error("Error saving devices:", error);
-  }
-}
-
-export async function getMemories(): Promise<Memory[]> {
-  try {
-    const data = await AsyncStorage.getItem(STORAGE_KEYS.MEMORIES);
-    return data ? JSON.parse(data) : [];
-  } catch (error) {
-    console.error("Error getting memories:", error);
-    return [];
-  }
-}
-
-export async function saveMemories(memories: Memory[]): Promise<void> {
-  try {
-    await AsyncStorage.setItem(STORAGE_KEYS.MEMORIES, JSON.stringify(memories));
-  } catch (error) {
-    console.error("Error saving memories:", error);
   }
 }
 

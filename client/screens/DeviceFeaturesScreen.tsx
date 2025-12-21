@@ -344,7 +344,7 @@ export default function DeviceFeaturesScreen() {
 
     setIsSpeaking(true);
     Speech.speak(
-      "Hello! I am ZEKE, your AI assistant. I can help you manage your memories, tasks, and daily activities.",
+      "Hello! I am ZEKE, your AI assistant. I can help you manage your tasks, calendar, and daily activities.",
       {
         language: "en-US",
         pitch: 1.0,

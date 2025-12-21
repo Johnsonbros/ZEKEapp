@@ -332,8 +332,7 @@ export default function ChatScreen() {
           Welcome to ZEKE
         </ThemedText>
         <ThemedText type="body" secondary style={{ textAlign: "center" }}>
-          Ask me about your memories, meetings, or anything from your
-          recordings.
+          Ask me about your schedule, tasks, or anything I can help with.
         </ThemedText>
       </View>
     );

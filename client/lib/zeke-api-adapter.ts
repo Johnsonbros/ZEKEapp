@@ -902,27 +902,11 @@ export async function getRecentActivities(
   const activities: ActivityItem[] = [];
 
   try {
-    const [memories, tasks, smsConversations, events] = await Promise.all([
-      getRecentMemories(5).catch(() => []),
+    const [tasks, smsConversations, events] = await Promise.all([
       getAllTasks().catch(() => []),
       getTwilioConversations().catch(() => []),
       getTodayEvents().catch(() => []),
     ]);
-
-    for (const memory of memories) {
-      const date = new Date(memory.createdAt);
-      const durationMin = Math.round((memory.duration || 0) / 60);
-      activities.push({
-        id: `memory-${memory.id}`,
-        action:
-          durationMin > 0
-            ? `Recorded ${durationMin} min ${memory.title || "audio"}`
-            : `Recorded: ${memory.title || "audio memory"}`,
-        timestamp: getRelativeTime(date),
-        icon: "mic",
-        rawDate: date,
-      });
-    }
 
     const recentTasks = tasks
       .filter((t: ZekeTask) => t.status === "completed" || t.createdAt)

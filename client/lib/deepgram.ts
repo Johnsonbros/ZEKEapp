@@ -371,39 +371,6 @@ class DeepgramService {
     this.sessionId = null;
   }
 
-  public async sendCaptureToZeke(title?: string): Promise<boolean> {
-    const transcript = this.getFullTranscript();
-    if (!transcript.trim()) {
-      console.warn("[Deepgram] No transcript to send");
-      return false;
-    }
-
-    try {
-      const { createZekeMemory } = await import("./zeke-api-adapter");
-
-      const duration = this.sessionStartTime
-        ? Math.floor((Date.now() - this.sessionStartTime) / 1000)
-        : 0;
-
-      const success = await createZekeMemory({
-        title: title || `Live Capture - ${new Date().toLocaleString()}`,
-        transcript,
-        duration,
-        speakers: null,
-        source: "mobile-capture",
-      });
-
-      if (success) {
-        console.log("[Deepgram] Capture sent to ZEKE successfully");
-      }
-
-      return success;
-    } catch (error) {
-      console.error("[Deepgram] Error sending capture to ZEKE:", error);
-      return false;
-    }
-  }
-
   public getSessionDuration(): number {
     if (!this.sessionStartTime) return 0;
     return Math.floor((Date.now() - this.sessionStartTime) / 1000);

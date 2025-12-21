@@ -352,8 +352,8 @@ function ChatPlaceholder({ onStartChat }: ChatPlaceholderProps) {
         secondary
         style={{ textAlign: "center", paddingHorizontal: Spacing.xl }}
       >
-        Direct connection with ZEKE. Ask about your memories, schedule meetings,
-        or get insights from your recordings.
+        Direct connection with ZEKE. Ask about your schedule, tasks, or get help
+        with daily activities.
       </ThemedText>
       <Pressable
         onPress={onStartChat}

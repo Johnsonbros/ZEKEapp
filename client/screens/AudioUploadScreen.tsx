@@ -182,23 +182,18 @@ export default function AudioUploadScreen() {
         );
       }
 
-      const memory = await response.json();
+      const result = await response.json();
 
       setUploadProgress(100);
-
-      await queryClient.invalidateQueries({
-        queryKey: ["/api/zeke/memories"],
-        exact: false,
-      });
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
       Alert.alert(
-        "Memory Created",
-        `Your audio has been transcribed and saved as "${memory.title}"`,
+        "Audio Uploaded",
+        `Your audio has been sent to ZEKE for processing: "${result.title || 'Audio recording'}"`,
         [
           {
-            text: "View Memories",
+            text: "Done",
             onPress: () => {
               setSelectedFile(null);
               navigation.goBack();

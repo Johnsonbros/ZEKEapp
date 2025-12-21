@@ -107,21 +107,35 @@ Airstrikes 1-6 must PASS for production deployment:
 
 ## Recent Changes
 
+### Memory Features Removed (Dec 2025)
+All memory management and storage is now handled entirely by the backend. The mobile app captures audio from pendants and transfers it to the backend for processing.
+
+**Removed Screens**:
+- AnalyticsScreen (memory stats)
+- SearchScreen (memory search)
+- DataExportScreen (memory/conversation export)
+- LiveCaptureScreen (real-time transcription with memory save)
+
+**Removed Functionality**:
+- Memory proxy routes (`/api/zeke/memories`, `/api/zeke/memories/search`, `/api/zeke/semantic-search`)
+- Memory-related functions (`getRecentMemories`, `createZekeMemory`, `searchMemories`)
+- Local memory storage and retrieval
+
+**Updated Screens**:
+- SettingsScreen - Removed Analytics, Data Export, and Live Capture navigation
+- ChatScreen, CommunicationsHubScreen, DeviceFeaturesScreen - Updated placeholder text
+
 ### API Routing Fixes (Dec 2025)
 Fixed connection issues where mobile devices couldn't directly reach the external backend at `https://zekeai.replit.app`, causing authentication failures, timeouts, and "Load failed" errors.
 
 **Solution**: All API requests are now routed through the local server proxy via `/api/zeke/*` pattern:
 - `/api/zeke/health` → `/api/health`
 - `/api/zeke/dashboard` → `/api/dashboard`
-- `/api/zeke/memories` → `/api/memories` (forwards all query params)
 - `/api/zeke/tasks` → `/api/tasks`
 - `/api/zeke/grocery` → `/api/grocery`
 - `/api/zeke/devices` → `/api/omi/devices`
-- `/api/zeke/semantic-search` → `/api/semantic-search`
 
 **Files Changed**:
 - `client/lib/zeke-api-adapter.ts` — Updated endpoint paths to use proxy routes
 - `client/lib/api-client.ts` — Cleaned up CORE_API_PREFIXES documentation
 - `server/zeke-proxy.ts` — Added new proxy route handlers
-
-**Known Issue**: `/api/memories` returns 401 "Invalid signature" from external backend - this is an HMAC signature mismatch on the ZEKE backend, not a routing issue. The proxy successfully reaches the backend; the signature validation needs investigation on the backend side.
