@@ -54,6 +54,17 @@ export function PairingScreen() {
     }
   }, [smsPairingState.attemptsRemaining]);
 
+  useEffect(() => {
+    if (smsPairingState.sessionId && smsPairingState.expiresIn && smsPairingState.expiresIn > 0) {
+      console.log("[Pairing] Restoring session from context:", smsPairingState.sessionId);
+      setSessionId(smsPairingState.sessionId);
+      setCountdown(smsPairingState.expiresIn);
+      setCodeSentSuccess(true);
+      setStep("verify");
+      setTimeout(() => inputRefs.current[0]?.focus(), 100);
+    }
+  }, []);
+
   const getDeviceName = (): string => {
     if (Platform.OS === "web") {
       return "Web Browser";
