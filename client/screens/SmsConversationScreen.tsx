@@ -193,6 +193,7 @@ export default function SmsConversationScreen({ route, navigation }: Props) {
   const flatListRef = useRef<FlatList>(null);
 
   const [inputText, setInputText] = useState("");
+  const [optimisticMessages, setOptimisticMessages] = useState<TwilioSmsMessage[]>([]);
 
   const { height: keyboardHeight } = useReanimatedKeyboardAnimation();
 
@@ -265,8 +266,9 @@ export default function SmsConversationScreen({ route, navigation }: Props) {
   }, [phoneNumber]);
 
   const messages = useMemo(() => {
-    return conversationData?.messages || [];
-  }, [conversationData]);
+    const apiMessages = conversationData?.messages || [];
+    return [...apiMessages, ...optimisticMessages];
+  }, [conversationData, optimisticMessages]);
 
   const groupedMessages = useMemo(() => {
     return groupMessagesByDate(messages);
@@ -297,18 +299,26 @@ export default function SmsConversationScreen({ route, navigation }: Props) {
   };
 
   const sendMutation = useMutation({
-    mutationFn: async ({ to, body }: { to: string; body: string }) => {
+    mutationFn: async ({ to, body, tempId }: { to: string; body: string; tempId: string }) => {
       return sendSms(to, body);
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // Clear optimistic message
+      setOptimisticMessages((prev) => prev.filter((m) => m.sid !== variables.tempId));
       queryClient.invalidateQueries({
         queryKey: ["twilio-conversation", phoneNumber],
       });
       queryClient.invalidateQueries({ queryKey: ["twilio-conversations"] });
       refetch();
     },
-    onError: (error: Error) => {
+    onError: (error: Error, variables) => {
+      // Mark optimistic message as failed
+      setOptimisticMessages((prev) =>
+        prev.map((m) =>
+          m.sid === variables.tempId ? { ...m, status: "failed" } : m
+        )
+      );
       if (Platform.OS === "web") {
         window.alert(
           `Failed to send message: ${error.message || "Please try again."}`,
@@ -324,9 +334,24 @@ export default function SmsConversationScreen({ route, navigation }: Props) {
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const messageContent = inputText.trim();
+    const tempId = `temp-${Date.now()}`;
+    
+    // Create optimistic message
+    const optimisticMessage: TwilioSmsMessage = {
+      sid: tempId,
+      to: phoneNumber,
+      from: twilioPhoneNumber || "",
+      body: messageContent,
+      status: "sending",
+      direction: "outbound-api",
+      dateSent: null,
+      dateCreated: new Date().toISOString(),
+    };
+    
     setInputText("");
+    setOptimisticMessages((prev) => [...prev, optimisticMessage]);
 
-    sendMutation.mutate({ to: phoneNumber, body: messageContent });
+    sendMutation.mutate({ to: phoneNumber, body: messageContent, tempId });
   };
 
   const isOutboundMessage = (msg: TwilioSmsMessage): boolean => {
