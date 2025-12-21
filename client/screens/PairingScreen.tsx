@@ -64,10 +64,6 @@ export function PairingScreen() {
     if (value && index < 3) {
       inputRefs.current[index + 1]?.focus();
     }
-
-    if (newCode.every((d) => d.length === 1)) {
-      handleVerifyCode(newCode.join(""));
-    }
   };
 
   const handleKeyPress = (index: number, key: string) => {
@@ -76,10 +72,10 @@ export function PairingScreen() {
     }
   };
 
-  const handleVerifyCode = async (codeString?: string) => {
-    const finalCode = codeString || code.join("");
+  const handleVerifyCode = async () => {
+    const finalCode = code.join("");
     if (finalCode.length !== 4) {
-      setLocalError("Please enter the 4-digit code");
+      setLocalError("Please enter all 4 digits");
       return;
     }
 
@@ -91,11 +87,14 @@ export function PairingScreen() {
 
     setLocalError(null);
     const result = await verifySmsCode(sessionId, finalCode);
-    if (!result.success) {
+    if (!result.success && result.attemptsRemaining === 0) {
       setCode(["", "", "", ""]);
-      inputRefs.current[0]?.focus();
+      setStep("request");
+      setSessionId(null);
     }
   };
+
+  const isCodeComplete = code.every((d) => d.length === 1);
 
   const handleBack = () => {
     setStep("request");
@@ -218,12 +217,30 @@ export function PairingScreen() {
               </View>
             ) : null}
 
-            {isLoading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator color={Colors.dark.accent} size="large" />
-                <ThemedText style={styles.loadingText}>Verifying...</ThemedText>
-              </View>
-            ) : null}
+            <Pressable
+              style={[
+                styles.button,
+                (!isCodeComplete || isLoading) && styles.buttonDisabled,
+              ]}
+              onPress={handleVerifyCode}
+              disabled={!isCodeComplete || isLoading}
+            >
+              <LinearGradient
+                colors={Gradients.accent}
+                style={styles.buttonGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              >
+                {isLoading ? (
+                  <ActivityIndicator color={Colors.dark.text} />
+                ) : (
+                  <>
+                    <Feather name="check-circle" size={20} color={Colors.dark.text} />
+                    <ThemedText style={styles.buttonText}>Verify Code</ThemedText>
+                  </>
+                )}
+              </LinearGradient>
+            </Pressable>
 
             <Pressable
               style={styles.backButton}
