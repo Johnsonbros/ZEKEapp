@@ -253,6 +253,7 @@ export default function SmsConversationScreen({ route, navigation }: Props) {
 
   const [inputText, setInputText] = useState("");
   const [optimisticMessages, setOptimisticMessages] = useState<TwilioSmsMessage[]>([]);
+  const [showNotifications, setShowNotifications] = useState(true);
 
   const { height: keyboardHeight } = useReanimatedKeyboardAnimation();
 
@@ -326,8 +327,30 @@ export default function SmsConversationScreen({ route, navigation }: Props) {
 
   const messages = useMemo(() => {
     const apiMessages = conversationData?.messages || [];
-    return [...apiMessages, ...optimisticMessages];
-  }, [conversationData, optimisticMessages]);
+    const allMessages = [...apiMessages, ...optimisticMessages];
+    
+    // Filter out notifications if toggle is off
+    if (!showNotifications) {
+      return allMessages.filter((msg) => {
+        const isOutbound = msg.direction === "outbound-api" || 
+          msg.direction === "outbound-reply" || 
+          msg.from === twilioPhoneNumber;
+        return !isNotificationMessage(msg, isOutbound);
+      });
+    }
+    return allMessages;
+  }, [conversationData, optimisticMessages, showNotifications, twilioPhoneNumber]);
+
+  // Count notifications for the filter badge
+  const notificationCount = useMemo(() => {
+    const apiMessages = conversationData?.messages || [];
+    return apiMessages.filter((msg) => {
+      const isOutbound = msg.direction === "outbound-api" || 
+        msg.direction === "outbound-reply" || 
+        msg.from === twilioPhoneNumber;
+      return isNotificationMessage(msg, isOutbound);
+    }).length;
+  }, [conversationData, twilioPhoneNumber]);
 
   const groupedMessages = useMemo(() => {
     return groupMessagesByDate(messages);
@@ -460,6 +483,57 @@ export default function SmsConversationScreen({ route, navigation }: Props) {
     );
   };
 
+  const renderFilterHeader = () => {
+    if (notificationCount === 0) return null;
+    
+    return (
+      <View style={styles.filterContainer}>
+        <Pressable
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setShowNotifications(!showNotifications);
+          }}
+          style={[
+            styles.filterChip,
+            {
+              backgroundColor: showNotifications 
+                ? theme.backgroundSecondary 
+                : Colors.dark.primary + "20",
+              borderColor: showNotifications 
+                ? theme.border 
+                : Colors.dark.primary,
+            },
+          ]}
+        >
+          <Feather 
+            name={showNotifications ? "bell" : "bell-off"} 
+            size={14} 
+            color={showNotifications ? theme.textSecondary : Colors.dark.primary} 
+          />
+          <ThemedText 
+            type="caption" 
+            style={{ 
+              color: showNotifications ? theme.textSecondary : Colors.dark.primary,
+              marginLeft: Spacing.xs,
+            }}
+          >
+            {showNotifications ? "Notifications" : "Notifications hidden"}
+          </ThemedText>
+          {notificationCount > 0 ? (
+            <View style={[
+              styles.filterBadge,
+              { backgroundColor: showNotifications ? theme.textSecondary : Colors.dark.primary },
+            ]}>
+              <ThemedText type="caption" style={styles.filterBadgeText}>
+                {notificationCount}
+              </ThemedText>
+            </View>
+          ) : null}
+        </Pressable>
+      </View>
+    );
+  };
+
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: theme.backgroundRoot }]}
@@ -483,6 +557,7 @@ export default function SmsConversationScreen({ route, navigation }: Props) {
             : `msg-${(item.data as TwilioSmsMessage).sid}`
         }
         ListEmptyComponent={renderEmpty}
+        ListHeaderComponent={renderFilterHeader}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
@@ -662,5 +737,30 @@ const styles = StyleSheet.create({
   notificationText: {
     fontSize: 14,
     lineHeight: 20,
+  },
+  filterContainer: {
+    marginBottom: Spacing.md,
+  },
+  filterChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+  },
+  filterBadge: {
+    marginLeft: Spacing.xs,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    minWidth: 20,
+    alignItems: "center",
+  },
+  filterBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "600",
   },
 });
