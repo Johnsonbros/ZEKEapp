@@ -150,7 +150,7 @@ async function parseResponseBody<T>(response: Response): Promise<T> {
 /**
  * Centralized API client with singleton pattern
  * Handles:
- * - Timeout management (10s default via AbortController)
+ * - Timeout management (10s default, 25s for auth via AbortController)
  * - Retry logic with exponential backoff (3 attempts: 1s, 2s, 4s)
  * - Automatic auth header injection
  * - Automatic routing (local vs core API)
@@ -160,6 +160,7 @@ async function parseResponseBody<T>(response: Response): Promise<T> {
 class ZekeApiClient {
   private static instance: ZekeApiClient;
   private readonly DEFAULT_TIMEOUT_MS = 10000;
+  private readonly AUTH_TIMEOUT_MS = 25000; // Longer timeout for auth operations
 
   private constructor() {}
 
@@ -336,13 +337,31 @@ class ZekeApiClient {
           throw lastError;
         }
 
-        // Convert other errors to ApiError
-        const message = error instanceof Error ? error.message : String(error);
+        // Check for abort/timeout errors specifically
+        const isAbortError =
+          error instanceof Error &&
+          (error.name === "AbortError" ||
+            error.message === "Aborted" ||
+            error.message.includes("abort"));
+
+        // Provide clearer error message for timeouts
+        let message: string;
+        if (isAbortError) {
+          message = `Connection timed out after ${timeoutMs / 1000} seconds. Please check your network connection.`;
+        } else {
+          message = error instanceof Error ? error.message : String(error);
+        }
+
         lastError = new ApiError(message, {
           url: url.toString(),
           method,
           bodyText: error instanceof Error ? error.message : undefined,
         });
+
+        // Don't retry abort errors - they're timeouts
+        if (isAbortError) {
+          throw lastError;
+        }
 
         // Check if this is a network error or retryable status
         const isNetworkError =
@@ -426,6 +445,30 @@ class ZekeApiClient {
    */
   async delete(endpoint: string, options?: RequestOptions): Promise<void> {
     await this.request<void>("DELETE", endpoint, undefined, options);
+  }
+
+  /**
+   * GET request for auth operations (with longer timeout)
+   */
+  async authGet<T>(endpoint: string, options?: RequestOptions): Promise<T> {
+    return this.request<T>("GET", endpoint, undefined, {
+      ...options,
+      timeoutMs: options?.timeoutMs ?? this.AUTH_TIMEOUT_MS,
+    });
+  }
+
+  /**
+   * POST request for auth operations (with longer timeout)
+   */
+  async authPost<T>(
+    endpoint: string,
+    data: unknown,
+    options?: RequestOptions,
+  ): Promise<T> {
+    return this.request<T>("POST", endpoint, data, {
+      ...options,
+      timeoutMs: options?.timeoutMs ?? this.AUTH_TIMEOUT_MS,
+    });
   }
 }
 

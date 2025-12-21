@@ -76,20 +76,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setDeviceToken(token);
 
-      // Retry and timeout now handled centrally by ZekeApiClient
-      // Routes to local API via isLocalEndpoint() check
-      const data = await apiClient.get<{ deviceId?: string }>(
-        "/api/auth/verify",
-        { headers: { "X-ZEKE-Device-Token": token } },
-      );
+      // Use authGet with longer timeout for auth verification
+      // Includes automatic retry with exponential backoff
+      const maxRetries = 3;
+      let lastError: Error | null = null;
 
-      setState({
-        isAuthenticated: true,
-        isLoading: false,
-        deviceId: data.deviceId || storedDeviceId,
-        error: null,
-      });
-      return true;
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+          const data = await apiClient.authGet<{ deviceId?: string }>(
+            "/api/auth/verify",
+            { headers: { "X-ZEKE-Device-Token": token } },
+          );
+
+          setState({
+            isAuthenticated: true,
+            isLoading: false,
+            deviceId: data.deviceId || storedDeviceId,
+            error: null,
+          });
+          return true;
+        } catch (err) {
+          lastError = err instanceof Error ? err : new Error(String(err));
+
+          // Don't retry on 401 - session is definitely expired
+          if (err instanceof ApiError && err.status === 401) {
+            throw err;
+          }
+
+          // Wait before retrying (1s, 2s, 4s)
+          if (attempt < maxRetries - 1) {
+            console.log(
+              `[Auth] Verify attempt ${attempt + 1} failed, retrying...`,
+            );
+            await new Promise((resolve) =>
+              setTimeout(resolve, 1000 * Math.pow(2, attempt)),
+            );
+          }
+        }
+      }
+
+      // All retries failed
+      throw lastError;
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
         // Session expired - clear stored credentials
@@ -120,9 +147,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
       try {
-        // Retry, timeout, and auth now handled centrally by ZekeApiClient
-        // Routes to local API via isLocalEndpoint() check
-        const data = await apiClient.post<{
+        // Use authPost with longer timeout (25s) for pairing
+        const data = await apiClient.authPost<{
           deviceToken?: string;
           deviceId?: string;
           message?: string;
