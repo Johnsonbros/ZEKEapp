@@ -47,22 +47,23 @@ export type RequestOptions = {
 /**
  * Backend ownership documentation:
  *
- * LOCAL API (available only on local backend):
+ * ALL API requests are routed through the LOCAL proxy server to avoid
+ * CORS/network issues when mobile devices can't reach the external backend directly.
+ *
+ * LOCAL API (handled directly by local server):
  * - /api/calendar/*    → Google Calendar integration (events, availability)
  * - /api/twilio/*      → Twilio SMS & call management (conversations, calls)
  * - /api/sms-log       → SMS conversation history
  * - /api/conversations/* → Conversation & message management
- * - /api/zeke/*        → ZEKE core (tasks, grocery, location sync, chat)
  * - /api/auth/*        → Device pairing & authentication
  *
- * CORE API (main backend):
- * - /api/memories/*    → Memory notes & metadata
- * - /api/omi/*         → Omi device sync & settings
- * - /api/semantic-search → Vector search across memories
- * - /api/chat/*        → Chat session management (non-ZEKE)
- * - /api/reminders     → Reminder management
- * - /healthz           → Health check endpoint
- * - /api/dashboard/*   → Dashboard summaries
+ * PROXIED API (routed through local server's /api/zeke/* proxy):
+ * - /api/zeke/tasks    → Tasks via ZEKE backend
+ * - /api/zeke/grocery  → Grocery via ZEKE backend
+ * - /api/zeke/memories → Memories via ZEKE backend
+ * - /api/zeke/health   → Health check via ZEKE backend
+ * - /api/zeke/dashboard → Dashboard via ZEKE backend
+ * - /api/zeke/semantic-search → Vector search via ZEKE backend
  */
 
 const LOCAL_API_PREFIXES = [
@@ -74,14 +75,9 @@ const LOCAL_API_PREFIXES = [
   "/api/auth/",
 ];
 
-const CORE_API_PREFIXES = [
-  "/api/memories",
-  "/api/omi/",
-  "/api/semantic-search",
-  "/api/chat/",
-  "/api/reminders",
-  "/healthz",
-  "/api/dashboard/",
+const CORE_API_PREFIXES: string[] = [
+  // Note: Most "core" endpoints are now proxied via /api/zeke/* routes
+  // Keep this list minimal - only add endpoints that truly need direct access
 ];
 
 /**

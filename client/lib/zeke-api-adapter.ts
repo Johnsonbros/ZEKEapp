@@ -220,20 +220,12 @@ export async function getRecentMemories(
   limit: number = 10,
 ): Promise<ZekeMemory[]> {
   try {
-    if (isZekeSyncMode()) {
-      // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
-      const data = await apiClient.get<{ memories?: ZekeMemory[] }>(
-        "/api/omi/memories",
-        { query: { limit }, emptyArrayOn404: true },
-      );
-      return data.memories || [];
-    } else {
-      // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
-      return await apiClient.get<ZekeMemory[]>("/api/memories", {
-        query: { limit },
-        emptyArrayOn404: true,
-      });
-    }
+    // Route through local proxy to avoid CORS/network issues on mobile
+    const data = await apiClient.get<{ memories?: ZekeMemory[] }>(
+      "/api/zeke/memories",
+      { query: { limit }, emptyArrayOn404: true },
+    );
+    return data.memories || [];
   } catch (error) {
     console.error("[Memories] Failed to fetch recent memories:", error);
     return [];
@@ -252,7 +244,8 @@ export async function createZekeMemory(
   params: CreateMemoryParams,
 ): Promise<boolean> {
   try {
-    await apiClient.post("/api/memories", {
+    // Route through local proxy to avoid CORS/network issues on mobile
+    await apiClient.post("/api/zeke/memories", {
       title: params.title,
       transcript: params.transcript,
       duration: params.duration,
@@ -268,21 +261,12 @@ export async function createZekeMemory(
 
 export async function searchMemories(query: string): Promise<ZekeMemory[]> {
   try {
-    if (isZekeSyncMode()) {
-      // Retry, timeout, and auth now handled centrally by ZekeApiClient
-      const data = await apiClient.post<{ results?: ZekeMemory[] }>(
-        "/api/semantic-search",
-        { query, limit: 20 },
-      );
-      return data.results || [];
-    } else {
-      // Retry, timeout, and auth now handled centrally by ZekeApiClient
-      const data = await apiClient.post<{ results?: ZekeMemory[] }>(
-        "/api/memories/search",
-        { query },
-      );
-      return data.results || [];
-    }
+    // Route through local proxy to avoid CORS/network issues on mobile
+    const data = await apiClient.post<{ results?: ZekeMemory[] }>(
+      "/api/zeke/semantic-search",
+      { query, limit: 20 },
+    );
+    return data.results || [];
   } catch (error) {
     console.error("[Memories] Failed to search memories:", error);
     return [];
@@ -586,9 +570,8 @@ export async function getHealthStatus(): Promise<{
   connected: boolean;
 }> {
   try {
-    // Retry and timeout now handled centrally by ZekeApiClient
-    // Does NOT use emptyArrayOn404 - health is boolean, not a list
-    await apiClient.get<any>("/healthz", { timeoutMs: 5000 });
+    // Route through local proxy to avoid CORS/network issues on mobile
+    await apiClient.get<any>("/api/zeke/health", { timeoutMs: 5000 });
     return { status: "healthy", connected: true };
   } catch {
     return { status: "unreachable", connected: false };
@@ -597,16 +580,12 @@ export async function getHealthStatus(): Promise<{
 
 export async function getZekeDevices(): Promise<ZekeDevice[]> {
   try {
-    if (isZekeSyncMode()) {
-      // Retry, timeout, and auth now handled centrally by ZekeApiClient
-      const data = await apiClient.get<{ devices?: ZekeDevice[] }>(
-        "/api/omi/devices",
-        { timeoutMs: 5000 },
-      );
-      return data.devices || getDefaultZekeDevices();
-    }
-
-    return getDefaultZekeDevices();
+    // Route through local proxy to avoid CORS/network issues on mobile
+    const data = await apiClient.get<{ devices?: ZekeDevice[] }>(
+      "/api/zeke/devices",
+      { timeoutMs: 5000 },
+    );
+    return data.devices || getDefaultZekeDevices();
   } catch {
     return getDefaultZekeDevices();
   }
@@ -626,8 +605,8 @@ function getDefaultZekeDevices(): ZekeDevice[] {
 
 export async function getDashboardSummary(): Promise<DashboardSummary> {
   try {
-    // Retry and timeout now handled centrally by ZekeApiClient
-    return await apiClient.get<DashboardSummary>("/api/dashboard/summary", {
+    // Route through local proxy to avoid CORS/network issues on mobile
+    return await apiClient.get<DashboardSummary>("/api/zeke/dashboard", {
       timeoutMs: 5000,
     });
   } catch {}

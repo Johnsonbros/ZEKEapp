@@ -189,7 +189,7 @@ export default function AnalyticsScreen() {
   });
 
   const { data: memories = [], isLoading: isLoadingMemories } = useQuery({
-    queryKey: ["/api/memories"],
+    queryKey: ["/api/zeke/memories"],
     queryFn: () => getRecentMemories(100),
     staleTime: 30000,
   });

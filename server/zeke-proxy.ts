@@ -462,9 +462,52 @@ export function registerZekeProxyRoutes(app: Express): void {
 
   app.get("/api/zeke/memories", async (req: Request, res: Response) => {
     const headers = extractForwardHeaders(req.headers);
-    const result = await proxyToZeke("GET", "/api/memories", undefined, headers);
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(req.query)) {
+      if (value !== undefined && value !== null) {
+        params.append(key, String(value));
+      }
+    }
+    const queryString = params.toString() ? `?${params.toString()}` : '';
+    const result = await proxyToZeke("GET", `/api/memories${queryString}`, undefined, headers);
     if (!result.success) {
       return res.status(result.status).json({ error: result.error || "Failed to fetch memories", memories: [] });
+    }
+    res.json(result.data);
+  });
+
+  app.post("/api/zeke/memories", async (req: Request, res: Response) => {
+    const headers = extractForwardHeaders(req.headers);
+    const result = await proxyToZeke("POST", "/api/memories", req.body, headers);
+    if (!result.success) {
+      return res.status(result.status).json({ error: result.error || "Failed to create memory" });
+    }
+    res.status(201).json(result.data);
+  });
+
+  app.post("/api/zeke/memories/search", async (req: Request, res: Response) => {
+    const headers = extractForwardHeaders(req.headers);
+    const result = await proxyToZeke("POST", "/api/memories/search", req.body, headers);
+    if (!result.success) {
+      return res.status(result.status).json({ error: result.error || "Failed to search memories", results: [] });
+    }
+    res.json(result.data);
+  });
+
+  app.post("/api/zeke/semantic-search", async (req: Request, res: Response) => {
+    const headers = extractForwardHeaders(req.headers);
+    const result = await proxyToZeke("POST", "/api/semantic-search", req.body, headers);
+    if (!result.success) {
+      return res.status(result.status).json({ error: result.error || "Failed to semantic search", results: [] });
+    }
+    res.json(result.data);
+  });
+
+  app.get("/api/zeke/devices", async (req: Request, res: Response) => {
+    const headers = extractForwardHeaders(req.headers);
+    const result = await proxyToZeke("GET", "/api/omi/devices", undefined, headers);
+    if (!result.success) {
+      return res.status(result.status).json({ error: result.error || "Failed to fetch devices", devices: [] });
     }
     res.json(result.data);
   });

@@ -187,7 +187,7 @@ export default function AudioUploadScreen() {
       setUploadProgress(100);
 
       await queryClient.invalidateQueries({
-        queryKey: ["/api/memories"],
+        queryKey: ["/api/zeke/memories"],
         exact: false,
       });
 

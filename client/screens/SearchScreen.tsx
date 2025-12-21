@@ -120,7 +120,7 @@ export default function SearchScreen() {
   } = useQuery<SemanticSearchResponse>({
     queryKey: isSyncMode
       ? ["zeke-search", activeSearchQuery]
-      : ["/api/memories/search", activeSearchQuery],
+      : ["/api/zeke/memories/search", activeSearchQuery],
     queryFn: async () => {
       if (!activeSearchQuery)
         return { results: [], query: "", totalMatches: 0 };
@@ -147,8 +147,9 @@ export default function SearchScreen() {
         };
       } else {
         const { apiClient } = await import("@/lib/api-client");
+        // Route through local proxy to avoid CORS/network issues on mobile
         return await apiClient.post<SemanticSearchResponse>(
-          "/api/memories/search",
+          "/api/zeke/memories/search",
           {
             query: activeSearchQuery,
             limit: 10,
