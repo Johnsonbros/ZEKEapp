@@ -18,7 +18,7 @@ import { queryClient, getApiUrl, getLocalApiUrl, initializeProxyOrigin } from "@
 import RootStackNavigator from "@/navigation/RootStackNavigator";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Colors } from "@/constants/theme";
-import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { AuthProvider, useAuth, loadTokenSync } from "@/context/AuthContext";
 import { PairingScreen } from "@/screens/PairingScreen";
 
 SplashScreen.preventAutoHideAsync();
@@ -102,6 +102,9 @@ export default function App() {
 
   // Gate app until proxy origin is initialized (prevents stale URL issues in published apps)
   useEffect(() => {
+    // Load token synchronously on web before any queries start
+    loadTokenSync();
+    
     initializeProxyOrigin()
       .then(() => {
         console.log("[config] apiUrl=" + getApiUrl());
@@ -120,18 +123,18 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <SafeAreaProvider>
-          <GestureHandlerRootView style={styles.root}>
-            <KeyboardProvider>
-              <AuthProvider>
+      <AuthProvider>
+        <QueryClientProvider client={queryClient}>
+          <SafeAreaProvider>
+            <GestureHandlerRootView style={styles.root}>
+              <KeyboardProvider>
                 <AppContent />
                 <StatusBar style="light" />
-              </AuthProvider>
-            </KeyboardProvider>
-          </GestureHandlerRootView>
-        </SafeAreaProvider>
-      </QueryClientProvider>
+              </KeyboardProvider>
+            </GestureHandlerRootView>
+          </SafeAreaProvider>
+        </QueryClientProvider>
+      </AuthProvider>
     </ErrorBoundary>
   );
 }

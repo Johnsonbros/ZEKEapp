@@ -18,6 +18,16 @@ const LAST_VERIFIED_KEY = "zeke_last_verified";
 // Trust cached auth for 7 days before requiring re-verification
 const OFFLINE_AUTH_VALIDITY_MS = 7 * 24 * 60 * 60 * 1000;
 
+// Load device token synchronously on web (for initialization before queries start)
+export function loadTokenSync(): void {
+  if (Platform.OS === "web") {
+    const token = localStorage.getItem(DEVICE_TOKEN_KEY);
+    if (token) {
+      setDeviceToken(token);
+    }
+  }
+}
+
 interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
