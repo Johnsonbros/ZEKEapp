@@ -215,6 +215,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       console.log("[Auth] Starting device pairing...");
       console.log("[Auth] Device name:", deviceName);
+      console.log("[Auth] Platform:", Platform.OS);
 
       try {
         // Use authPost with longer timeout (25s) for pairing
@@ -224,8 +225,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           deviceToken?: string;
           deviceId?: string;
           message?: string;
+          error?: string;
         }>("/api/zeke/auth/pair", { secret, deviceName });
-        console.log("[Auth] Pair response received:", data ? "success" : "no data");
+        console.log("[Auth] Pair response received:", JSON.stringify(data));
 
         if (data.deviceToken) {
           await setStoredValue(DEVICE_TOKEN_KEY, data.deviceToken);
@@ -242,19 +244,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           });
           return true;
         } else {
+          const errorMsg = data.error || data.message || "Pairing failed - no device token received";
+          console.log("[Auth] Pair failed:", errorMsg);
           setState((prev) => ({
             ...prev,
             isLoading: false,
-            error: data.message || "Pairing failed",
+            error: errorMsg,
           }));
           return false;
         }
       } catch (error) {
         console.error("[Auth] Pair error:", error);
-        const errorMessage =
-          error instanceof ApiError
-            ? error.message
-            : "Connection error. Check your network.";
+        let errorMessage: string;
+        if (error instanceof ApiError) {
+          errorMessage = error.message;
+          console.log("[Auth] ApiError details:", {
+            status: error.status,
+            url: error.url,
+            bodyText: error.bodyText
+          });
+        } else {
+          errorMessage = "Connection error. Check your network.";
+        }
         setState((prev) => ({
           ...prev,
           isLoading: false,

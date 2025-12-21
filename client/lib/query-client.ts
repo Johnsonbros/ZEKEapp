@@ -85,6 +85,8 @@ async function verifyProxyOrigin(candidateUrl: string): Promise<string | null> {
 async function getCandidateOrigins(): Promise<string[]> {
   const candidates: string[] = [];
   
+  console.log(`[config] getCandidateOrigins: Platform=${Platform.OS}`);
+  
   // Web environment
   if (Platform.OS === 'web' && typeof window !== "undefined" && window.location) {
     // Candidate 1: Env var with :5000 (most likely correct in dev)
@@ -107,12 +109,15 @@ async function getCandidateOrigins(): Promise<string[]> {
   }
   
   // Native environment
+  console.log(`[config] Native environment detected`);
+  
   // Candidate 1: Deep link URL (for published apps)
   try {
     const initialUrl = await Linking.getInitialURL();
+    console.log(`[config] Initial URL: ${initialUrl || 'null'}`);
     if (initialUrl) {
-      console.log(`[config] Initial URL: ${initialUrl}`);
       const origin = extractHostFromDeepLink(initialUrl);
+      console.log(`[config] Extracted origin from deep link: ${origin || 'null (filtered/local)'}`);
       if (origin) {
         candidates.push(origin);
       }
@@ -123,6 +128,7 @@ async function getCandidateOrigins(): Promise<string[]> {
   
   // Candidate 2: Constants.expoConfig.extra (build-time value)
   const extraDomain = Constants.expoConfig?.extra?.localApiDomain as string | undefined;
+  console.log(`[config] expoConfig.extra.localApiDomain: ${extraDomain || 'null'}`);
   if (extraDomain) {
     const url = extraDomain.startsWith('http') ? extraDomain : `https://${extraDomain}`;
     candidates.push(url);
@@ -130,9 +136,12 @@ async function getCandidateOrigins(): Promise<string[]> {
   
   // Candidate 3: Env var (dev mode)
   const envDomain = process.env.EXPO_PUBLIC_DOMAIN;
+  console.log(`[config] EXPO_PUBLIC_DOMAIN env: ${envDomain || 'null'}`);
   if (envDomain) {
     candidates.push(`https://${envDomain}`);
   }
+  
+  console.log(`[config] Native candidates: ${candidates.length > 0 ? candidates.join(', ') : 'NONE'}`);
   
   return candidates;
 }
@@ -145,7 +154,7 @@ export async function initializeProxyOrigin(): Promise<void> {
   if (cachedProxyOrigin) return;
   
   const candidates = await getCandidateOrigins();
-  console.log(`[config] Proxy origin candidates: ${candidates.join(', ')}`);
+  console.log(`[config] Proxy origin candidates: ${candidates.join(', ') || 'NONE'}`);
   
   // Try each candidate in order until one verifies
   for (const candidate of candidates) {
@@ -162,6 +171,12 @@ export async function initializeProxyOrigin(): Promise<void> {
   if (candidates.length > 0) {
     cachedProxyOrigin = candidates[0];
     console.log(`[config] Using unverified proxy origin (fallback): ${cachedProxyOrigin}`);
+  } else {
+    // No candidates at all - this is a critical configuration issue on native
+    console.error(`[config] CRITICAL: No proxy origin candidates found!`);
+    console.error(`[config] Native apps need localApiDomain in app.config.js or EXPO_PUBLIC_DOMAIN env var.`);
+    console.error(`[config] Falling back to main backend - proxy routes will NOT work.`);
+    cachedProxyOrigin = "https://zekeai.replit.app";
   }
 }
 
