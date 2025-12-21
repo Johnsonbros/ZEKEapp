@@ -273,6 +273,21 @@ function setupErrorHandler(app: express.Application) {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
   });
 
+  // Runtime config endpoint (public) - provides the correct proxy origin to clients
+  // This allows published apps to discover the correct API URL at runtime
+  // instead of relying on baked-in env vars that may be stale
+  app.get("/api/runtime-config", (req, res) => {
+    const host = req.headers.host || req.hostname;
+    const protocol = req.secure || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
+    const proxyOrigin = `${protocol}://${host}`;
+    
+    res.json({
+      proxyOrigin,
+      zekeBackend: "https://zekeai.replit.app",
+      timestamp: new Date().toISOString()
+    });
+  });
+
   // Security status endpoints (public - for monitoring)
   app.get("/api/auth/status", (_req, res) => {
     res.json({

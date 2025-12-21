@@ -148,15 +148,16 @@ async function parseResponseBody<T>(response: Response): Promise<T> {
 
 /**
  * Determine the correct base URL for an endpoint
- * Special handling for /api/zeke/auth/* endpoints:
- * - These are proxied auth routes that need path rewriting
- * - Strip /zeke prefix and send to ZEKE backend
- * - Example: /api/zeke/auth/pair -> /api/auth/pair on zekeai.replit.app
+ * 
+ * Routing strategy:
+ * - /api/zeke/auth/* → Direct to zekeai.replit.app (no auth headers needed for pairing)
+ * - /api/zeke/* → Local proxy (adds auth headers, HMAC signing)
+ * - /api/calendar/*, /api/twilio/* → Local proxy (integration endpoints)
  */
 function getBaseUrl(endpoint: string): { baseUrl: string; rewrittenPath: string } {
-  // Special case: Auth endpoints need path rewriting
+  // Special case: Auth pairing endpoints go directly to ZEKE backend
+  // These don't require auth headers (they're used to obtain auth tokens)
   if (endpoint.startsWith("/api/zeke/auth/")) {
-    // Rewrite /api/zeke/auth/* -> /api/auth/* and send to ZEKE backend
     const rewrittenPath = endpoint.replace("/api/zeke/auth/", "/api/auth/");
     return {
       baseUrl: "https://zekeai.replit.app",
@@ -164,7 +165,7 @@ function getBaseUrl(endpoint: string): { baseUrl: string; rewrittenPath: string 
     };
   }
 
-  // Other /api/zeke/* routes go to local proxy (which forwards to ZEKE backend)
+  // Other /api/zeke/* routes go through local proxy (which adds auth headers)
   if (endpoint.startsWith("/api/zeke/")) {
     return {
       baseUrl: getLocalApiUrl(),
@@ -172,7 +173,7 @@ function getBaseUrl(endpoint: string): { baseUrl: string; rewrittenPath: string 
     };
   }
 
-  // Local API routes
+  // Local API routes (calendar, twilio, etc.)
   const isLocal = isLocalEndpoint(endpoint);
   return {
     baseUrl: isLocal ? getLocalApiUrl() : getApiUrl(),

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { StyleSheet, Platform } from "react-native";
 import {
   NavigationContainer,
@@ -13,7 +13,7 @@ import * as SplashScreen from "expo-splash-screen";
 import * as Notifications from "expo-notifications";
 
 import { QueryClientProvider } from "@tanstack/react-query";
-import { queryClient, getApiUrl, getLocalApiUrl } from "@/lib/query-client";
+import { queryClient, getApiUrl, getLocalApiUrl, initializeProxyOrigin } from "@/lib/query-client";
 
 import RootStackNavigator from "@/navigation/RootStackNavigator";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -98,11 +98,25 @@ function AppContent() {
 }
 
 export default function App() {
-  // One-time console log on app boot
+  const [isProxyReady, setIsProxyReady] = useState(false);
+
+  // Gate app until proxy origin is initialized (prevents stale URL issues in published apps)
   useEffect(() => {
-    console.log("[config] apiUrl=" + getApiUrl());
-    console.log("[config] localApiUrl=" + getLocalApiUrl());
+    initializeProxyOrigin()
+      .then(() => {
+        console.log("[config] apiUrl=" + getApiUrl());
+        console.log("[config] localApiUrl=" + getLocalApiUrl());
+      })
+      .finally(() => {
+        setIsProxyReady(true);
+      });
   }, []);
+
+  // Don't render QueryClientProvider until proxy is ready
+  // This prevents early API calls from using stale URLs
+  if (!isProxyReady) {
+    return null;
+  }
 
   return (
     <ErrorBoundary>

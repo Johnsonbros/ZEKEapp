@@ -16,6 +16,7 @@ const failedAttempts = new Map<string, FailedAttempt>();
 
 const PUBLIC_ROUTES = [
   '/api/health',
+  '/api/runtime-config',
   '/api/auth/status',
   '/api/auth/locked',
   '/api/auth/pair',
