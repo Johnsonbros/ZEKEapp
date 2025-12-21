@@ -165,8 +165,11 @@ export default function SmsConversationScreen({ route, navigation }: Props) {
   const { height: keyboardHeight } = useReanimatedKeyboardAnimation();
 
   const animatedInputContainerStyle = useAnimatedStyle(() => {
+    // Only apply negative translation (moving up) when keyboard is open
+    // keyboardHeight.value is negative when keyboard is open, 0 when closed
+    const translateY = Math.min(0, keyboardHeight.value);
     return {
-      transform: [{ translateY: keyboardHeight.value }],
+      transform: [{ translateY }],
     };
   });
 
