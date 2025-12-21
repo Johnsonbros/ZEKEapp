@@ -13,12 +13,17 @@ import { apiClient, ApiError } from "@/lib/api-client";
 
 const DEVICE_TOKEN_KEY = "zeke_device_token";
 const DEVICE_ID_KEY = "zeke_device_id";
+const LAST_VERIFIED_KEY = "zeke_last_verified";
+
+// Trust cached auth for 7 days before requiring re-verification
+const OFFLINE_AUTH_VALIDITY_MS = 7 * 24 * 60 * 60 * 1000;
 
 interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   deviceId: string | null;
   error: string | null;
+  isOfflineMode: boolean;
 }
 
 interface AuthContextType extends AuthState {
@@ -58,7 +63,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isLoading: true,
     deviceId: null,
     error: null,
+    isOfflineMode: false,
   });
+
+  // Check if cached auth is still valid for offline use
+  const isCachedAuthValid = useCallback(async (): Promise<boolean> => {
+    const lastVerified = await getStoredValue(LAST_VERIFIED_KEY);
+    if (!lastVerified) return false;
+    
+    const lastVerifiedTime = parseInt(lastVerified, 10);
+    const now = Date.now();
+    return now - lastVerifiedTime < OFFLINE_AUTH_VALIDITY_MS;
+  }, []);
+
+  // Update last verified timestamp
+  const updateLastVerified = useCallback(async (): Promise<void> => {
+    await setStoredValue(LAST_VERIFIED_KEY, Date.now().toString());
+  }, []);
 
   const checkAuth = useCallback(async (): Promise<boolean> => {
     try {
@@ -66,19 +87,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const storedDeviceId = await getStoredValue(DEVICE_ID_KEY);
 
       if (!token) {
-        setState((prev) => ({
-          ...prev,
+        setState({
           isAuthenticated: false,
           isLoading: false,
-        }));
+          deviceId: null,
+          error: null,
+          isOfflineMode: false,
+        });
         return false;
       }
 
+      // Always set the token for API requests
       setDeviceToken(token);
 
-      // Use authGet with longer timeout for auth verification
-      // Includes automatic retry with exponential backoff
-      const maxRetries = 3;
+      // Check if we have valid cached auth (for offline scenarios)
+      const cachedAuthValid = await isCachedAuthValid();
+
+      // Try to verify with backend
+      const maxRetries = 2;
       let lastError: Error | null = null;
 
       for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -89,12 +115,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             { headers: { "X-ZEKE-Device-Token": token } },
           );
 
+          // Update last verified timestamp on successful verification
+          await updateLastVerified();
+
           setState({
             isAuthenticated: true,
             isLoading: false,
             deviceId: data.deviceId || storedDeviceId,
             error: null,
+            isOfflineMode: false,
           });
+          console.log("[Auth] Token verified successfully");
           return true;
         } catch (err) {
           lastError = err instanceof Error ? err : new Error(String(err));
@@ -104,7 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             throw err;
           }
 
-          // Wait before retrying (1s, 2s, 4s)
+          // Wait before retrying (1s, 2s)
           if (attempt < maxRetries - 1) {
             console.log(
               `[Auth] Verify attempt ${attempt + 1} failed, retrying...`,
@@ -116,32 +147,67 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // All retries failed
+      // All retries failed - check if we can use cached auth
+      if (cachedAuthValid) {
+        console.log("[Auth] Network unavailable, using cached authentication");
+        setState({
+          isAuthenticated: true,
+          isLoading: false,
+          deviceId: storedDeviceId,
+          error: null,
+          isOfflineMode: true,
+        });
+        return true;
+      }
+
+      // No cached auth available
       throw lastError;
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
-        // Session expired - clear stored credentials
+        // Session expired by backend - clear stored credentials
         await deleteStoredValue(DEVICE_TOKEN_KEY);
         await deleteStoredValue(DEVICE_ID_KEY);
+        await deleteStoredValue(LAST_VERIFIED_KEY);
         setDeviceToken(null);
         setState({
           isAuthenticated: false,
           isLoading: false,
           deviceId: null,
           error: "Session expired. Please pair again.",
+          isOfflineMode: false,
         });
         return false;
       }
 
+      // Check one more time for cached auth on other errors
+      const token = await getStoredValue(DEVICE_TOKEN_KEY);
+      const storedDeviceId = await getStoredValue(DEVICE_ID_KEY);
+      const cachedAuthValid = await isCachedAuthValid();
+
+      if (token && cachedAuthValid) {
+        console.log("[Auth] Connection error, using cached authentication");
+        setDeviceToken(token);
+        setState({
+          isAuthenticated: true,
+          isLoading: false,
+          deviceId: storedDeviceId,
+          error: null,
+          isOfflineMode: true,
+        });
+        return true;
+      }
+
       console.error("[Auth] Check auth error:", error);
-      setState((prev) => ({
-        ...prev,
+      setState({
+        isAuthenticated: false,
         isLoading: false,
-        error: error instanceof ApiError ? error.message : "Connection error",
-      }));
+        deviceId: null,
+        error: error instanceof ApiError ? error.message : "Connection error. Please try again.",
+        isOfflineMode: false,
+      });
       return false;
     }
-  }, []);
+  }, [isCachedAuthValid, updateLastVerified]);
 
   const pairDevice = useCallback(
     async (secret: string, deviceName: string): Promise<boolean> => {
@@ -164,6 +230,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (data.deviceToken) {
           await setStoredValue(DEVICE_TOKEN_KEY, data.deviceToken);
           await setStoredValue(DEVICE_ID_KEY, data.deviceId || "");
+          await setStoredValue(LAST_VERIFIED_KEY, Date.now().toString());
           setDeviceToken(data.deviceToken);
 
           setState({
@@ -171,6 +238,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             isLoading: false,
             deviceId: data.deviceId || null,
             error: null,
+            isOfflineMode: false,
           });
           return true;
         } else {
@@ -201,12 +269,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const unpairDevice = useCallback(async (): Promise<void> => {
     await deleteStoredValue(DEVICE_TOKEN_KEY);
     await deleteStoredValue(DEVICE_ID_KEY);
+    await deleteStoredValue(LAST_VERIFIED_KEY);
     setDeviceToken(null);
     setState({
       isAuthenticated: false,
       isLoading: false,
       deviceId: null,
       error: null,
+      isOfflineMode: false,
     });
   }, []);
 
