@@ -45,6 +45,12 @@ interface ApiChatMessage {
   createdAt: string;
 }
 
+// Extended Message type for unified conversation
+interface UnifiedMessage extends Message {
+  channel?: "chat" | "sms";
+  rawTimestamp?: string;
+}
+
 function formatTimestamp(dateStr: string) {
   const date = new Date(dateStr);
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -215,9 +221,14 @@ export default function ChatScreen() {
     enabled: isValidId(sessionId),
   });
 
-  const apiMessages: Message[] = (messagesData ?? []).map(
-    mapApiMessageToMessage,
-  );
+  // Map chat messages to unified format
+  const apiMessages: UnifiedMessage[] = useMemo(() => {
+    return (messagesData ?? []).map((msg) => ({
+      ...mapApiMessageToMessage(msg),
+      channel: "chat" as const,
+      rawTimestamp: msg.createdAt,
+    }));
+  }, [messagesData]);
   
   const streamingMessage: Message | null = streamingContent
     ? {
@@ -231,7 +242,7 @@ export default function ChatScreen() {
       }
     : null;
 
-  const messages: Message[] = useMemo(
+  const messages: UnifiedMessage[] = useMemo(
     () => [
       ...apiMessages,
       ...optimisticMessages,
@@ -330,7 +341,7 @@ export default function ChatScreen() {
     }
   };
 
-  const renderMessage = ({ item }: { item: Message }) => (
+  const renderMessage = ({ item }: { item: UnifiedMessage }) => (
     <ChatBubble message={item} />
   );
 

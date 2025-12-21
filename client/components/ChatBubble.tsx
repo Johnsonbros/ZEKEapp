@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { View, StyleSheet, Text } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { Feather } from "@expo/vector-icons";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -12,7 +13,7 @@ import Animated, {
 
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
-import { Spacing, BorderRadius, Gradients, Fonts } from "@/constants/theme";
+import { Spacing, BorderRadius, Gradients, Fonts, Colors } from "@/constants/theme";
 
 export interface Message {
   id: string;
@@ -20,6 +21,7 @@ export interface Message {
   role: "user" | "assistant";
   timestamp: string;
   isCode?: boolean;
+  channel?: "chat" | "sms";
 }
 
 interface ChatBubbleProps {
@@ -29,21 +31,33 @@ interface ChatBubbleProps {
 export function ChatBubble({ message }: ChatBubbleProps) {
   const { theme } = useTheme();
   const isUser = message.role === "user";
+  const isSms = message.channel === "sms";
+
+  // Channel indicator component
+  const ChannelIndicator = isSms ? (
+    <View style={styles.channelIndicator}>
+      <Feather name="smartphone" size={10} color={Colors.dark.primary} />
+      <ThemedText type="caption" style={styles.channelLabel}>SMS</ThemedText>
+    </View>
+  ) : null;
 
   if (isUser) {
     return (
       <View style={[styles.container, styles.userContainer]}>
         <LinearGradient
-          colors={Gradients.primary}
+          colors={isSms ? [Colors.dark.secondary, Colors.dark.accent] : Gradients.primary}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.userBubble}
         >
           <ThemedText style={styles.userText}>{message.content}</ThemedText>
         </LinearGradient>
-        <ThemedText type="caption" secondary style={styles.timestamp}>
-          {message.timestamp}
-        </ThemedText>
+        <View style={styles.metaRow}>
+          {ChannelIndicator}
+          <ThemedText type="caption" secondary style={styles.timestamp}>
+            {message.timestamp}
+          </ThemedText>
+        </View>
       </View>
     );
   }
@@ -53,7 +67,11 @@ export function ChatBubble({ message }: ChatBubbleProps) {
       <View
         style={[
           styles.assistantBubble,
-          { backgroundColor: theme.backgroundDefault },
+          { 
+            backgroundColor: theme.backgroundDefault,
+            borderLeftColor: isSms ? Colors.dark.primary : "transparent",
+            borderLeftWidth: isSms ? 2 : 0,
+          },
         ]}
       >
         {message.isCode ? (
@@ -76,9 +94,12 @@ export function ChatBubble({ message }: ChatBubbleProps) {
           <ThemedText>{message.content}</ThemedText>
         )}
       </View>
-      <ThemedText type="caption" secondary style={styles.timestamp}>
-        {message.timestamp}
-      </ThemedText>
+      <View style={styles.metaRow}>
+        {ChannelIndicator}
+        <ThemedText type="caption" secondary style={styles.timestamp}>
+          {message.timestamp}
+        </ThemedText>
+      </View>
     </View>
   );
 }
@@ -177,6 +198,21 @@ const styles = StyleSheet.create({
   },
   timestamp: {
     marginTop: Spacing.xs,
+  },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: Spacing.xs,
+    gap: Spacing.sm,
+  },
+  channelIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+  },
+  channelLabel: {
+    fontSize: 10,
+    color: Colors.dark.primary,
   },
   codeBlock: {
     borderRadius: BorderRadius.xs,
