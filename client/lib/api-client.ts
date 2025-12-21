@@ -53,6 +53,7 @@ export type RequestOptions = {
  * - /api/sms-log       → SMS conversation history
  * - /api/conversations/* → Conversation & message management
  * - /api/zeke/*        → ZEKE core (tasks, grocery, location sync, chat)
+ * - /api/auth/*        → Device pairing & authentication
  *
  * CORE API (main backend):
  * - /api/memories/*    → Memory notes & metadata
@@ -70,6 +71,7 @@ const LOCAL_API_PREFIXES = [
   "/api/sms-log",
   "/api/conversations",
   "/api/zeke/",
+  "/api/auth/",
 ];
 
 const CORE_API_PREFIXES = [
