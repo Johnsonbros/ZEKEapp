@@ -69,6 +69,23 @@ function formatDateSeparator(dateStr: string): string {
   });
 }
 
+function getStatusInfo(status: string): { icon: keyof typeof Feather.glyphMap; label: string } {
+  switch (status?.toLowerCase()) {
+    case "delivered":
+      return { icon: "check-circle", label: "Delivered" };
+    case "sent":
+      return { icon: "check", label: "Sent" };
+    case "queued":
+    case "sending":
+      return { icon: "clock", label: "Sending" };
+    case "failed":
+    case "undelivered":
+      return { icon: "alert-circle", label: "Failed" };
+    default:
+      return { icon: "check", label: "" };
+  }
+}
+
 function groupMessagesByDate(
   messages: TwilioSmsMessage[],
 ): { date: string; messages: TwilioSmsMessage[] }[] {
@@ -100,6 +117,8 @@ interface SmsBubbleProps {
 
 function SmsBubble({ message, isOutbound }: SmsBubbleProps) {
   const { theme } = useTheme();
+  const statusInfo = isOutbound ? getStatusInfo(message.status) : null;
+  const isFailed = message.status?.toLowerCase() === "failed" || message.status?.toLowerCase() === "undelivered";
 
   if (isOutbound) {
     return (
@@ -112,9 +131,20 @@ function SmsBubble({ message, isOutbound }: SmsBubbleProps) {
         >
           <ThemedText style={styles.outboundText}>{message.body}</ThemedText>
         </LinearGradient>
-        <ThemedText type="caption" secondary style={styles.timestamp}>
-          {formatMessageTime(message.dateCreated)}
-        </ThemedText>
+        <View style={styles.timestampRow}>
+          <ThemedText type="caption" secondary style={styles.timestamp}>
+            {formatMessageTime(message.dateCreated)}
+          </ThemedText>
+          {statusInfo ? (
+            <View style={styles.statusContainer}>
+              <Feather
+                name={statusInfo.icon}
+                size={12}
+                color={isFailed ? Colors.dark.error : theme.textSecondary}
+              />
+            </View>
+          ) : null}
+        </View>
       </View>
     );
   }
@@ -473,6 +503,15 @@ const styles = StyleSheet.create({
   },
   timestamp: {
     marginTop: Spacing.xs,
+  },
+  timestampRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    marginTop: Spacing.xs,
+  },
+  statusContainer: {
+    marginLeft: Spacing.xs,
   },
   dateSeparator: {
     flexDirection: "row",

@@ -1,6 +1,14 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { View, StyleSheet, Text } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withSequence,
+  withTiming,
+  withDelay,
+} from "react-native-reanimated";
 
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
@@ -75,6 +83,47 @@ export function ChatBubble({ message }: ChatBubbleProps) {
   );
 }
 
+function AnimatedDot({ delay, color }: { delay: number; color: string }) {
+  const translateY = useSharedValue(0);
+  const opacity = useSharedValue(0.4);
+
+  useEffect(() => {
+    translateY.value = withDelay(
+      delay,
+      withRepeat(
+        withSequence(
+          withTiming(-6, { duration: 300 }),
+          withTiming(0, { duration: 300 })
+        ),
+        -1,
+        false
+      )
+    );
+    opacity.value = withDelay(
+      delay,
+      withRepeat(
+        withSequence(
+          withTiming(1, { duration: 300 }),
+          withTiming(0.4, { duration: 300 })
+        ),
+        -1,
+        false
+      )
+    );
+  }, [delay, translateY, opacity]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+    opacity: opacity.value,
+  }));
+
+  return (
+    <Animated.View
+      style={[styles.dot, { backgroundColor: color }, animatedStyle]}
+    />
+  );
+}
+
 export function TypingIndicator() {
   const { theme } = useTheme();
 
@@ -88,9 +137,9 @@ export function TypingIndicator() {
         ]}
       >
         <View style={styles.typingDots}>
-          <View style={[styles.dot, { backgroundColor: theme.primary }]} />
-          <View style={[styles.dot, { backgroundColor: theme.secondary }]} />
-          <View style={[styles.dot, { backgroundColor: theme.accent }]} />
+          <AnimatedDot delay={0} color={theme.primary} />
+          <AnimatedDot delay={150} color={theme.secondary} />
+          <AnimatedDot delay={300} color={theme.accent} />
         </View>
       </View>
     </View>
