@@ -29,6 +29,7 @@ export function PairingScreen() {
   const [countdown, setCountdown] = useState<number>(0);
   const [attemptsRemaining, setAttemptsRemaining] = useState<number | null>(null);
   const [legacySecret, setLegacySecret] = useState("");
+  const [codeSentSuccess, setCodeSentSuccess] = useState(false);
   const inputRefs = useRef<(TextInput | null)[]>([]);
 
   useEffect(() => {
@@ -69,12 +70,15 @@ export function PairingScreen() {
   const handleRequestCode = async () => {
     setLocalError(null);
     setAttemptsRemaining(null);
+    setCodeSentSuccess(false);
     const deviceName = getDeviceName();
     const result = await requestSmsCode(deviceName);
     if (result.success && result.sessionId) {
       setSessionId(result.sessionId);
       setCountdown(result.expiresIn || 300);
+      setCodeSentSuccess(true);
       setStep("verify");
+      setTimeout(() => inputRefs.current[0]?.focus(), 100);
     }
   };
 
@@ -156,6 +160,7 @@ export function PairingScreen() {
     setCountdown(0);
     setAttemptsRemaining(null);
     setLegacySecret("");
+    setCodeSentSuccess(false);
   };
 
   const handleSwitchToLegacy = () => {
@@ -249,8 +254,17 @@ export function PairingScreen() {
           </View>
         ) : step === "verify" ? (
           <View style={styles.form}>
+            {codeSentSuccess ? (
+              <View style={styles.successContainer}>
+                <Feather name="check-circle" size={18} color="#10B981" />
+                <ThemedText style={styles.successText}>
+                  Code sent! Check your phone for the SMS
+                </ThemedText>
+              </View>
+            ) : null}
+
             <ThemedText style={styles.label}>
-              Enter the 4-digit code sent to your phone
+              Enter the 4-digit code below
             </ThemedText>
 
             <View style={styles.codeContainer}>
@@ -516,6 +530,22 @@ const styles = StyleSheet.create({
   legacyLinkText: {
     fontSize: 14,
     color: Colors.dark.textSecondary,
+  },
+  successContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginBottom: Spacing.lg,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    borderRadius: BorderRadius.md,
+    justifyContent: "center",
+  },
+  successText: {
+    fontSize: 14,
+    color: "#10B981",
+    fontWeight: "600",
   },
   errorContainer: {
     flexDirection: "row",
