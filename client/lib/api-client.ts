@@ -192,7 +192,13 @@ class ZekeApiClient {
     } = options;
 
     // Determine base URL based on endpoint type
-    const baseUrl = isLocalEndpoint(endpoint) ? getLocalApiUrl() : getApiUrl();
+    const isLocal = isLocalEndpoint(endpoint);
+    const baseUrl = isLocal ? getLocalApiUrl() : getApiUrl();
+
+    // Always log URL for auth endpoints (critical for debugging)
+    if (endpoint.startsWith("/api/auth/")) {
+      console.log(`[api] ${method} ${endpoint} → ${baseUrl} (isLocal: ${isLocal})`);
+    }
 
     // DEV-only: Log routing decision
     if (

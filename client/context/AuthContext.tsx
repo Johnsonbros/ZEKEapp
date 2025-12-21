@@ -145,14 +145,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const pairDevice = useCallback(
     async (secret: string, deviceName: string): Promise<boolean> => {
       setState((prev) => ({ ...prev, isLoading: true, error: null }));
+      
+      console.log("[Auth] Starting device pairing...");
+      console.log("[Auth] Device name:", deviceName);
 
       try {
         // Use authPost with longer timeout (25s) for pairing
+        console.log("[Auth] Sending pair request to /api/auth/pair");
         const data = await apiClient.authPost<{
           deviceToken?: string;
           deviceId?: string;
           message?: string;
         }>("/api/auth/pair", { secret, deviceName });
+        console.log("[Auth] Pair response received:", data ? "success" : "no data");
 
         if (data.deviceToken) {
           await setStoredValue(DEVICE_TOKEN_KEY, data.deviceToken);
