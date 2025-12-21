@@ -32,6 +32,7 @@ import {
   getConversationMessages,
   sendMessage as sendZekeMessage,
 } from "@/lib/zeke-api-adapter";
+import { sendStreamingMessage } from "@/lib/sse-client";
 
 const CHAT_SESSION_KEY = "zeke_chat_session_id";
 const ZEKE_CONVERSATION_KEY = "zeke_conversation_id";
@@ -71,6 +72,8 @@ export default function ChatScreen() {
   const [initError, setInitError] = useState<string | null>(null);
   const [optimisticMessages, setOptimisticMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
+  const [streamingContent, setStreamingContent] = useState<string>("");
+  const streamAbortRef = useRef<{ abort: () => void } | null>(null);
 
   const { height: keyboardHeight } = useReanimatedKeyboardAnimation();
 
@@ -84,6 +87,13 @@ export default function ChatScreen() {
 
   useEffect(() => {
     initializeSession();
+    
+    // Cleanup streaming on unmount
+    return () => {
+      if (streamAbortRef.current) {
+        streamAbortRef.current.abort();
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -208,9 +218,26 @@ export default function ChatScreen() {
   const apiMessages: Message[] = (messagesData ?? []).map(
     mapApiMessageToMessage,
   );
+  
+  const streamingMessage: Message | null = streamingContent
+    ? {
+        id: "streaming",
+        content: streamingContent,
+        role: "assistant",
+        timestamp: new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      }
+    : null;
+
   const messages: Message[] = useMemo(
-    () => [...apiMessages, ...optimisticMessages],
-    [apiMessages, optimisticMessages],
+    () => [
+      ...apiMessages,
+      ...optimisticMessages,
+      ...(streamingMessage ? [streamingMessage] : []),
+    ],
+    [apiMessages, optimisticMessages, streamingMessage],
   );
 
   useEffect(() => {
@@ -252,22 +279,54 @@ export default function ChatScreen() {
         await queryClient.invalidateQueries({
           queryKey: ["/api/conversations", sessionId, "messages"],
         });
+        setIsTyping(false);
       } else {
-        const { apiClient } = await import("@/lib/api-client");
-        await apiClient.post(`/api/chat/sessions/${sessionId!}/messages`, {
-          content: messageContent,
+        // Use streaming for local mode
+        const streamRequest = await sendStreamingMessage(sessionId!, messageContent, {
+          onChunk: (chunk) => {
+            setStreamingContent((prev) => prev + chunk);
+            setIsTyping(false);
+          },
+          onComplete: async () => {
+            setStreamingContent("");
+            setOptimisticMessages([]);
+            await queryClient.invalidateQueries({
+              queryKey: ["/api/chat/sessions", sessionId, "messages"],
+            });
+          },
+          onError: async (error) => {
+            console.error("[Chat] Streaming error, falling back:", error);
+            setStreamingContent("");
+            setIsTyping(true);
+            
+            // Fallback to non-streaming endpoint
+            try {
+              const { apiClient } = await import("@/lib/api-client");
+              await apiClient.post(`/api/chat/sessions/${sessionId!}/messages`, {
+                content: messageContent,
+              });
+              setOptimisticMessages([]);
+              await queryClient.invalidateQueries({
+                queryKey: ["/api/chat/sessions", sessionId, "messages"],
+              });
+            } catch {
+              setOptimisticMessages((prev) => prev.filter((m) => m.id !== tempId));
+              Alert.alert("Error", "Failed to send message. Please try again.");
+            } finally {
+              setIsTyping(false);
+            }
+          },
+          onUserMessage: () => {
+            setOptimisticMessages([]);
+          },
         });
-        setOptimisticMessages([]);
-        await queryClient.invalidateQueries({
-          queryKey: ["/api/chat/sessions", sessionId, "messages"],
-        });
+        streamAbortRef.current = streamRequest;
       }
     } catch {
       setIsTyping(false);
+      setStreamingContent("");
       setOptimisticMessages((prev) => prev.filter((m) => m.id !== tempId));
       Alert.alert("Error", "Failed to send message. Please try again.");
-    } finally {
-      setIsTyping(false);
     }
   };
 
