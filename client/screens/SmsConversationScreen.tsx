@@ -18,6 +18,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight, HeaderButton } from "@react-navigation/elements";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
@@ -157,6 +158,7 @@ export default function SmsConversationScreen({ route, navigation }: Props) {
   const { phoneNumber } = route.params;
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
+  const tabBarHeight = useBottomTabBarHeight();
   const { theme } = useTheme();
   const flatListRef = useRef<FlatList>(null);
 
@@ -355,7 +357,7 @@ export default function SmsConversationScreen({ route, navigation }: Props) {
         style={styles.messagesList}
         contentContainerStyle={{
           paddingTop: headerHeight + Spacing.lg,
-          paddingBottom: Spacing.lg + 80,
+          paddingBottom: Math.max(tabBarHeight, insets.bottom) + 80 + Spacing.lg,
           paddingHorizontal: Spacing.lg,
           flexGrow: 1,
         }}
@@ -377,7 +379,8 @@ export default function SmsConversationScreen({ route, navigation }: Props) {
           styles.inputContainer,
           {
             backgroundColor: theme.backgroundDefault,
-            paddingBottom: insets.bottom > 0 ? insets.bottom : Spacing.lg,
+            bottom: Math.max(tabBarHeight, insets.bottom),
+            paddingBottom: Spacing.md,
           },
           animatedInputContainerStyle,
         ]}
@@ -486,6 +489,9 @@ const styles = StyleSheet.create({
     color: Colors.dark.textSecondary,
   },
   inputContainer: {
+    position: "absolute",
+    left: 0,
+    right: 0,
     flexDirection: "row",
     alignItems: "flex-end",
     paddingHorizontal: Spacing.lg,
