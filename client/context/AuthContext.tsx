@@ -334,7 +334,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           expiresIn?: number;
           error?: string;
           message?: string;
-        }>("/api/zeke/auth/request-sms-code", { deviceName });
+        }>("/api/auth/request-sms-code", { deviceName });
 
         if (data.success && data.sessionId) {
           console.log("[Auth] SMS code request successful");
@@ -381,7 +381,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           deviceId?: string;
           error?: string;
           attemptsRemaining?: number;
-        }>("/api/zeke/auth/verify-sms-code", { sessionId, code });
+        }>("/api/auth/verify-sms-code", { sessionId, code });
 
         if (data.success && data.deviceToken) {
           console.log("[Auth] SMS verification successful");
