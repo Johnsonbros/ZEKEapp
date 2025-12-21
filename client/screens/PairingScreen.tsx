@@ -94,11 +94,23 @@ export function PairingScreen() {
   };
 
   const handleCodeChange = (index: number, value: string) => {
-    if (value.length > 1) {
-      value = value.slice(-1);
+    if (!/^\d*$/.test(value)) {
+      return;
     }
 
-    if (!/^\d*$/.test(value)) {
+    if (value.length > 1) {
+      const digits = value.replace(/\D/g, '').slice(0, 4).split('');
+      const newCode = ["", "", "", ""];
+      digits.forEach((digit, i) => {
+        newCode[i] = digit;
+      });
+      setCode(newCode);
+      setLocalError(null);
+      if (digits.length === 4) {
+        inputRefs.current[3]?.focus();
+      } else if (digits.length > 0) {
+        inputRefs.current[Math.min(digits.length, 3)]?.focus();
+      }
       return;
     }
 
