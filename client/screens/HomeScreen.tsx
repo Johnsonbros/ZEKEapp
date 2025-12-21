@@ -249,7 +249,7 @@ export default function HomeScreen() {
 
   const handleSettingsPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    navigation.navigate("SettingsTab");
+    navigation.navigate("Settings");
   };
 
   const getDeviceDisplayName = () => {
