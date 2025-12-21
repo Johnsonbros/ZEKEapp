@@ -80,6 +80,31 @@ async function verifyProxyOrigin(candidateUrl: string): Promise<string | null> {
 }
 
 /**
+ * Extract proxy URL from Expo hostUri or developer host
+ * Returns the base URL with port 5000 for the Express server
+ */
+function extractProxyFromHostUri(hostUri: string | undefined): string | null {
+  if (!hostUri) return null;
+  
+  // hostUri format is typically: "192.168.x.x:8081" or "hostname.replit.dev"
+  // We need to convert to https with port 5000 for the Express server
+  const parts = hostUri.split(':');
+  const host = parts[0];
+  
+  // Skip local IPs - they won't work for the proxy
+  if (host.startsWith('192.168.') || host.startsWith('10.') || host === 'localhost' || host === '127.0.0.1') {
+    return null;
+  }
+  
+  // For Replit domains, use HTTPS without explicit port (handled by proxy)
+  if (host.includes('replit') || host.includes('kirk.')) {
+    return `https://${host}`;
+  }
+  
+  return null;
+}
+
+/**
  * Get all candidate proxy origins to try, in order of preference
  */
 async function getCandidateOrigins(): Promise<string[]> {
@@ -111,14 +136,45 @@ async function getCandidateOrigins(): Promise<string[]> {
   // Native environment
   console.log(`[config] Native environment detected`);
   
-  // Candidate 1: Deep link URL (for published apps)
+  // Log all available Constants for debugging
+  const hostUri = Constants.expoConfig?.hostUri;
+  const manifest = Constants.manifest2 || Constants.manifest;
+  const developerHost = (manifest as any)?.extra?.expoGo?.developer?.host;
+  const debuggerHost = Constants.debuggerHost;
+  
+  console.log(`[config] Constants.expoConfig.hostUri: ${hostUri || 'null'}`);
+  console.log(`[config] manifest.extra.expoGo.developer.host: ${developerHost || 'null'}`);
+  console.log(`[config] Constants.debuggerHost: ${debuggerHost || 'null'}`);
+  
+  // Candidate 1: hostUri from Expo config (works in Replit mobile preview)
+  const hostUriProxy = extractProxyFromHostUri(hostUri);
+  if (hostUriProxy) {
+    console.log(`[config] Adding hostUri candidate: ${hostUriProxy}`);
+    candidates.push(hostUriProxy);
+  }
+  
+  // Candidate 2: Developer host from manifest (Expo Go dev mode)
+  const devHostProxy = extractProxyFromHostUri(developerHost);
+  if (devHostProxy && !candidates.includes(devHostProxy)) {
+    console.log(`[config] Adding developerHost candidate: ${devHostProxy}`);
+    candidates.push(devHostProxy);
+  }
+  
+  // Candidate 3: debuggerHost (another Expo constant)
+  const debuggerProxy = extractProxyFromHostUri(debuggerHost);
+  if (debuggerProxy && !candidates.includes(debuggerProxy)) {
+    console.log(`[config] Adding debuggerHost candidate: ${debuggerProxy}`);
+    candidates.push(debuggerProxy);
+  }
+  
+  // Candidate 4: Deep link URL (for published apps)
   try {
     const initialUrl = await Linking.getInitialURL();
     console.log(`[config] Initial URL: ${initialUrl || 'null'}`);
     if (initialUrl) {
       const origin = extractHostFromDeepLink(initialUrl);
       console.log(`[config] Extracted origin from deep link: ${origin || 'null (filtered/local)'}`);
-      if (origin) {
+      if (origin && !candidates.includes(origin)) {
         candidates.push(origin);
       }
     }
@@ -126,19 +182,24 @@ async function getCandidateOrigins(): Promise<string[]> {
     console.log(`[config] Could not get initial URL:`, error);
   }
   
-  // Candidate 2: Constants.expoConfig.extra (build-time value)
+  // Candidate 5: Constants.expoConfig.extra (build-time value)
   const extraDomain = Constants.expoConfig?.extra?.localApiDomain as string | undefined;
   console.log(`[config] expoConfig.extra.localApiDomain: ${extraDomain || 'null'}`);
   if (extraDomain) {
     const url = extraDomain.startsWith('http') ? extraDomain : `https://${extraDomain}`;
-    candidates.push(url);
+    if (!candidates.includes(url)) {
+      candidates.push(url);
+    }
   }
   
-  // Candidate 3: Env var (dev mode)
+  // Candidate 6: Env var (dev mode - may not work on native)
   const envDomain = process.env.EXPO_PUBLIC_DOMAIN;
   console.log(`[config] EXPO_PUBLIC_DOMAIN env: ${envDomain || 'null'}`);
   if (envDomain) {
-    candidates.push(`https://${envDomain}`);
+    const url = `https://${envDomain}`;
+    if (!candidates.includes(url)) {
+      candidates.push(url);
+    }
   }
   
   console.log(`[config] Native candidates: ${candidates.length > 0 ? candidates.join(', ') : 'NONE'}`);
