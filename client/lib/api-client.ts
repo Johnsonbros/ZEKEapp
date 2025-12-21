@@ -55,9 +55,9 @@ export type RequestOptions = {
  * - /api/twilio/*      → Twilio SMS & call management (conversations, calls)
  * - /api/sms-log       → SMS conversation history
  * - /api/conversations/* → Conversation & message management
- * - /api/auth/*        → Device pairing & authentication
  *
  * PROXIED API (routed through local server's /api/zeke/* proxy):
+ * - /api/zeke/auth/*   → Device pairing & auth via ZEKE backend
  * - /api/zeke/tasks    → Tasks via ZEKE backend
  * - /api/zeke/grocery  → Grocery via ZEKE backend
  * - /api/zeke/memories → Memories via ZEKE backend
@@ -72,7 +72,6 @@ const LOCAL_API_PREFIXES = [
   "/api/sms-log",
   "/api/conversations",
   "/api/zeke/",
-  "/api/auth/",
 ];
 
 const CORE_API_PREFIXES: string[] = [

@@ -83,8 +83,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       for (let attempt = 0; attempt < maxRetries; attempt++) {
         try {
+          // Route through local proxy to ZEKE backend: /api/zeke/auth/verify
           const data = await apiClient.authGet<{ deviceId?: string }>(
-            "/api/auth/verify",
+            "/api/zeke/auth/verify",
             { headers: { "X-ZEKE-Device-Token": token } },
           );
 
@@ -151,12 +152,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       try {
         // Use authPost with longer timeout (25s) for pairing
-        console.log("[Auth] Sending pair request to /api/auth/pair");
+        // Route through local proxy to ZEKE backend: /api/zeke/auth/pair
+        console.log("[Auth] Sending pair request to /api/zeke/auth/pair");
         const data = await apiClient.authPost<{
           deviceToken?: string;
           deviceId?: string;
           message?: string;
-        }>("/api/auth/pair", { secret, deviceName });
+        }>("/api/zeke/auth/pair", { secret, deviceName });
         console.log("[Auth] Pair response received:", data ? "success" : "no data");
 
         if (data.deviceToken) {
