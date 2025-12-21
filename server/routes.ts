@@ -1194,6 +1194,18 @@ Return at most ${Math.min(limit, 10)} results. Only include memories with releva
   // Google Calendar Routes
   // =========================================
 
+  app.get("/api/calendar/connection", async (_req, res) => {
+    try {
+      const { checkCalendarConnection, getConnectorAuthUrl } = await import("./google-calendar");
+      const status = await checkCalendarConnection();
+      const authUrl = getConnectorAuthUrl();
+      res.json({ ...status, authUrl });
+    } catch (error: any) {
+      console.error("[Google Calendar] Error checking connection:", error);
+      res.status(500).json({ connected: false, error: error.message });
+    }
+  });
+
   app.get("/api/calendar/today", async (_req, res) => {
     try {
       const { getTodayEvents } = await import("./google-calendar");
