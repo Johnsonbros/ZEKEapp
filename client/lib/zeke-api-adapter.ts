@@ -216,62 +216,6 @@ export async function chatWithZeke(
   );
 }
 
-export async function getRecentMemories(
-  limit: number = 10,
-): Promise<ZekeMemory[]> {
-  try {
-    // Route through local proxy to avoid CORS/network issues on mobile
-    const data = await apiClient.get<{ memories?: ZekeMemory[] }>(
-      "/api/zeke/memories",
-      { query: { limit }, emptyArrayOn404: true },
-    );
-    return data.memories || [];
-  } catch (error) {
-    console.error("[Memories] Failed to fetch recent memories:", error);
-    return [];
-  }
-}
-
-export interface CreateMemoryParams {
-  title: string;
-  transcript: string;
-  duration: number;
-  speakers?: any;
-  source?: string;
-}
-
-export async function createZekeMemory(
-  params: CreateMemoryParams,
-): Promise<boolean> {
-  try {
-    // Route through local proxy to avoid CORS/network issues on mobile
-    await apiClient.post("/api/zeke/memories", {
-      title: params.title,
-      transcript: params.transcript,
-      duration: params.duration,
-      speakers: params.speakers,
-      summary: `Captured from ${params.source || "mobile"}`,
-    });
-    return true;
-  } catch (error) {
-    console.error("[Memories] Failed to create memory:", error);
-    return false;
-  }
-}
-
-export async function searchMemories(query: string): Promise<ZekeMemory[]> {
-  try {
-    // Route through local proxy to avoid CORS/network issues on mobile
-    const data = await apiClient.post<{ results?: ZekeMemory[] }>(
-      "/api/zeke/semantic-search",
-      { query, limit: 20 },
-    );
-    return data.results || [];
-  } catch (error) {
-    console.error("[Memories] Failed to search memories:", error);
-    return [];
-  }
-}
 
 export async function getTasks(): Promise<ZekeTask[]> {
   try {
@@ -611,18 +555,17 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
     });
   } catch {}
 
-  const [events, tasks, grocery, memories] = await Promise.all([
+  const [events, tasks, grocery] = await Promise.all([
     getTodayEvents(),
     getPendingTasks(),
     getGroceryItems(),
-    getRecentMemories(100),
   ]);
 
   return {
     eventsCount: events.length,
     pendingTasksCount: tasks.length,
     groceryItemsCount: grocery.filter((g) => !g.isPurchased).length,
-    memoriesCount: memories.length,
+    memoriesCount: 0,
   };
 }
 
