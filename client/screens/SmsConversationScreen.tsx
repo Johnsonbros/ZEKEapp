@@ -110,6 +110,38 @@ function groupMessagesByDate(
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 }
 
+// Notification detection patterns - messages that look like automated notifications from ZEKE
+const NOTIFICATION_PATTERNS = [
+  /^reminder:/i,
+  /^alert:/i,
+  /^task:/i,
+  /^grocery:/i,
+  /^calendar:/i,
+  /don['']t forget/i,
+  /remember to/i,
+  /upcoming:/i,
+  /scheduled:/i,
+  /^zeke:/i,
+  /^notification:/i,
+];
+
+function isNotificationMessage(message: TwilioSmsMessage, isOutbound: boolean): boolean {
+  // Only inbound messages from ZEKE can be notifications
+  if (isOutbound) return false;
+  
+  const body = message.body.toLowerCase();
+  return NOTIFICATION_PATTERNS.some((pattern) => pattern.test(body));
+}
+
+type MessageType = "notification" | "conversation";
+
+function getMessageType(message: TwilioSmsMessage, isOutbound: boolean): MessageType {
+  if (isNotificationMessage(message, isOutbound)) {
+    return "notification";
+  }
+  return "conversation";
+}
+
 interface SmsBubbleProps {
   message: TwilioSmsMessage;
   isOutbound: boolean;
@@ -119,6 +151,8 @@ function SmsBubble({ message, isOutbound }: SmsBubbleProps) {
   const { theme } = useTheme();
   const statusInfo = isOutbound ? getStatusInfo(message.status) : null;
   const isFailed = message.status?.toLowerCase() === "failed" || message.status?.toLowerCase() === "undelivered";
+  const messageType = getMessageType(message, isOutbound);
+  const isNotification = messageType === "notification";
 
   if (isOutbound) {
     return (
@@ -145,6 +179,31 @@ function SmsBubble({ message, isOutbound }: SmsBubbleProps) {
             </View>
           ) : null}
         </View>
+      </View>
+    );
+  }
+
+  // Notification style - distinct from regular conversation messages
+  if (isNotification) {
+    return (
+      <View style={[styles.bubbleContainer, styles.inboundContainer]}>
+        <View
+          style={[
+            styles.notificationBubble,
+            { backgroundColor: theme.backgroundSecondary, borderColor: theme.border },
+          ]}
+        >
+          <View style={styles.notificationHeader}>
+            <Feather name="bell" size={12} color={Colors.dark.warning} />
+            <ThemedText type="caption" style={styles.notificationLabel}>
+              Notification
+            </ThemedText>
+          </View>
+          <ThemedText style={styles.notificationText}>{message.body}</ThemedText>
+        </View>
+        <ThemedText type="caption" secondary style={styles.timestamp}>
+          {formatMessageTime(message.dateCreated)}
+        </ThemedText>
       </View>
     );
   }
@@ -584,5 +643,24 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     justifyContent: "center",
     alignItems: "center",
+  },
+  notificationBubble: {
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    padding: Spacing.md,
+  },
+  notificationHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    marginBottom: Spacing.xs,
+  },
+  notificationLabel: {
+    color: Colors.dark.warning,
+    fontWeight: "600",
+  },
+  notificationText: {
+    fontSize: 14,
+    lineHeight: 20,
   },
 });
