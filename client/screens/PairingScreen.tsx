@@ -51,6 +51,7 @@ export function PairingScreen() {
   return (
     <ThemedView style={styles.container}>
       <KeyboardAwareScrollViewCompat
+        style={styles.scrollView}
         contentContainerStyle={[
           styles.content,
           {
@@ -140,6 +141,9 @@ export function PairingScreen() {
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+  scrollView: {
     flex: 1,
   },
   content: {
