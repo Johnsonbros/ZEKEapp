@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   View,
   StyleSheet,
@@ -17,11 +17,17 @@ import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollV
 import { Colors, Gradients, Spacing, BorderRadius } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 
+type PairingStep = "request" | "verify";
+
 export function PairingScreen() {
   const insets = useSafeAreaInsets();
-  const { pairDevice, isLoading, error } = useAuth();
-  const [secret, setSecret] = useState("");
+  const { requestSmsCode, verifySmsCode, isLoading, error } = useAuth();
+  const [step, setStep] = useState<PairingStep>("request");
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [code, setCode] = useState(["", "", "", ""]);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [expiresIn, setExpiresIn] = useState<number | null>(null);
+  const inputRefs = useRef<(TextInput | null)[]>([]);
 
   const getDeviceName = (): string => {
     if (Platform.OS === "web") {
@@ -30,20 +36,72 @@ export function PairingScreen() {
     return Device.deviceName || Device.modelName || `${Platform.OS} Device`;
   };
 
-  const handlePair = async () => {
-    if (!secret.trim()) {
-      setLocalError("Please enter your access key");
+  const handleRequestCode = async () => {
+    setLocalError(null);
+    const deviceName = getDeviceName();
+    const result = await requestSmsCode(deviceName);
+    if (result.success && result.sessionId) {
+      setSessionId(result.sessionId);
+      setExpiresIn(result.expiresIn || 300);
+      setStep("verify");
+    }
+  };
+
+  const handleCodeChange = (index: number, value: string) => {
+    if (value.length > 1) {
+      value = value.slice(-1);
+    }
+
+    if (!/^\d*$/.test(value)) {
       return;
     }
 
-    if (secret.trim().length < 32) {
-      setLocalError("Access key must be at least 32 characters");
+    const newCode = [...code];
+    newCode[index] = value;
+    setCode(newCode);
+    setLocalError(null);
+
+    if (value && index < 3) {
+      inputRefs.current[index + 1]?.focus();
+    }
+
+    if (newCode.every((d) => d.length === 1)) {
+      handleVerifyCode(newCode.join(""));
+    }
+  };
+
+  const handleKeyPress = (index: number, key: string) => {
+    if (key === "Backspace" && !code[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handleVerifyCode = async (codeString?: string) => {
+    const finalCode = codeString || code.join("");
+    if (finalCode.length !== 4) {
+      setLocalError("Please enter the 4-digit code");
+      return;
+    }
+
+    if (!sessionId) {
+      setLocalError("Session expired. Please request a new code.");
+      setStep("request");
       return;
     }
 
     setLocalError(null);
-    const deviceName = getDeviceName();
-    await pairDevice(secret.trim(), deviceName);
+    const result = await verifySmsCode(sessionId, finalCode);
+    if (!result.success) {
+      setCode(["", "", "", ""]);
+      inputRefs.current[0]?.focus();
+    }
+  };
+
+  const handleBack = () => {
+    setStep("request");
+    setCode(["", "", "", ""]);
+    setSessionId(null);
+    setLocalError(null);
   };
 
   const displayError = localError || error;
@@ -70,68 +128,120 @@ export function PairingScreen() {
           </LinearGradient>
 
           <ThemedText style={styles.title}>ZEKE Command Center</ThemedText>
-          <ThemedText style={styles.subtitle}>Secure Device Pairing</ThemedText>
-        </View>
-
-        <View style={styles.form}>
-          <ThemedText style={styles.label}>
-            Enter your access key to pair this device
+          <ThemedText style={styles.subtitle}>
+            {step === "request" ? "Secure Device Pairing" : "Enter Verification Code"}
           </ThemedText>
-
-          <TextInput
-            style={styles.input}
-            value={secret}
-            onChangeText={(text) => {
-              setSecret(text);
-              setLocalError(null);
-            }}
-            placeholder="Access Key (min 32 characters)"
-            placeholderTextColor={Colors.dark.textSecondary}
-            secureTextEntry
-            autoCapitalize="none"
-            autoCorrect={false}
-            editable={!isLoading}
-          />
-
-          {displayError ? (
-            <View style={styles.errorContainer}>
-              <Feather
-                name="alert-circle"
-                size={16}
-                color={Colors.dark.error}
-              />
-              <ThemedText style={styles.errorText}>{displayError}</ThemedText>
-            </View>
-          ) : null}
-
-          <Pressable
-            style={[styles.button, isLoading && styles.buttonDisabled]}
-            onPress={handlePair}
-            disabled={isLoading}
-          >
-            <LinearGradient
-              colors={Gradients.accent}
-              style={styles.buttonGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-            >
-              {isLoading ? (
-                <ActivityIndicator color={Colors.dark.text} />
-              ) : (
-                <>
-                  <Feather name="link" size={20} color={Colors.dark.text} />
-                  <ThemedText style={styles.buttonText}>Pair Device</ThemedText>
-                </>
-              )}
-            </LinearGradient>
-          </Pressable>
         </View>
+
+        {step === "request" ? (
+          <View style={styles.form}>
+            <ThemedText style={styles.label}>
+              Tap below to receive a verification code via SMS
+            </ThemedText>
+
+            {displayError ? (
+              <View style={styles.errorContainer}>
+                <Feather
+                  name="alert-circle"
+                  size={16}
+                  color={Colors.dark.error}
+                />
+                <ThemedText style={styles.errorText}>{displayError}</ThemedText>
+              </View>
+            ) : null}
+
+            <Pressable
+              style={[styles.button, isLoading && styles.buttonDisabled]}
+              onPress={handleRequestCode}
+              disabled={isLoading}
+            >
+              <LinearGradient
+                colors={Gradients.accent}
+                style={styles.buttonGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              >
+                {isLoading ? (
+                  <ActivityIndicator color={Colors.dark.text} />
+                ) : (
+                  <>
+                    <Feather name="smartphone" size={20} color={Colors.dark.text} />
+                    <ThemedText style={styles.buttonText}>Send Code to Phone</ThemedText>
+                  </>
+                )}
+              </LinearGradient>
+            </Pressable>
+          </View>
+        ) : (
+          <View style={styles.form}>
+            <ThemedText style={styles.label}>
+              Enter the 4-digit code sent to your phone
+            </ThemedText>
+
+            <View style={styles.codeContainer}>
+              {code.map((digit, index) => (
+                <TextInput
+                  key={index}
+                  ref={(ref) => (inputRefs.current[index] = ref)}
+                  style={[
+                    styles.codeInput,
+                    digit ? styles.codeInputFilled : null,
+                  ]}
+                  value={digit}
+                  onChangeText={(value) => handleCodeChange(index, value)}
+                  onKeyPress={({ nativeEvent }) =>
+                    handleKeyPress(index, nativeEvent.key)
+                  }
+                  keyboardType="number-pad"
+                  maxLength={1}
+                  selectTextOnFocus
+                  editable={!isLoading}
+                  autoFocus={index === 0}
+                />
+              ))}
+            </View>
+
+            {expiresIn ? (
+              <ThemedText style={styles.expiryText}>
+                Code expires in {Math.floor(expiresIn / 60)} minutes
+              </ThemedText>
+            ) : null}
+
+            {displayError ? (
+              <View style={styles.errorContainer}>
+                <Feather
+                  name="alert-circle"
+                  size={16}
+                  color={Colors.dark.error}
+                />
+                <ThemedText style={styles.errorText}>{displayError}</ThemedText>
+              </View>
+            ) : null}
+
+            {isLoading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator color={Colors.dark.accent} size="large" />
+                <ThemedText style={styles.loadingText}>Verifying...</ThemedText>
+              </View>
+            ) : null}
+
+            <Pressable
+              style={styles.backButton}
+              onPress={handleBack}
+              disabled={isLoading}
+            >
+              <Feather name="arrow-left" size={16} color={Colors.dark.textSecondary} />
+              <ThemedText style={styles.backButtonText}>Request new code</ThemedText>
+            </Pressable>
+          </View>
+        )}
 
         <View style={styles.footer}>
           <Feather name="info" size={14} color={Colors.dark.textSecondary} />
           <ThemedText style={styles.footerText}>
-            The access key is set in the ZEKE backend. Once paired, this device
-            will have secure access to all ZEKE features.
+            {step === "request"
+              ? "A verification code will be sent to the master phone number. Enter it here to pair this device."
+              : "Once verified, this device will have secure access to all ZEKE features."}
           </ThemedText>
         </View>
       </KeyboardAwareScrollViewCompat>
@@ -178,19 +288,35 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     color: Colors.dark.textSecondary,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.lg,
     textAlign: "center",
   },
-  input: {
+  codeContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: Spacing.md,
+    marginBottom: Spacing.lg,
+  },
+  codeInput: {
+    width: 56,
+    height: 64,
     backgroundColor: Colors.dark.backgroundSecondary,
     borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    fontSize: 16,
+    fontSize: 28,
+    fontWeight: "700",
+    textAlign: "center",
     color: Colors.dark.text,
-    marginBottom: Spacing.md,
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: Colors.dark.border,
+  },
+  codeInputFilled: {
+    borderColor: Colors.dark.accent,
+  },
+  expiryText: {
+    fontSize: 12,
+    color: Colors.dark.textSecondary,
+    textAlign: "center",
+    marginBottom: Spacing.md,
   },
   errorContainer: {
     flexDirection: "row",
@@ -198,11 +324,20 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
     marginBottom: Spacing.md,
     paddingHorizontal: Spacing.sm,
+    justifyContent: "center",
   },
   errorText: {
     fontSize: 14,
     color: Colors.dark.error,
-    flex: 1,
+  },
+  loadingContainer: {
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginVertical: Spacing.lg,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: Colors.dark.textSecondary,
   },
   button: {
     borderRadius: BorderRadius.md,
@@ -222,6 +357,17 @@ const styles = StyleSheet.create({
   buttonText: {
     fontSize: 16,
     fontWeight: "600",
+  },
+  backButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    paddingVertical: Spacing.md,
+  },
+  backButtonText: {
+    fontSize: 14,
+    color: Colors.dark.textSecondary,
   },
   footer: {
     flexDirection: "row",

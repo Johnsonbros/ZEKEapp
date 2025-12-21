@@ -36,8 +36,22 @@ interface AuthState {
   isOfflineMode: boolean;
 }
 
+interface SmsCodeResult {
+  success: boolean;
+  sessionId?: string;
+  expiresIn?: number;
+  error?: string;
+}
+
+interface VerifyCodeResult {
+  success: boolean;
+  error?: string;
+}
+
 interface AuthContextType extends AuthState {
   pairDevice: (secret: string, deviceName: string) => Promise<boolean>;
+  requestSmsCode: (deviceName: string) => Promise<SmsCodeResult>;
+  verifySmsCode: (sessionId: string, code: string) => Promise<VerifyCodeResult>;
   unpairDevice: () => Promise<void>;
   checkAuth: () => Promise<boolean>;
 }
@@ -287,6 +301,97 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const requestSmsCode = useCallback(
+    async (deviceName: string): Promise<SmsCodeResult> => {
+      setState((prev) => ({ ...prev, isLoading: true, error: null }));
+
+      console.log("[Auth] Requesting SMS code for device:", deviceName);
+
+      try {
+        const data = await apiClient.post<{
+          success: boolean;
+          sessionId?: string;
+          expiresIn?: number;
+          error?: string;
+          message?: string;
+        }>("/api/auth/request-sms-code", { deviceName });
+
+        if (data.success && data.sessionId) {
+          console.log("[Auth] SMS code request successful");
+          setState((prev) => ({ ...prev, isLoading: false, error: null }));
+          return {
+            success: true,
+            sessionId: data.sessionId,
+            expiresIn: data.expiresIn,
+          };
+        } else {
+          const errorMsg = data.error || "Failed to send code";
+          console.log("[Auth] SMS code request failed:", errorMsg);
+          setState((prev) => ({ ...prev, isLoading: false, error: errorMsg }));
+          return { success: false, error: errorMsg };
+        }
+      } catch (error) {
+        console.error("[Auth] SMS code request error:", error);
+        const errorMessage =
+          error instanceof ApiError
+            ? error.message
+            : "Connection error. Please try again.";
+        setState((prev) => ({ ...prev, isLoading: false, error: errorMessage }));
+        return { success: false, error: errorMessage };
+      }
+    },
+    [],
+  );
+
+  const verifySmsCode = useCallback(
+    async (sessionId: string, code: string): Promise<VerifyCodeResult> => {
+      setState((prev) => ({ ...prev, isLoading: true, error: null }));
+
+      console.log("[Auth] Verifying SMS code...");
+
+      try {
+        const data = await apiClient.post<{
+          success: boolean;
+          deviceToken?: string;
+          deviceId?: string;
+          error?: string;
+          attemptsRemaining?: number;
+        }>("/api/auth/verify-sms-code", { sessionId, code });
+
+        if (data.success && data.deviceToken) {
+          console.log("[Auth] SMS verification successful");
+          await setStoredValue(DEVICE_TOKEN_KEY, data.deviceToken);
+          await setStoredValue(DEVICE_ID_KEY, data.deviceId || "");
+          await setStoredValue(LAST_VERIFIED_KEY, Date.now().toString());
+          setDeviceToken(data.deviceToken);
+
+          setState({
+            isAuthenticated: true,
+            isLoading: false,
+            deviceId: data.deviceId || null,
+            error: null,
+            isOfflineMode: false,
+          });
+          return { success: true };
+        } else {
+          const errorMsg = data.error || "Invalid code";
+          console.log("[Auth] SMS verification failed:", errorMsg);
+          setState((prev) => ({ ...prev, isLoading: false, error: errorMsg }));
+          return { success: false, error: errorMsg };
+        }
+      } catch (error) {
+        console.error("[Auth] SMS verification error:", error);
+        const errorMessage =
+          error instanceof ApiError
+            ? error.message
+            : "Connection error. Please try again.";
+        setState((prev) => ({ ...prev, isLoading: false, error: errorMessage }));
+        return { success: false, error: errorMessage };
+      }
+    },
+    [],
+  );
+
   const unpairDevice = useCallback(async (): Promise<void> => {
     await deleteStoredValue(DEVICE_TOKEN_KEY);
     await deleteStoredValue(DEVICE_ID_KEY);
@@ -307,7 +412,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ ...state, pairDevice, unpairDevice, checkAuth }}
+      value={{ ...state, pairDevice, requestSmsCode, verifySmsCode, unpairDevice, checkAuth }}
     >
       {children}
     </AuthContext.Provider>
