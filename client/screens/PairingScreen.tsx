@@ -13,6 +13,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Device from "expo-device";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { Colors, Gradients, Spacing, BorderRadius } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 
@@ -49,14 +50,15 @@ export function PairingScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <View
-        style={[
+      <KeyboardAwareScrollViewCompat
+        contentContainerStyle={[
           styles.content,
           {
             paddingTop: insets.top + Spacing["2xl"],
             paddingBottom: insets.bottom + Spacing.xl,
           },
         ]}
+        scrollIndicatorInsets={{ bottom: insets.bottom }}
       >
         <View style={styles.header}>
           <LinearGradient
@@ -131,7 +133,7 @@ export function PairingScreen() {
             will have secure access to all ZEKE features.
           </ThemedText>
         </View>
-      </View>
+      </KeyboardAwareScrollViewCompat>
     </ThemedView>
   );
 }
@@ -141,7 +143,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    flex: 1,
+    flexGrow: 1,
     paddingHorizontal: Spacing.lg,
     justifyContent: "center",
   },
