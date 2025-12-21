@@ -105,6 +105,36 @@ Airstrikes 1-6 must PASS for production deployment:
 5. CHAT PIPELINE — Message send/receive
 6. CRUD GAUNTLET — Task/Grocery operations
 
+## Protected Files (Do Not Modify Without Approval)
+
+The following files contain critical authentication and SMS pairing logic. Changes to these files can break device authentication and should not be made without explicit approval and thorough testing.
+
+### Critical Files List
+
+| File | Purpose |
+|------|---------|
+| `client/screens/PairingScreen.tsx` | SMS code entry UI, device pairing flow |
+| `client/context/AuthContext.tsx` | Authentication state, SMS code request/verify functions |
+| `server/routes.ts` | SMS pairing API endpoints (/api/auth/*) |
+| `server/device-auth.ts` | Device token generation and validation |
+| `server/sms-pairing.ts` | SMS code generation and Twilio integration |
+
+### Before Modifying These Files
+
+1. Get explicit approval from the project owner
+2. Understand the full authentication flow
+3. Test on both iOS and Android devices
+4. Test both new device pairing and existing device verification
+5. Verify the unpair/re-pair flow works correctly
+
+### Authentication Flow Summary
+
+1. User taps "Send Code to Phone" → calls `/api/auth/request-sms-code`
+2. Server sends 4-digit code via Twilio SMS to master phone
+3. User enters code → calls `/api/auth/verify-sms-code`
+4. Server validates code and issues device token
+5. Token stored securely on device for future API calls
+
 ## Recent Changes
 
 ### Memory Features Removed (Dec 2025)

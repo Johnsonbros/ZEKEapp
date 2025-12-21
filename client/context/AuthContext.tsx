@@ -1,3 +1,31 @@
+/**
+ * ============================================================================
+ * CRITICAL FILE - AUTHENTICATION CONTEXT
+ * ============================================================================
+ * 
+ * This file manages device authentication and SMS pairing for ZEKE AI.
+ * 
+ * DO NOT MODIFY without explicit approval from the project owner.
+ * 
+ * Critical functions:
+ * - requestSmsCode() - Initiates SMS pairing flow
+ * - verifySmsCode() - Verifies 4-digit SMS code
+ * - pairDevice() - Legacy pairing with secret
+ * - unpairDevice() - Clears device credentials
+ * 
+ * Changes to this file can break:
+ * - Device authentication
+ * - Token storage and retrieval
+ * - Offline authentication
+ * - SMS verification flow
+ * 
+ * Related critical files:
+ * - client/screens/PairingScreen.tsx
+ * - server/routes.ts (SMS pairing endpoints)
+ * - server/device-auth.ts
+ * ============================================================================
+ */
+
 import React, {
   createContext,
   useContext,

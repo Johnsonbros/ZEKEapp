@@ -1,3 +1,27 @@
+/**
+ * ============================================================================
+ * CRITICAL FILE - SMS PAIRING HANDSHAKE
+ * ============================================================================
+ * 
+ * This file contains the device pairing flow for ZEKE AI.
+ * 
+ * DO NOT MODIFY without explicit approval from the project owner.
+ * 
+ * Changes to this file can break:
+ * - Device authentication
+ * - SMS code verification
+ * - User onboarding flow
+ * 
+ * If changes are required, ensure thorough testing on both iOS and Android
+ * before deployment.
+ * 
+ * Related critical files:
+ * - client/context/AuthContext.tsx
+ * - server/routes.ts (SMS pairing endpoints)
+ * - server/device-auth.ts
+ * ============================================================================
+ */
+
 import React, { useState, useRef, useEffect } from "react";
 import {
   View,
