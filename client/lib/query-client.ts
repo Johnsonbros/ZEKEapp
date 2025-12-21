@@ -38,11 +38,18 @@ export function isZekeSyncMode(): boolean {
 
 /**
  * Gets the local backend URL (always uses EXPO_PUBLIC_DOMAIN, ignoring external ZEKE URL)
- * Used for integrations that are only available on the local backend (e.g., Google Calendar, Twilio)
+ * Used for integrations that are only available on the local backend (e.g., Google Calendar, Twilio, Auth)
  * @returns {string} The local API base URL
  */
 export function getLocalApiUrl(): string {
-  // TEMPORARY: Force to zekeai.replit.app for config lock testing
+  const domain = process.env.EXPO_PUBLIC_DOMAIN;
+  if (domain) {
+    return `https://${domain}`;
+  }
+  // Fallback for web: use current origin
+  if (typeof window !== "undefined" && window.location) {
+    return window.location.origin;
+  }
   return "https://zekeai.replit.app";
 }
 

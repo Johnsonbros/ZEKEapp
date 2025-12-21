@@ -341,7 +341,8 @@ function setupErrorHandler(app: express.Application) {
   });
 
   // Verify device token (public - for auth check)
-  app.post("/api/auth/verify", (req, res) => {
+  // Supports both GET (from client) and POST (legacy)
+  const verifyHandler = (req: Request, res: Response) => {
     const deviceToken = req.headers['x-zeke-device-token'] as string;
     
     if (!deviceToken) {
@@ -356,7 +357,9 @@ function setupErrorHandler(app: express.Application) {
     }
     
     return res.status(401).json({ valid: false, error: 'Invalid token' });
-  });
+  };
+  app.get("/api/auth/verify", verifyHandler);
+  app.post("/api/auth/verify", verifyHandler);
 
   // List paired devices (requires auth)
   app.get("/api/auth/devices", (_req, res) => {
