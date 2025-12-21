@@ -23,8 +23,6 @@ const PUBLIC_ROUTES = [
   '/api/auth/verify',
   '/api/auth/unlock',
   '/api/auth/clear-lockouts',
-  '/api/auth/request-sms-code',
-  '/api/auth/verify-sms-code',
   '/api/calendar/connection',
   '/api/zeke/health',
   '/api/zeke/security/status',
