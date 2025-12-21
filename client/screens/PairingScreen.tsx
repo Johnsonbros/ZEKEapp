@@ -305,7 +305,9 @@ export function PairingScreen() {
                     handleKeyPress(index, nativeEvent.key)
                   }
                   keyboardType="number-pad"
-                  maxLength={1}
+                  maxLength={index === 0 ? 4 : 1}
+                  textContentType={index === 0 ? "oneTimeCode" : "none"}
+                  autoComplete={index === 0 ? "one-time-code" : "off"}
                   selectTextOnFocus
                   editable={!isLoading}
                   autoFocus={index === 0}
