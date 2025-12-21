@@ -158,7 +158,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const token = await getStoredValue(DEVICE_TOKEN_KEY);
       const storedDeviceId = await getStoredValue(DEVICE_ID_KEY);
 
+      console.log("[Auth] checkAuth starting, token exists:", !!token, "deviceId:", storedDeviceId);
+
       if (!token) {
+        console.log("[Auth] No stored token found, requiring pairing");
         setState({
           isAuthenticated: false,
           isLoading: false,
@@ -174,18 +177,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Check if we have valid cached auth (for offline scenarios)
       const cachedAuthValid = await isCachedAuthValid();
+      console.log("[Auth] Cached auth valid:", cachedAuthValid);
 
       // Try to verify with backend
-      const maxRetries = 2;
+      const maxRetries = 3;
       let lastError: Error | null = null;
+      let got401 = false;
 
       for (let attempt = 0; attempt < maxRetries; attempt++) {
         try {
+          console.log(`[Auth] Verify attempt ${attempt + 1}/${maxRetries}`);
           // Route through local proxy to ZEKE backend: /api/zeke/auth/verify
-          const data = await apiClient.authGet<{ deviceId?: string }>(
+          const data = await apiClient.authGet<{ deviceId?: string; valid?: boolean }>(
             "/api/zeke/auth/verify",
             { headers: { "X-ZEKE-Device-Token": token } },
           );
+
+          console.log("[Auth] Verify response:", JSON.stringify(data));
 
           // Update last verified timestamp on successful verification
           await updateLastVerified();
@@ -201,27 +209,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return true;
         } catch (err) {
           lastError = err instanceof Error ? err : new Error(String(err));
+          console.log(`[Auth] Verify attempt ${attempt + 1} failed:`, err instanceof ApiError ? `${err.status} ${err.message}` : String(err));
 
-          // Don't retry on 401 - session is definitely expired
+          // Track if we got a definitive 401 (not a network error masquerading as one)
           if (err instanceof ApiError && err.status === 401) {
-            throw err;
+            // Check if this is a real auth failure or just network/proxy issue
+            const bodyText = err.bodyText || "";
+            const isDefiniteAuthFailure = 
+              bodyText.includes("expired") || 
+              bodyText.includes("invalid") ||
+              bodyText.includes("revoked") ||
+              bodyText.includes("not found");
+            
+            if (isDefiniteAuthFailure) {
+              console.log("[Auth] Definitive 401 auth failure detected:", bodyText);
+              got401 = true;
+              break; // Don't retry on definitive auth failures
+            } else {
+              console.log("[Auth] 401 may be transient, will retry if possible");
+            }
           }
 
-          // Wait before retrying (1s, 2s)
+          // Wait before retrying (1s, 2s, 4s)
           if (attempt < maxRetries - 1) {
-            console.log(
-              `[Auth] Verify attempt ${attempt + 1} failed, retrying...`,
-            );
-            await new Promise((resolve) =>
-              setTimeout(resolve, 1000 * Math.pow(2, attempt)),
-            );
+            const waitMs = 1000 * Math.pow(2, attempt);
+            console.log(`[Auth] Waiting ${waitMs}ms before retry...`);
+            await new Promise((resolve) => setTimeout(resolve, waitMs));
           }
         }
       }
 
-      // All retries failed - check if we can use cached auth
-      if (cachedAuthValid) {
-        console.log("[Auth] Network unavailable, using cached authentication");
+      // If we have valid cached auth and didn't get a definitive 401, use it
+      if (cachedAuthValid && !got401) {
+        console.log("[Auth] Network unavailable but cached auth valid, using offline mode");
         setState({
           isAuthenticated: true,
           isLoading: false,
@@ -232,11 +252,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return true;
       }
 
-      // No cached auth available
-      throw lastError;
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 401) {
-        // Session expired by backend - clear stored credentials
+      // Got a definitive 401 - session is truly expired
+      if (got401) {
+        console.log("[Auth] Session definitely expired, clearing credentials");
         await deleteStoredValue(DEVICE_TOKEN_KEY);
         await deleteStoredValue(DEVICE_ID_KEY);
         await deleteStoredValue(LAST_VERIFIED_KEY);
@@ -251,13 +269,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return false;
       }
 
-      // Check one more time for cached auth on other errors
+      // Network errors without cached auth - still keep credentials but show error
+      // This allows the user to retry without re-pairing
+      console.log("[Auth] Network errors, no valid cache, but keeping credentials for retry");
+      setState({
+        isAuthenticated: false,
+        isLoading: false,
+        deviceId: storedDeviceId,
+        error: "Unable to verify. Please check your connection and try again.",
+        isOfflineMode: false,
+      });
+      return false;
+    } catch (error) {
+      console.error("[Auth] Unexpected checkAuth error:", error);
+      
+      // On unexpected errors, try to preserve credentials if possible
       const token = await getStoredValue(DEVICE_TOKEN_KEY);
       const storedDeviceId = await getStoredValue(DEVICE_ID_KEY);
       const cachedAuthValid = await isCachedAuthValid();
 
       if (token && cachedAuthValid) {
-        console.log("[Auth] Connection error, using cached authentication");
+        console.log("[Auth] Unexpected error but cached auth valid, using offline mode");
         setDeviceToken(token);
         setState({
           isAuthenticated: true,
@@ -269,12 +301,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return true;
       }
 
-      console.error("[Auth] Check auth error:", error);
+      // Keep credentials for retry even on errors
+      if (token) {
+        console.log("[Auth] Unexpected error, keeping credentials for retry");
+        setDeviceToken(token);
+        setState({
+          isAuthenticated: false,
+          isLoading: false,
+          deviceId: storedDeviceId,
+          error: "Connection error. Please try again.",
+          isOfflineMode: false,
+        });
+        return false;
+      }
+
       setState({
         isAuthenticated: false,
         isLoading: false,
         deviceId: null,
-        error: error instanceof ApiError ? error.message : "Connection error. Please try again.",
+        error: "Connection error. Please try again.",
         isOfflineMode: false,
       });
       return false;
