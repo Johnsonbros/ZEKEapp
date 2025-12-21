@@ -1,0 +1,51 @@
+name: Sync Android to Replit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'android/**'
+  workflow_dispatch:
+
+jobs:
+  sync-to-replit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout ZEKE repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          path: zeke
+
+      - name: Checkout Replit repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ secrets.REPLIT_REPO }}
+          token: ${{ secrets.REPLIT_PAT }}
+          path: replit
+          fetch-depth: 0
+
+      - name: Sync android folder
+        run: |
+          rsync -av --delete \
+            --exclude='.git' \
+            --exclude='.git/' \
+            --exclude='.replit' \
+            --exclude='node_modules' \
+            --exclude='node_modules/' \
+            zeke/android/ \
+            replit/
+          
+      - name: Commit and push to Replit repo
+        run: |
+          cd replit
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@github.com"
+          
+          if [[ -n $(git status --porcelain) ]]; then
+            git add -A
+            git commit -m "Sync from ZEKE android folder [$(date +'%Y-%m-%d %H:%M')]"
+            git push origin main
+          else
+            echo "No changes to sync"
+          fi
