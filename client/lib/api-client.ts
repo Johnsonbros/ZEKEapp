@@ -150,22 +150,14 @@ async function parseResponseBody<T>(response: Response): Promise<T> {
  * Determine the correct base URL for an endpoint
  * 
  * Routing strategy:
- * - /api/zeke/auth/* → Direct to zekeai.replit.app (no auth headers needed for pairing)
- * - /api/zeke/* → Local proxy (adds auth headers, HMAC signing)
+ * - ALL /api/zeke/* routes go through local proxy (including auth)
+ *   The local proxy forwards to zekeai.replit.app server-side,
+ *   bypassing CORS/network issues on mobile devices
  * - /api/calendar/*, /api/twilio/* → Local proxy (integration endpoints)
  */
 function getBaseUrl(endpoint: string): { baseUrl: string; rewrittenPath: string } {
-  // Special case: Auth pairing endpoints go directly to ZEKE backend
-  // These don't require auth headers (they're used to obtain auth tokens)
-  if (endpoint.startsWith("/api/zeke/auth/")) {
-    const rewrittenPath = endpoint.replace("/api/zeke/auth/", "/api/auth/");
-    return {
-      baseUrl: "https://zekeai.replit.app",
-      rewrittenPath
-    };
-  }
-
-  // Other /api/zeke/* routes go through local proxy (which adds auth headers)
+  // ALL /api/zeke/* routes go through local proxy (which forwards to ZEKE backend)
+  // This includes auth endpoints - mobile devices can't reach external backend directly
   if (endpoint.startsWith("/api/zeke/")) {
     return {
       baseUrl: getLocalApiUrl(),
