@@ -221,21 +221,6 @@ class ZekeApiClient {
       ...customHeaders,
     };
 
-    // DEV-only: Log authorization header presence
-    if (
-      typeof __DEV__ !== "undefined"
-        ? __DEV__
-        : process.env.NODE_ENV === "development"
-    ) {
-      const hasAuth = Object.keys(authHeaders).length > 0;
-      if (hasAuth) {
-        const authHeader = authHeaders["X-ZEKE-Device-Token"]
-          ? `Bearer ${authHeaders["X-ZEKE-Device-Token"].substring(0, 8)}***`
-          : "Present";
-        console.log(`[auth] Authorization header: ${authHeader}`);
-      }
-    }
-
     // Add Content-Type for requests with body
     if (body && !finalHeaders["Content-Type"]) {
       finalHeaders["Content-Type"] = "application/json";
