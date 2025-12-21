@@ -318,7 +318,7 @@ export default function BluetoothConnectionScreen() {
                 elevation={1}
                 style={[
                   styles.deviceCard,
-                  connectingDeviceId === device.id ? { opacity: 0.6 } : null,
+                  connectingDeviceId === device.id ? { opacity: 0.6 } : undefined,
                 ]}
                 onPress={
                   connectingDeviceId === device.id
