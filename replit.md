@@ -182,3 +182,4 @@ Fixed published app data sync failures caused by stale `EXPO_PUBLIC_DOMAIN` valu
 - AbortSignal.timeout not supported in Expo/React Native - uses AbortController + setTimeout instead
 - Deep link URLs like `exps://domain/manifest` require custom parsing (not standard URL API)
 - Web apps run on port 8081 (Expo) but Express server is on port 5000 - must handle port mapping
+- App.tsx gates rendering with `isProxyReady` state - QueryClientProvider only mounts after `initializeProxyOrigin()` completes, preventing race conditions where early API calls use stale URLs
