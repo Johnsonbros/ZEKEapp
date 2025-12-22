@@ -864,6 +864,26 @@ export async function getZekeCalendar(): Promise<ZekeCalendar | null> {
   }
 }
 
+export interface CalendarConnectionStatus {
+  connected: boolean;
+  email?: string;
+  authUrl?: string;
+  error?: string;
+}
+
+export async function checkCalendarConnection(): Promise<CalendarConnectionStatus> {
+  try {
+    // /api/calendar/connection is a public route - doesn't require device token
+    // Routes to local API via isLocalEndpoint() check
+    return await apiClient.get<CalendarConnectionStatus>("/api/calendar/connection", {
+      timeoutMs: 10000,
+    });
+  } catch (error) {
+    console.error("[Calendar] Failed to check calendar connection:", error);
+    return { connected: false, error: "Failed to check calendar connection" };
+  }
+}
+
 export interface ActivityItem {
   id: string;
   action: string;
