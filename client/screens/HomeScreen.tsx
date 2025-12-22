@@ -30,6 +30,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { GradientText } from "@/components/GradientText";
 import { DeviceCard, DeviceInfo } from "@/components/DeviceCard";
 import { PulsingDot } from "@/components/PulsingDot";
+import { SyncStatusBar } from "@/components/SyncStatusBar";
 import { useTheme } from "@/hooks/useTheme";
 import { useLocation } from "@/hooks/useLocation";
 import { Spacing, Colors, BorderRadius, Gradients } from "@/constants/theme";
