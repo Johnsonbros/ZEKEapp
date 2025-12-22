@@ -31,6 +31,8 @@ import { GradientText } from "@/components/GradientText";
 import { DeviceCard, DeviceInfo } from "@/components/DeviceCard";
 import { PulsingDot } from "@/components/PulsingDot";
 import { SyncStatusBar } from "@/components/SyncStatusBar";
+import { SpeakerTagList } from "@/components/SpeakerTag";
+import { getSpeakerColor } from "@/lib/speaker-matcher";
 import { useTheme } from "@/hooks/useTheme";
 import { useLocation } from "@/hooks/useLocation";
 import { Spacing, Colors, BorderRadius, Gradients } from "@/constants/theme";
@@ -657,6 +659,17 @@ export default function HomeScreen() {
                   <ThemedText type="caption" secondary>
                     {activity.timestamp}
                   </ThemedText>
+                  {activity.speakers && activity.speakers.length > 0 ? (
+                    <View style={styles.activitySpeakers}>
+                      <SpeakerTagList
+                        speakers={activity.speakers.map((name, i) => ({
+                          label: name,
+                          color: getSpeakerColor(i),
+                        }))}
+                        size="small"
+                      />
+                    </View>
+                  ) : null}
                 </View>
               </View>
             ))
@@ -1132,6 +1145,9 @@ const styles = StyleSheet.create({
   },
   activityContent: {
     flex: 1,
+  },
+  activitySpeakers: {
+    marginTop: Spacing.xs,
   },
   statsGrid: {
     flexDirection: "row",

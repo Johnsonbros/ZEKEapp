@@ -547,6 +547,18 @@ function getDefaultZekeDevices(): ZekeDevice[] {
   ];
 }
 
+export async function getRecentMemories(limit: number = 5): Promise<ZekeMemory[]> {
+  try {
+    const data = await apiClient.get<ZekeMemory[]>("/api/memories", {
+      query: { limit: limit.toString() },
+      timeoutMs: 5000,
+    });
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function getDashboardSummary(): Promise<DashboardSummary> {
   try {
     // Route through local proxy to avoid CORS/network issues on mobile
@@ -896,6 +908,8 @@ export interface ActivityItem {
     | "shopping-cart"
     | "user";
   rawDate: Date;
+  speakers?: string[];
+  memoryId?: string;
 }
 
 function getRelativeTime(date: Date): string {
@@ -922,11 +936,26 @@ export async function getRecentActivities(
   const activities: ActivityItem[] = [];
 
   try {
-    const [tasks, smsConversations, events] = await Promise.all([
+    const [tasks, smsConversations, events, memories] = await Promise.all([
       getAllTasks().catch(() => []),
       getTwilioConversations().catch(() => []),
       getTodayEvents().catch(() => []),
+      getRecentMemories(5).catch(() => []),
     ]);
+
+    for (const memory of memories.slice(0, 5)) {
+      const date = new Date(memory.createdAt);
+      const speakerList = Array.isArray(memory.speakers) ? memory.speakers : [];
+      activities.push({
+        id: `memory-${memory.id}`,
+        action: `Recorded: ${memory.title || 'Voice memory'}`,
+        timestamp: getRelativeTime(date),
+        icon: "mic",
+        rawDate: date,
+        speakers: speakerList,
+        memoryId: memory.id,
+      });
+    }
 
     const recentTasks = tasks
       .filter((t: ZekeTask) => t.status === "completed" || t.createdAt)

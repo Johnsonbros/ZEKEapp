@@ -36,6 +36,25 @@ import { requestPairingCode, verifyPairingCode, getPairingStatus } from "./sms-p
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
+function estimateSpeakerCount(transcript: string): number {
+  const patterns = [
+    /\bspeaker\s*\d+\b/gi,
+    /\b(I|me|my|we|you|they|he|she|it)\b/gi,
+    /\b(said|says|asked|replied|responded|mentioned|noted)\b/gi,
+    /[?].*[?]/g,
+  ];
+  
+  const dialogueIndicators = (transcript.match(patterns[2]) || []).length;
+  const questionMarks = (transcript.match(/\?/g) || []).length;
+  const wordCount = transcript.split(/\s+/).length;
+  
+  if (dialogueIndicators > 5 || questionMarks > 3) {
+    return wordCount > 500 ? 3 : 2;
+  }
+  
+  return 1;
+}
+
 const ZEKE_SYSTEM_PROMPT = `You are ZEKE, an intelligent AI companion designed to help users recall and search their memories captured by wearable devices like Omi and Limitless.
 
 Your role is to:
@@ -378,6 +397,8 @@ Respond in JSON format:
         };
       }
 
+      const speakerCount = estimateSpeakerCount(transcript);
+
       const memoryData = {
         deviceId,
         transcript,
@@ -394,7 +415,10 @@ Respond in JSON format:
       }
       
       const memory = await storage.createMemory(parsed.data);
-      res.status(201).json(memory);
+      res.status(201).json({
+        ...memory,
+        speakerCount
+      });
     } catch (error) {
       console.error("Error transcribing and creating memory:", error);
       res.status(500).json({ error: "Failed to transcribe and create memory" });
@@ -403,7 +427,7 @@ Respond in JSON format:
 
   app.patch("/api/memories/:id", async (req, res) => {
     try {
-      const allowedFields = ["title", "summary", "isStarred"];
+      const allowedFields = ["title", "summary", "isStarred", "speakers"];
       const updates: Record<string, any> = {};
       
       for (const field of allowedFields) {

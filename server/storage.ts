@@ -23,7 +23,7 @@ export interface IStorage {
   getMemories(filters?: { deviceId?: string; isStarred?: boolean; search?: string; limit?: number }): Promise<Memory[]>;
   getMemory(id: string): Promise<Memory | undefined>;
   createMemory(memory: InsertMemory): Promise<Memory>;
-  updateMemory(id: string, data: Partial<Pick<InsertMemory, 'title' | 'summary' | 'isStarred'>>): Promise<Memory | undefined>;
+  updateMemory(id: string, data: Partial<Pick<InsertMemory, 'title' | 'summary' | 'isStarred' | 'speakers'>>): Promise<Memory | undefined>;
   deleteMemory(id: string): Promise<boolean>;
   starMemory(id: string): Promise<Memory | undefined>;
   
@@ -128,7 +128,7 @@ export class DatabaseStorage implements IStorage {
     return newMemory;
   }
 
-  async updateMemory(id: string, data: Partial<Pick<InsertMemory, 'title' | 'summary' | 'isStarred'>>): Promise<Memory | undefined> {
+  async updateMemory(id: string, data: Partial<Pick<InsertMemory, 'title' | 'summary' | 'isStarred' | 'speakers'>>): Promise<Memory | undefined> {
     const [updated] = await db.update(memories)
       .set({ ...data, updatedAt: new Date() })
       .where(eq(memories.id, id))
