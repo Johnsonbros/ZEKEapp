@@ -1,4 +1,5 @@
 import { LocalAudioStorageService } from "./local-audio-storage";
+import { UploadQueueProcessor } from "./upload-queue";
 
 let _syncInProgress = false;
 let _lastSyncTime = 0;
@@ -44,9 +45,8 @@ export const SyncTrigger = {
         `[SyncTrigger] Found ${pendingItems.length} pending recording(s) to sync`,
       );
 
-      // Each recording would be synced here (in future implementation)
-      // For now, we just mark the trigger as complete
-      // Task 1.3 will implement the actual sync logic
+      // Start background upload queue processing (FIFO with retries)
+      await UploadQueueProcessor.processQueue();
 
       console.log("[SyncTrigger] Sync triggered successfully");
     } catch (error) {
