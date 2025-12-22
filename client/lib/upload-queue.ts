@@ -20,14 +20,41 @@ const MAX_CONCURRENT_UPLOADS = 1; // FIFO, one at a time
 export const UploadQueueProcessor = {
   _isProcessing: false,
   _isPaused: false,
+  _isInitialized: false,
   _currentUpload: null as string | null,
   _eventCallbacks: [] as EventCallback[],
 
   /**
-   * Initialize the upload queue processor
+   * Initialize the upload queue processor (lazy, runs once)
+   * Resets any stale "syncing" items to "pending" (from app crash/kill)
    */
-  initialize(): void {
-    console.log("[UploadQueue] Processor initialized");
+  async _ensureInitialized(): Promise<void> {
+    if (this._isInitialized) return;
+
+    try {
+      const queue = await LocalAudioStorageService.getSyncQueue();
+      let resetCount = 0;
+
+      for (const item of queue) {
+        if (item.status === "syncing") {
+          await LocalAudioStorageService.updateRecordingStatus(
+            item.recordingId,
+            "pending",
+          );
+          resetCount++;
+        }
+      }
+
+      if (resetCount > 0) {
+        console.log(
+          `[UploadQueue] Reset ${resetCount} stale syncing item(s) to pending`,
+        );
+      }
+      this._isInitialized = true;
+      console.log("[UploadQueue] Processor initialized");
+    } catch (error) {
+      console.error("[UploadQueue] Failed to initialize:", error);
+    }
   },
 
   /**
@@ -60,6 +87,9 @@ export const UploadQueueProcessor = {
    * Process the upload queue in FIFO order
    */
   async processQueue(): Promise<void> {
+    // Ensure stale "syncing" items are reset before first run
+    await this._ensureInitialized();
+
     if (this._isProcessing) {
       console.log("[UploadQueue] Queue processing already in progress");
       return;

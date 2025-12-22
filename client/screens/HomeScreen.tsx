@@ -392,6 +392,9 @@ export default function HomeScreen() {
         />
       }
     >
+      {/* Sync Status Bar - shows offline/pending/failed status */}
+      <SyncStatusBar />
+
       <View style={styles.headerSection}>
         <View style={styles.greetingSection}>
           <GradientText type="h2" colors={Gradients.primary}>
