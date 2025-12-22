@@ -26,7 +26,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "node:http";
 import { storage } from "./storage";
-import { insertDeviceSchema, insertMemorySchema, insertChatSessionSchema, insertChatMessageSchema } from "@shared/schema";
+import { insertDeviceSchema, insertMemorySchema, insertChatSessionSchema, insertChatMessageSchema, insertSpeakerProfileSchema } from "@shared/schema";
 import OpenAI from "openai";
 import multer from "multer";
 import { registerLocationRoutes } from "./location";
@@ -1653,6 +1653,69 @@ Return at most ${Math.min(limit, 10)} results. Only include memories with releva
       }
     });
   }
+
+  // Speaker routes
+  app.get("/api/speakers", async (req, res) => {
+    try {
+      const deviceId = req.query.deviceId as string;
+      const speakers = await storage.getSpeakerProfiles(deviceId);
+      res.json(speakers);
+    } catch (error) {
+      console.error("Error fetching speakers:", error);
+      res.status(500).json({ error: "Failed to fetch speakers" });
+    }
+  });
+
+  app.post("/api/speakers", async (req, res) => {
+    try {
+      const { deviceId, name } = req.body;
+      if (!deviceId || !name) {
+        return res.status(400).json({ error: "deviceId and name are required" });
+      }
+
+      const parsed = insertSpeakerProfileSchema.safeParse({ deviceId, name });
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid speaker data" });
+      }
+
+      const speaker = await storage.createSpeakerProfile(parsed.data);
+      res.status(201).json(speaker);
+    } catch (error) {
+      console.error("Error creating speaker:", error);
+      res.status(500).json({ error: "Failed to create speaker" });
+    }
+  });
+
+  app.patch("/api/speakers/:id", async (req, res) => {
+    try {
+      const { name } = req.body;
+      if (!name) {
+        return res.status(400).json({ error: "name is required" });
+      }
+
+      const speaker = await storage.updateSpeakerProfile(req.params.id, { name });
+      if (!speaker) {
+        return res.status(404).json({ error: "Speaker not found" });
+      }
+      res.json(speaker);
+    } catch (error) {
+      console.error("Error updating speaker:", error);
+      res.status(500).json({ error: "Failed to update speaker" });
+    }
+  });
+
+  app.delete("/api/speakers/:id", async (req, res) => {
+    try {
+      const deleted = await storage.deleteSpeakerProfile(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Speaker not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting speaker:", error);
+      res.status(500).json({ error: "Failed to delete speaker" });
+    }
+  });
 
   registerLocationRoutes(app);
   registerZekeProxyRoutes(app);

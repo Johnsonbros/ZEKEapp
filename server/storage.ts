@@ -3,7 +3,8 @@ import {
   type Device, type InsertDevice, devices,
   type Memory, type InsertMemory, memories,
   type ChatSession, type InsertChatSession, chatSessions,
-  type ChatMessage, type InsertChatMessage, chatMessages
+  type ChatMessage, type InsertChatMessage, chatMessages,
+  type SpeakerProfile, type InsertSpeakerProfile, speakerProfiles
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, ilike, and, or } from "drizzle-orm";
@@ -33,6 +34,12 @@ export interface IStorage {
   
   getMessagesBySession(sessionId: string): Promise<ChatMessage[]>;
   createMessage(message: InsertChatMessage): Promise<ChatMessage>;
+
+  getSpeakerProfiles(deviceId?: string): Promise<SpeakerProfile[]>;
+  getSpeakerProfile(id: string): Promise<SpeakerProfile | undefined>;
+  createSpeakerProfile(speaker: InsertSpeakerProfile): Promise<SpeakerProfile>;
+  updateSpeakerProfile(id: string, data: Partial<Pick<InsertSpeakerProfile, 'name' | 'voiceCharacteristics'>>): Promise<SpeakerProfile | undefined>;
+  deleteSpeakerProfile(id: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -179,6 +186,37 @@ export class DatabaseStorage implements IStorage {
       .where(eq(chatSessions.id, message.sessionId));
     
     return newMessage;
+  }
+
+  async getSpeakerProfiles(deviceId?: string): Promise<SpeakerProfile[]> {
+    let query = db.select().from(speakerProfiles);
+    if (deviceId) {
+      query = query.where(eq(speakerProfiles.deviceId, deviceId)) as any;
+    }
+    return query.orderBy(desc(speakerProfiles.createdAt));
+  }
+
+  async getSpeakerProfile(id: string): Promise<SpeakerProfile | undefined> {
+    const [speaker] = await db.select().from(speakerProfiles).where(eq(speakerProfiles.id, id));
+    return speaker;
+  }
+
+  async createSpeakerProfile(speaker: InsertSpeakerProfile): Promise<SpeakerProfile> {
+    const [newSpeaker] = await db.insert(speakerProfiles).values(speaker).returning();
+    return newSpeaker;
+  }
+
+  async updateSpeakerProfile(id: string, data: Partial<Pick<InsertSpeakerProfile, 'name' | 'voiceCharacteristics'>>): Promise<SpeakerProfile | undefined> {
+    const [updated] = await db.update(speakerProfiles)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(speakerProfiles.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteSpeakerProfile(id: string): Promise<boolean> {
+    const result = await db.delete(speakerProfiles).where(eq(speakerProfiles.id, id)).returning();
+    return result.length > 0;
   }
 }
 
