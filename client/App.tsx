@@ -107,8 +107,17 @@ export default function App() {
     
     initializeProxyOrigin()
       .then(() => {
-        console.log("[config] apiUrl=" + getApiUrl());
-        console.log("[config] localApiUrl=" + getLocalApiUrl());
+        const apiUrl = getApiUrl();
+        const localApiUrl = getLocalApiUrl();
+        
+        console.log("[config] ========== BOOT-TIME CONFIG ==========");
+        console.log(`[config] Platform: ${Platform.OS}`);
+        console.log(`[config] Environment: ${__DEV__ ? "development" : "production"}`);
+        console.log(`[config] EXPO_PUBLIC_DOMAIN: ${process.env.EXPO_PUBLIC_DOMAIN || "(not set)"}`);
+        console.log(`[config] Resolved apiUrl: ${apiUrl}`);
+        console.log(`[config] Resolved localApiUrl: ${localApiUrl}`);
+        console.log(`[config] URLs match: ${apiUrl === localApiUrl ? "YES" : "NO"}`);
+        console.log("[config] ======================================");
       })
       .finally(() => {
         setIsProxyReady(true);
