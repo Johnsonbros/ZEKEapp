@@ -945,7 +945,12 @@ export async function getRecentActivities(
 
     for (const memory of memories.slice(0, 5)) {
       const date = new Date(memory.createdAt);
-      const speakerList = Array.isArray(memory.speakers) ? memory.speakers : [];
+      // Handle both speaker object format {id, label, isUser} and plain string format
+      const speakerList: string[] = Array.isArray(memory.speakers)
+        ? memory.speakers.map((s: unknown) =>
+            typeof s === 'string' ? s : (s as { label?: string }).label || 'Unknown'
+          )
+        : [];
       activities.push({
         id: `memory-${memory.id}`,
         action: `Recorded: ${memory.title || 'Voice memory'}`,
