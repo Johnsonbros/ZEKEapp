@@ -547,6 +547,18 @@ function getDefaultZekeDevices(): ZekeDevice[] {
   ];
 }
 
+export async function getRecentMemories(limit: number = 5): Promise<ZekeMemory[]> {
+  try {
+    const data = await apiClient.get<ZekeMemory[]>("/api/memories", {
+      query: { limit: limit.toString() },
+      timeoutMs: 5000,
+    });
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function getDashboardSummary(): Promise<DashboardSummary> {
   try {
     // Route through local proxy to avoid CORS/network issues on mobile
@@ -864,6 +876,26 @@ export async function getZekeCalendar(): Promise<ZekeCalendar | null> {
   }
 }
 
+export interface CalendarConnectionStatus {
+  connected: boolean;
+  email?: string;
+  authUrl?: string;
+  error?: string;
+}
+
+export async function checkCalendarConnection(): Promise<CalendarConnectionStatus> {
+  try {
+    // /api/calendar/connection is a public route - doesn't require device token
+    // Routes to local API via isLocalEndpoint() check
+    return await apiClient.get<CalendarConnectionStatus>("/api/calendar/connection", {
+      timeoutMs: 10000,
+    });
+  } catch (error) {
+    console.error("[Calendar] Failed to check calendar connection:", error);
+    return { connected: false, error: "Failed to check calendar connection" };
+  }
+}
+
 export interface ActivityItem {
   id: string;
   action: string;
@@ -876,6 +908,8 @@ export interface ActivityItem {
     | "shopping-cart"
     | "user";
   rawDate: Date;
+  speakers?: string[];
+  memoryId?: string;
 }
 
 function getRelativeTime(date: Date): string {
@@ -902,11 +936,31 @@ export async function getRecentActivities(
   const activities: ActivityItem[] = [];
 
   try {
-    const [tasks, smsConversations, events] = await Promise.all([
+    const [tasks, smsConversations, events, memories] = await Promise.all([
       getAllTasks().catch(() => []),
       getTwilioConversations().catch(() => []),
       getTodayEvents().catch(() => []),
+      getRecentMemories(5).catch(() => []),
     ]);
+
+    for (const memory of memories.slice(0, 5)) {
+      const date = new Date(memory.createdAt);
+      // Handle both speaker object format {id, label, isUser} and plain string format
+      const speakerList: string[] = Array.isArray(memory.speakers)
+        ? memory.speakers.map((s: unknown) =>
+            typeof s === 'string' ? s : (s as { label?: string }).label || 'Unknown'
+          )
+        : [];
+      activities.push({
+        id: `memory-${memory.id}`,
+        action: `Recorded: ${memory.title || 'Voice memory'}`,
+        timestamp: getRelativeTime(date),
+        icon: "mic",
+        rawDate: date,
+        speakers: speakerList,
+        memoryId: memory.id,
+      });
+    }
 
     const recentTasks = tasks
       .filter((t: ZekeTask) => t.status === "completed" || t.createdAt)

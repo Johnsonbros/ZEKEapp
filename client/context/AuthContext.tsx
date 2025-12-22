@@ -179,68 +179,83 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const cachedAuthValid = await isCachedAuthValid();
       console.log("[Auth] Cached auth valid:", cachedAuthValid);
 
-      // Try to verify with backend
-      const maxRetries = 3;
-      let lastError: Error | null = null;
-      let got401 = false;
+      // First, try to verify with LOCAL server (for SMS-paired tokens)
+      // This is the primary verification - tokens from SMS pairing are stored locally
+      let localFailed401 = false;
+      
+      try {
+        console.log("[Auth] Verifying with local server...");
+        const localData = await apiClient.authGet<{ deviceId?: string; deviceName?: string; valid?: boolean }>(
+          "/api/auth/verify-device",
+          { headers: { "X-ZEKE-Device-Token": token } },
+        );
 
-      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        if (localData.valid) {
+          console.log("[Auth] Local verification successful:", localData.deviceId);
+          await updateLastVerified();
+          setState({
+            isAuthenticated: true,
+            isLoading: false,
+            deviceId: localData.deviceId || storedDeviceId,
+            error: null,
+            isOfflineMode: false,
+          });
+          return true;
+        }
+      } catch (localErr) {
+        console.log("[Auth] Local verification failed:", localErr instanceof ApiError ? `${localErr.status}` : String(localErr));
+        
+        if (localErr instanceof ApiError && localErr.status === 401) {
+          localFailed401 = true;
+          // Token not found locally, try ZEKE backend next
+        }
+        // For other errors (network issues), continue to try ZEKE backend or cached auth
+      }
+
+      // If local verification returned 401, try ZEKE backend (for legacy tokens paired via ZEKE)
+      if (localFailed401) {
+        console.log("[Auth] Local token not found, trying ZEKE backend verification...");
         try {
-          console.log(`[Auth] Verify attempt ${attempt + 1}/${maxRetries}`);
-          // Route through local proxy to ZEKE backend: /api/zeke/auth/verify
-          const data = await apiClient.authGet<{ deviceId?: string; valid?: boolean }>(
+          const zekeData = await apiClient.authGet<{ deviceId?: string; valid?: boolean }>(
             "/api/zeke/auth/verify",
             { headers: { "X-ZEKE-Device-Token": token } },
           );
 
-          console.log("[Auth] Verify response:", JSON.stringify(data));
-
-          // Update last verified timestamp on successful verification
+          console.log("[Auth] ZEKE verify response:", JSON.stringify(zekeData));
           await updateLastVerified();
-
           setState({
             isAuthenticated: true,
             isLoading: false,
-            deviceId: data.deviceId || storedDeviceId,
+            deviceId: zekeData.deviceId || storedDeviceId,
             error: null,
             isOfflineMode: false,
           });
-          console.log("[Auth] Token verified successfully");
           return true;
-        } catch (err) {
-          lastError = err instanceof Error ? err : new Error(String(err));
-          console.log(`[Auth] Verify attempt ${attempt + 1} failed:`, err instanceof ApiError ? `${err.status} ${err.message}` : String(err));
-
-          // Track if we got a definitive 401 (not a network error masquerading as one)
-          if (err instanceof ApiError && err.status === 401) {
-            // Check if this is a real auth failure or just network/proxy issue
-            const bodyText = err.bodyText || "";
-            const isDefiniteAuthFailure = 
-              bodyText.includes("expired") || 
-              bodyText.includes("invalid") ||
-              bodyText.includes("revoked") ||
-              bodyText.includes("not found");
-            
-            if (isDefiniteAuthFailure) {
-              console.log("[Auth] Definitive 401 auth failure detected:", bodyText);
-              got401 = true;
-              break; // Don't retry on definitive auth failures
-            } else {
-              console.log("[Auth] 401 may be transient, will retry if possible");
-            }
+        } catch (zekeErr) {
+          console.log("[Auth] ZEKE verification also failed:", zekeErr instanceof ApiError ? `${zekeErr.status}` : String(zekeErr));
+          
+          // Both local and ZEKE verification failed with 401 - token is truly invalid
+          if (zekeErr instanceof ApiError && zekeErr.status === 401) {
+            console.log("[Auth] Token invalid on both local and ZEKE, clearing credentials");
+            await deleteStoredValue(DEVICE_TOKEN_KEY);
+            await deleteStoredValue(DEVICE_ID_KEY);
+            await deleteStoredValue(LAST_VERIFIED_KEY);
+            setDeviceToken(null);
+            setState({
+              isAuthenticated: false,
+              isLoading: false,
+              deviceId: null,
+              error: "Session expired. Please pair again.",
+              isOfflineMode: false,
+            });
+            return false;
           }
-
-          // Wait before retrying (1s, 2s, 4s)
-          if (attempt < maxRetries - 1) {
-            const waitMs = 1000 * Math.pow(2, attempt);
-            console.log(`[Auth] Waiting ${waitMs}ms before retry...`);
-            await new Promise((resolve) => setTimeout(resolve, waitMs));
-          }
+          // Network error on ZEKE backend - continue to cached auth check
         }
       }
 
-      // If we have valid cached auth and didn't get a definitive 401, use it
-      if (cachedAuthValid && !got401) {
+      // If verification failed due to network, check cached auth
+      if (cachedAuthValid) {
         console.log("[Auth] Network unavailable but cached auth valid, using offline mode");
         setState({
           isAuthenticated: true,
@@ -252,25 +267,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return true;
       }
 
-      // Got a definitive 401 - session is truly expired
-      if (got401) {
-        console.log("[Auth] Session definitely expired, clearing credentials");
-        await deleteStoredValue(DEVICE_TOKEN_KEY);
-        await deleteStoredValue(DEVICE_ID_KEY);
-        await deleteStoredValue(LAST_VERIFIED_KEY);
-        setDeviceToken(null);
-        setState({
-          isAuthenticated: false,
-          isLoading: false,
-          deviceId: null,
-          error: "Session expired. Please pair again.",
-          isOfflineMode: false,
-        });
-        return false;
-      }
-
-      // Network errors without cached auth - still keep credentials but show error
-      // This allows the user to retry without re-pairing
+      // Network errors without cached auth - keep credentials for retry
       console.log("[Auth] Network errors, no valid cache, but keeping credentials for retry");
       setState({
         isAuthenticated: false,

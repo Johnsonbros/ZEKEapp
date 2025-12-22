@@ -55,3 +55,57 @@ This project (ZEKEapp) is part of a unified monorepo at `https://github.com/John
 - **Metro Bundler**: For path aliases.
 - **esbuild**: For server-side bundling.
 - **EAS Build**: For development builds with native modules (VoIP, BLE).
+
+## Android Native Build Configuration
+
+### API URL Resolution (Production Builds)
+Native Android APKs use a 6-candidate URL resolution strategy to ensure they connect to the correct server:
+
+**Resolution Order (in client/lib/query-client.ts - `getLocalApiUrl()`):**
+1. Cached runtime proxy origin (fetched from `/api/runtime-config` on startup)
+2. `Constants.expoConfig.extra.localApiDomain` (baked in at build time via app.config.js)
+3. `process.env.EXPO_PUBLIC_DOMAIN` environment variable
+4. Replit connector hostname detection (for hosted environments)
+5. Fallback to `https://zekeai.replit.app` if no other candidates work
+
+**Critical for Production:**
+- `EXPO_PUBLIC_DOMAIN` MUST be set at build time for Android
+- Example: `EXPO_PUBLIC_DOMAIN="zekeai.replit.app" npm run build:android`
+- This bakes the deployed URL into the app bundle, preventing localhost connections
+- The app logs the resolved URL at startup (see "Boot-Time Logging" below)
+
+### Boot-Time Logging
+When the app starts, it logs configuration details:
+```
+[config] ========== BOOT-TIME CONFIG ==========
+[config] Platform: android
+[config] Environment: production
+[config] EXPO_PUBLIC_DOMAIN: zekeai.replit.app
+[config] Resolved apiUrl: https://zekeai.replit.app
+[config] Resolved localApiUrl: https://zekeai.replit.app
+[config] URLs match: YES
+[config] ======================================
+```
+
+**Verification on Device:**
+- Connect Android device via ADB: `adb logcat | grep "\[config\]"`
+- Confirm "Resolved apiUrl" shows your deployed server (NOT localhost)
+- Confirm "URLs match: YES" (apiUrl and localApiUrl should be identical)
+
+### Google Calendar Integration
+The Google Calendar integration works by proxying through the Express server:
+- All calendar requests go to `/api/calendar/*` endpoints
+- Server handles OAuth via Replit's google-calendar connector
+- No additional mobile-specific OAuth needed
+
+**For Native Android to Access Calendar:**
+1. Device must be able to reach the server at the resolved apiUrl
+2. Device must obtain a valid device token via the pairing flow (`/api/auth/pair`)
+3. Server's auth middleware validates the device token on all `/api/*` requests
+4. Calendar endpoints return data only when device token is valid
+
+**Testing Calendar on Android:**
+- In app logs, confirm apiUrl resolves to deployed server
+- Open Calendar tab - should show loading state while fetching events
+- Check device logs: `adb logcat | grep "Calendar"`
+- Verify no 401/403 errors (would indicate auth token issue)
