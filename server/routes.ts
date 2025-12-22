@@ -32,6 +32,7 @@ import multer from "multer";
 import { registerLocationRoutes } from "./location";
 import { registerZekeProxyRoutes } from "./zeke-proxy";
 import { requestPairingCode, verifyPairingCode, getPairingStatus } from "./sms-pairing";
+import { validateDeviceToken } from "./device-auth";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
@@ -132,6 +133,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error getting pairing status:", error);
       res.status(500).json({ error: "Failed to get pairing status" });
+    }
+  });
+
+  // Local device token verification (for tokens created via SMS pairing)
+  app.get("/api/auth/verify-device", async (req, res) => {
+    try {
+      const deviceToken = req.headers["x-zeke-device-token"] as string;
+      if (!deviceToken) {
+        return res.status(401).json({ valid: false, error: "No device token provided" });
+      }
+
+      const device = validateDeviceToken(deviceToken);
+      if (device) {
+        console.log("[LocalAuth] Device token verified:", device.deviceId);
+        return res.json({
+          valid: true,
+          deviceId: device.deviceId,
+          deviceName: device.deviceName,
+        });
+      } else {
+        console.log("[LocalAuth] Invalid device token");
+        return res.status(401).json({ valid: false, error: "Invalid or expired device token" });
+      }
+    } catch (error) {
+      console.error("[LocalAuth] Error verifying device:", error);
+      res.status(500).json({ error: "Failed to verify device" });
     }
   });
 
