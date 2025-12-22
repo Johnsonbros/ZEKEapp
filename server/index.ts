@@ -22,6 +22,9 @@ function setupCors(app: express.Application) {
   app.use((req, res, next) => {
     const origins = new Set<string>();
 
+    origins.add("http://localhost:8081");
+    origins.add("http://127.0.0.1:8081");
+
     if (process.env.REPLIT_DEV_DOMAIN) {
       origins.add(`https://${process.env.REPLIT_DEV_DOMAIN}`);
       origins.add(`https://${process.env.REPLIT_DEV_DOMAIN}:5000`);
