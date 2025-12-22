@@ -5,6 +5,7 @@ import { registerRoutes } from "./routes";
 import { setupWebSocketServer } from "./websocket";
 import { authMiddleware, getAuthStatus, getLockedIPs, unlockIP, clearAllLockouts } from "./auth-middleware";
 import { validateMasterSecret, registerDevice, listDevices, revokeAllDeviceTokens, isSecretConfigured } from "./device-auth";
+import { registerOmiWebhooks } from "./omi-webhooks";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -422,6 +423,8 @@ function setupErrorHandler(app: express.Application) {
   });
 
   configureExpoAndLanding(app);
+
+  registerOmiWebhooks(app);
 
   const server = await registerRoutes(app);
 
