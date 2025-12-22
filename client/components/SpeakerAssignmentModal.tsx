@@ -29,7 +29,9 @@ interface SpeakerProfile {
   id: string;
   deviceId: string;
   name: string;
+  voiceCharacteristics?: Record<string, any>;
   createdAt: string;
+  updatedAt: string;
 }
 
 interface SpeakerAssignmentModalProps {
@@ -186,7 +188,7 @@ export function SpeakerAssignmentModal({
         </View>
 
         <View style={styles.speakersSection}>
-          <ThemedText type="subtitle" style={{ marginBottom: Spacing.md }}>
+          <ThemedText type="h4" style={{ marginBottom: Spacing.md }}>
             Detected Speakers ({speakerCount})
           </ThemedText>
           <FlatList
@@ -199,7 +201,7 @@ export function SpeakerAssignmentModal({
 
         {selectedSpeaker !== null ? (
           <View style={styles.assignSection}>
-            <ThemedText type="subtitle" style={{ marginBottom: Spacing.md }}>
+            <ThemedText type="h4" style={{ marginBottom: Spacing.md }}>
               Assign Speaker {selectedSpeaker + 1} to:
             </ThemedText>
 
@@ -249,17 +251,21 @@ export function SpeakerAssignmentModal({
         ) : null}
 
         <View style={styles.footer}>
-          <Button
-            title="Skip for Now"
-            variant="outline"
+          <Pressable
             onPress={handleSkip}
-            style={{ flex: 1, marginRight: Spacing.md }}
-          />
-          <Button
-            title="Done"
+            style={[
+              styles.outlineButton,
+              { borderColor: theme.textSecondary, flex: 1, marginRight: Spacing.md },
+            ]}
+          >
+            <ThemedText style={{ color: theme.textSecondary }}>Skip for Now</ThemedText>
+          </Pressable>
+          <Pressable
             onPress={handleComplete}
-            style={{ flex: 1 }}
-          />
+            style={[styles.primaryButton, { backgroundColor: theme.primary, flex: 1 }]}
+          >
+            <ThemedText style={{ color: "white" }}>Done</ThemedText>
+          </Pressable>
         </View>
       </View>
     </Modal>
@@ -322,5 +328,20 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: "row",
     marginTop: Spacing.xl,
+  },
+  outlineButton: {
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  primaryButton: {
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
