@@ -234,12 +234,12 @@ export async function getTasks(): Promise<ZekeTask[]> {
 
 export async function getGroceryItems(): Promise<ZekeGroceryItem[]> {
   try {
-    // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
-    const data = await apiClient.get<{ items?: ZekeGroceryItem[] }>(
+    // Longer timeout for grocery - backend can be slow, but we have server-side caching now
+    const data = await apiClient.get<{ items?: ZekeGroceryItem[]; source?: string }>(
       "/api/zeke/grocery",
-      { emptyArrayOn404: true },
+      { emptyArrayOn404: true, timeoutMs: 30000 },
     );
-    console.log("[ZEKE Proxy] Grocery items fetched:", data.items?.length || 0);
+    console.log("[ZEKE Proxy] Grocery items fetched:", data.items?.length || 0, "source:", data.source || "unknown");
     return data.items || [];
   } catch (error) {
     console.error("[ZEKE Proxy] Grocery error:", error);

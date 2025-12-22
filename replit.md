@@ -109,3 +109,25 @@ The Google Calendar integration works by proxying through the Express server:
 - Open Calendar tab - should show loading state while fetching events
 - Check device logs: `adb logcat | grep "Calendar"`
 - Verify no 401/403 errors (would indicate auth token issue)
+
+## Performance Optimizations
+
+### Grocery Sync Caching (Implemented)
+The ZEKE backend's `/api/grocery` endpoint has high latency (17-27s). To mitigate this:
+- **Server-side stale-while-revalidate cache**: The Express proxy caches grocery responses for 60 seconds. Subsequent requests return cached data instantly while refreshing in the background.
+- **Client timeout extended**: Grocery requests use a 30-second timeout (vs 10s default) to handle slow backend responses on cache misses.
+- **Cache invalidation**: POST/PATCH/DELETE operations on grocery items automatically invalidate the cache.
+- **Prefetching**: HomeScreen prefetches grocery data on initial load when in sync mode.
+
+### Future ZEKE Backend Improvements (TODO for next version)
+These improvements require changes to the main ZEKE backend:
+
+1. **Profile `/api/grocery` endpoint**: Identify slow queries (likely vector search or aggregations) and optimize database queries or add server-side caching.
+
+2. **Delta/incremental sync endpoint**: Instead of fetching the full grocery list each time, expose a `/api/grocery/changes?since=timestamp` endpoint that returns only items created/modified/deleted since the last sync. This dramatically reduces payload size and processing time.
+
+3. **WebSocket push updates**: Replace polling with real-time push via the existing `/ws/zeke` WebSocket connection. When grocery items change, push the update to connected clients immediately.
+
+4. **Backend response caching**: Add Redis/in-memory caching on the ZEKE backend itself to serve repeated requests without hitting the database.
+
+5. **Pagination support**: For users with large grocery lists, implement cursor-based pagination to load items in chunks.
