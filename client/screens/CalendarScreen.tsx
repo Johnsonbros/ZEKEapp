@@ -708,7 +708,54 @@ export default function CalendarScreen() {
     }
   }, [calendarConnection?.authUrl]);
 
-  // Show connection error state when not connected
+  // Show error state if connection check failed
+  if (!connectionLoading && calendarConnection?.error && !calendarConnection?.connected) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
+        <View
+          style={[
+            styles.headerControls,
+            {
+              marginTop: headerHeight + Spacing.md,
+            },
+          ]}
+        >
+          <View style={styles.dateHeader}>
+            <ThemedText type="h3" style={styles.dateText}>
+              Calendar
+            </ThemedText>
+          </View>
+        </View>
+
+        <View
+          style={[
+            styles.emptyContainer,
+            { paddingBottom: tabBarHeight + Spacing.xl },
+          ]}
+        >
+          <EmptyState
+            icon="alert-circle"
+            title="Unable to Load Calendar"
+            description="There was a problem connecting to your calendar. Please try again."
+          />
+          <Pressable
+            onPress={() => refetchConnection()}
+            style={[
+              styles.connectButton,
+              { backgroundColor: Colors.dark.primary },
+            ]}
+          >
+            <Feather name="refresh-cw" size={20} color="#fff" />
+            <ThemedText style={styles.connectButtonText}>
+              Retry
+            </ThemedText>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
+  // Show not connected state
   if (!calendarConnection?.connected && !connectionLoading) {
     return (
       <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
