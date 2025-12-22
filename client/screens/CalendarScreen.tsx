@@ -1469,7 +1469,7 @@ export default function CalendarScreen() {
           ]}
         >
           <View
-            style={[styles.modalHeader, { borderBottomColor: theme.border }]}
+            style={[styles.modalHeader, { borderBottomColor: theme.border, paddingTop: insets.top + Spacing.md }]}
           >
             <Pressable onPress={closeModal}>
               <ThemedText style={{ color: Colors.dark.primary }}>
