@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
 import {
   View,
   Pressable,
@@ -16,7 +16,6 @@ import Animated, {
   useSharedValue,
   withSpring,
   withTiming,
-  withDelay,
   withRepeat,
   withSequence,
   interpolate,
@@ -53,11 +52,11 @@ interface ZekeLauncherProps {
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-const ICON_SIZE = 52;
-const ICON_CONTAINER_SIZE = 64;
-const GRID_GAP = 16;
-const COLUMNS = 4;
+const ICON_SIZE = 48;
+const ICON_CONTAINER_SIZE = 60;
 const TRIGGER_SIZE = 56;
+const SEMI_CIRCLE_RADIUS = 140;
+const INNER_RADIUS = 80;
 
 function TriggerButton({
   onPress,
@@ -103,7 +102,8 @@ function TriggerButton({
       style={[
         styles.triggerContainer,
         {
-          bottom: insets.bottom + Spacing.lg,
+          bottom: insets.bottom + Spacing.md,
+          right: Spacing.md,
         },
       ]}
     >
@@ -138,22 +138,52 @@ function TriggerButton({
   );
 }
 
+interface SemiCirclePosition {
+  x: number;
+  y: number;
+  angle: number;
+}
+
+function calculateSemiCirclePositions(itemCount: number): SemiCirclePosition[] {
+  const positions: SemiCirclePosition[] = [];
+  const startAngle = Math.PI;
+  const endAngle = Math.PI / 2;
+  const angleRange = startAngle - endAngle;
+  
+  const rings = Math.ceil(itemCount / 4);
+  let itemIndex = 0;
+  
+  for (let ring = 0; ring < rings && itemIndex < itemCount; ring++) {
+    const ringRadius = INNER_RADIUS + ring * (SEMI_CIRCLE_RADIUS - INNER_RADIUS) / Math.max(1, rings - 1);
+    const itemsInRing = Math.min(4, itemCount - itemIndex);
+    
+    for (let i = 0; i < itemsInRing && itemIndex < itemCount; i++) {
+      const angle = startAngle - (i + 0.5) * (angleRange / itemsInRing);
+      const x = Math.cos(angle) * ringRadius;
+      const y = -Math.sin(angle) * ringRadius;
+      positions.push({ x, y, angle });
+      itemIndex++;
+    }
+  }
+  
+  return positions;
+}
+
 interface LauncherIconProps {
   item: LauncherItem;
   index: number;
   totalItems: number;
   animationProgress: SharedValue<number>;
   isEditMode: boolean;
-  wiggleOffset: number;
+  position: SemiCirclePosition;
   onPress: () => void;
   onLongPress: () => void;
-  onDragStart: () => void;
-  onDragEnd: (index: number, deltaX: number, deltaY: number) => void;
+  onDragStart: (index: number) => void;
+  onDragUpdate: (index: number, x: number, y: number) => void;
+  onDragEnd: (index: number) => void;
   isDragging: boolean;
-  draggedIndex: number | null;
-  positions: { x: number; y: number }[];
-  translateX: SharedValue<number>;
-  translateY: SharedValue<number>;
+  isBeingDragged: boolean;
+  animatedPosition: { x: number; y: number };
 }
 
 function LauncherIcon({
@@ -162,29 +192,29 @@ function LauncherIcon({
   totalItems,
   animationProgress,
   isEditMode,
-  wiggleOffset,
+  position,
   onPress,
   onLongPress,
   onDragStart,
+  onDragUpdate,
   onDragEnd,
   isDragging,
-  draggedIndex,
-  positions,
-  translateX,
-  translateY,
+  isBeingDragged,
+  animatedPosition,
 }: LauncherIconProps) {
   const { theme } = useTheme();
   const wiggleAnim = useSharedValue(0);
   const scaleAnim = useSharedValue(1);
-  const pressScale = useSharedValue(1);
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
 
   useEffect(() => {
-    if (isEditMode) {
+    if (isEditMode && !isBeingDragged) {
       wiggleAnim.value = withRepeat(
         withSequence(
-          withTiming(-3, { duration: 80, easing: Easing.linear }),
-          withTiming(3, { duration: 80, easing: Easing.linear }),
-          withTiming(-3, { duration: 80, easing: Easing.linear }),
+          withTiming(-2, { duration: 80, easing: Easing.linear }),
+          withTiming(2, { duration: 80, easing: Easing.linear }),
+          withTiming(-2, { duration: 80, easing: Easing.linear }),
           withTiming(0, { duration: 80, easing: Easing.linear }),
         ),
         -1,
@@ -194,117 +224,90 @@ function LauncherIcon({
       cancelAnimation(wiggleAnim);
       wiggleAnim.value = withTiming(0, { duration: 100 });
     }
-  }, [isEditMode, wiggleAnim]);
+  }, [isEditMode, isBeingDragged, wiggleAnim]);
 
-  const row = Math.floor(index / COLUMNS);
-  const col = index % COLUMNS;
-  const centerX = (COLUMNS - 1) / 2;
-  const centerY = (Math.ceil(totalItems / COLUMNS) - 1) / 2;
-  const angleFromCenter = Math.atan2(row - centerY, col - centerX);
-  const distanceFromCenter = Math.sqrt(
-    Math.pow(col - centerX, 2) + Math.pow(row - centerY, 2),
-  );
+  const baseX = position.x;
+  const baseY = position.y;
 
   const iconAnimatedStyle = useAnimatedStyle(() => {
-    const delay = index * 0.04;
+    const delay = index * 0.05;
     const adjustedProgress = Math.max(
       0,
-      Math.min(1, (animationProgress.value - delay) / (1 - delay * totalItems * 0.5)),
+      Math.min(1, (animationProgress.value - delay) / (1 - delay * totalItems * 0.3)),
     );
 
-    const explosionX = Math.cos(angleFromCenter) * distanceFromCenter * 80;
-    const explosionY = Math.sin(angleFromCenter) * distanceFromCenter * 80;
+    const explosionX = baseX * 1.5;
+    const explosionY = baseY * 1.5;
 
     const currentX = interpolate(
       adjustedProgress,
       [0, 0.3, 1],
-      [0, explosionX * 0.5, 0],
+      [0, explosionX * 0.3, baseX],
       Extrapolation.CLAMP,
     );
 
     const currentY = interpolate(
       adjustedProgress,
       [0, 0.3, 1],
-      [0, explosionY * 0.5, 0],
+      [0, explosionY * 0.3, baseY],
       Extrapolation.CLAMP,
     );
 
     const scale = interpolate(
       adjustedProgress,
-      [0, 0.2, 0.5, 1],
-      [0, 0.3, 1.1, 1],
-      Extrapolation.CLAMP,
-    );
-
-    const rotate = interpolate(
-      adjustedProgress,
-      [0, 0.5, 1],
-      [180, -10, 0],
+      [0, 0.2, 0.6, 1],
+      [0.2, 1.15, 0.95, 1],
       Extrapolation.CLAMP,
     );
 
     const opacity = interpolate(
       adjustedProgress,
-      [0, 0.1, 0.3],
-      [0, 0.5, 1],
+      [0, 0.2],
+      [0, 1],
       Extrapolation.CLAMP,
     );
 
-    const wiggle = isEditMode ? wiggleAnim.value + wiggleOffset : 0;
-    const dragX = isDragging && draggedIndex === index ? translateX.value : 0;
-    const dragY = isDragging && draggedIndex === index ? translateY.value : 0;
-    const dragScale = isDragging && draggedIndex === index ? 1.15 : 1;
+    const wiggle = isEditMode ? wiggleAnim.value : 0;
+    const dragScale = isBeingDragged ? 1.15 : (isDragging ? 0.95 : 1);
+
+    const finalX = isBeingDragged 
+      ? baseX + translateX.value 
+      : currentX;
+    const finalY = isBeingDragged 
+      ? baseY + translateY.value 
+      : currentY;
 
     return {
       opacity,
       transform: [
-        { translateX: currentX + dragX },
-        { translateY: currentY + dragY },
-        { scale: scale * scaleAnim.value * pressScale.value * dragScale },
-        { rotate: `${rotate + wiggle}deg` },
+        { translateX: finalX },
+        { translateY: finalY },
+        { scale: scale * scaleAnim.value * dragScale },
+        { rotate: `${wiggle}deg` },
       ],
-      zIndex: isDragging && draggedIndex === index ? 1000 : 1,
+      zIndex: isBeingDragged ? 100 : 1,
     };
   });
 
   const glowStyle = useAnimatedStyle(() => {
-    const delay = index * 0.04;
-    const adjustedProgress = Math.max(
-      0,
-      Math.min(1, (animationProgress.value - delay) / (1 - delay * totalItems * 0.5)),
-    );
-    const glowOpacity = interpolate(
-      adjustedProgress,
-      [0.5, 0.8, 1],
-      [0, 0.6, 0.3],
-      Extrapolation.CLAMP,
-    );
+    const glowOpacity = isBeingDragged ? 0.8 : 0.4;
+    const glowScale = isBeingDragged ? 1.3 : 1;
     return {
       opacity: glowOpacity,
+      transform: [{ scale: glowScale }],
     };
   });
 
-  const handlePressIn = () => {
-    pressScale.value = withSpring(0.92, { damping: 15, stiffness: 300 });
-  };
-
-  const handlePressOut = () => {
-    pressScale.value = withSpring(1, { damping: 15, stiffness: 300 });
-  };
-
   const longPressGesture = Gesture.LongPress()
-    .minDuration(500)
+    .minDuration(400)
     .onStart(() => {
       runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Heavy);
       runOnJS(onLongPress)();
     });
 
   const tapGesture = Gesture.Tap()
-    .onStart(() => {
-      runOnJS(handlePressIn)();
-    })
+    .maxDuration(400)
     .onEnd(() => {
-      runOnJS(handlePressOut)();
       if (!isEditMode) {
         runOnJS(onPress)();
       }
@@ -313,20 +316,21 @@ function LauncherIcon({
   const panGesture = Gesture.Pan()
     .enabled(isEditMode)
     .onStart(() => {
-      runOnJS(onDragStart)();
+      runOnJS(onDragStart)(index);
       scaleAnim.value = withSpring(1.15, { damping: 15, stiffness: 200 });
     })
     .onUpdate((event) => {
       translateX.value = event.translationX;
       translateY.value = event.translationY;
+      const currentDragX = baseX + event.translationX;
+      const currentDragY = baseY + event.translationY;
+      runOnJS(onDragUpdate)(index, currentDragX, currentDragY);
     })
-    .onEnd((event) => {
-      const finalX = event.translationX;
-      const finalY = event.translationY;
+    .onEnd(() => {
       scaleAnim.value = withSpring(1, { damping: 15, stiffness: 200 });
       translateX.value = withSpring(0);
       translateY.value = withSpring(0);
-      runOnJS(onDragEnd)(index, finalX, finalY);
+      runOnJS(onDragEnd)(index);
     });
 
   const composedGesture = Gesture.Race(
@@ -354,7 +358,7 @@ function LauncherIcon({
             style={styles.iconGradient}
           >
             <View style={styles.iconInnerBorder} />
-            <Feather name={item.icon} size={22} color="#FFFFFF" />
+            <Feather name={item.icon} size={20} color="#FFFFFF" />
           </LinearGradient>
         </View>
         
@@ -364,7 +368,7 @@ function LauncherIcon({
 
         {isEditMode ? (
           <View style={styles.deleteButton}>
-            <Feather name="minus" size={12} color="#FFFFFF" />
+            <Feather name="minus" size={10} color="#FFFFFF" />
           </View>
         ) : null}
       </Animated.View>
@@ -379,14 +383,13 @@ export function ZekeLauncher({ items }: ZekeLauncherProps) {
   const [isEditMode, setIsEditMode] = useState(false);
   const [orderedItems, setOrderedItems] = useState<LauncherItem[]>(items);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
+  const [previewOrder, setPreviewOrder] = useState<LauncherItem[]>([]);
 
   const animationProgress = useSharedValue(0);
   const pulseAnim = useSharedValue(0);
   const glowAnim = useSharedValue(0);
   const backdropOpacity = useSharedValue(0);
-
-  const translateX = useSharedValue(0);
-  const translateY = useSharedValue(0);
 
   useEffect(() => {
     loadOrder();
@@ -485,39 +488,58 @@ export function ZekeLauncher({ items }: ZekeLauncherProps) {
     setIsEditMode(true);
   }, []);
 
-  const handleDragStart = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-  }, []);
+  const positions = useMemo(() => {
+    const displayItems = previewOrder.length > 0 ? previewOrder : orderedItems;
+    return calculateSemiCirclePositions(displayItems.length);
+  }, [orderedItems, previewOrder]);
 
-  const handleDragEnd = useCallback(
-    (fromIndex: number, deltaX: number, deltaY: number) => {
-      const iconWidth = ICON_CONTAINER_SIZE + GRID_GAP;
-      const iconHeight = ICON_CONTAINER_SIZE + GRID_GAP + 20;
-
-      const colDelta = Math.round(deltaX / iconWidth);
-      const rowDelta = Math.round(deltaY / iconHeight);
-
-      const fromRow = Math.floor(fromIndex / COLUMNS);
-      const fromCol = fromIndex % COLUMNS;
-
-      const toRow = Math.max(0, Math.min(Math.ceil(orderedItems.length / COLUMNS) - 1, fromRow + rowDelta));
-      const toCol = Math.max(0, Math.min(COLUMNS - 1, fromCol + colDelta));
-
-      const toIndex = Math.min(orderedItems.length - 1, toRow * COLUMNS + toCol);
-
-      if (toIndex !== fromIndex && toIndex >= 0 && toIndex < orderedItems.length) {
-        const newOrder = [...orderedItems];
-        const [removed] = newOrder.splice(fromIndex, 1);
-        newOrder.splice(toIndex, 0, removed);
-        setOrderedItems(newOrder);
-        saveOrder(newOrder);
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  const findClosestPosition = useCallback((x: number, y: number): number => {
+    let closest = 0;
+    let minDist = Infinity;
+    
+    positions.forEach((pos, idx) => {
+      const dist = Math.sqrt(Math.pow(x - pos.x, 2) + Math.pow(y - pos.y, 2));
+      if (dist < minDist) {
+        minDist = dist;
+        closest = idx;
       }
+    });
+    
+    return closest;
+  }, [positions]);
 
-      setDraggedIndex(null);
-    },
-    [orderedItems],
-  );
+  const handleDragStart = useCallback((index: number) => {
+    setDraggedIndex(index);
+    setPreviewOrder([...orderedItems]);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  }, [orderedItems]);
+
+  const handleDragUpdate = useCallback((fromIndex: number, x: number, y: number) => {
+    setDragPosition({ x, y });
+    
+    const targetIndex = findClosestPosition(x, y);
+    
+    if (targetIndex !== fromIndex && previewOrder.length > 0) {
+      const newOrder = [...orderedItems];
+      const [removed] = newOrder.splice(fromIndex, 1);
+      newOrder.splice(targetIndex, 0, removed);
+      
+      if (JSON.stringify(newOrder.map(i => i.id)) !== JSON.stringify(previewOrder.map(i => i.id))) {
+        setPreviewOrder(newOrder);
+        Haptics.selectionAsync();
+      }
+    }
+  }, [orderedItems, previewOrder, findClosestPosition]);
+
+  const handleDragEnd = useCallback((fromIndex: number) => {
+    if (previewOrder.length > 0) {
+      setOrderedItems(previewOrder);
+      saveOrder(previewOrder);
+    }
+    setDraggedIndex(null);
+    setPreviewOrder([]);
+    setDragPosition({ x: 0, y: 0 });
+  }, [previewOrder]);
 
   const backdropAnimatedStyle = useAnimatedStyle(() => ({
     opacity: backdropOpacity.value * 0.85,
@@ -542,16 +564,8 @@ export function ZekeLauncher({ items }: ZekeLauncherProps) {
     };
   });
 
-  const gridWidth =
-    COLUMNS * ICON_CONTAINER_SIZE + (COLUMNS - 1) * GRID_GAP + Spacing.xl * 2;
-  const rows = Math.ceil(orderedItems.length / COLUMNS);
-  const gridHeight =
-    rows * (ICON_CONTAINER_SIZE + 24) + (rows - 1) * GRID_GAP + Spacing.xl * 2 + 60;
-
-  const positions = orderedItems.map((_, i) => ({
-    x: (i % COLUMNS) * (ICON_CONTAINER_SIZE + GRID_GAP),
-    y: Math.floor(i / COLUMNS) * (ICON_CONTAINER_SIZE + GRID_GAP + 20),
-  }));
+  const displayItems = previewOrder.length > 0 ? previewOrder : orderedItems;
+  const menuSize = SEMI_CIRCLE_RADIUS * 2 + ICON_CONTAINER_SIZE + 40;
 
   return (
     <>
@@ -575,108 +589,105 @@ export function ZekeLauncher({ items }: ZekeLauncherProps) {
             style={[
               styles.menuContainer,
               {
-                width: gridWidth,
-                height: gridHeight,
-                bottom: insets.bottom + TRIGGER_SIZE + Spacing.xl + Spacing.lg,
+                width: menuSize,
+                height: menuSize,
+                bottom: insets.bottom + Spacing.md + TRIGGER_SIZE / 2 - menuSize / 2,
+                right: Spacing.md + TRIGGER_SIZE / 2 - menuSize / 2,
               },
               menuContainerStyle,
             ]}
           >
             {Platform.OS === "ios" ? (
               <BlurView
-                intensity={80}
+                intensity={60}
                 tint={isDark ? "dark" : "light"}
                 style={[
-                  styles.menuBlur,
+                  styles.semiCircleContainer,
                   { borderColor: theme.border },
                 ]}
               >
-                <View style={styles.menuContent}>
-                  <ThemedText type="h4" style={styles.menuTitle}>
-                    ZEKE Menu
-                  </ThemedText>
+                <View style={styles.iconAnchor}>
                   {isEditMode ? (
                     <Pressable
                       onPress={() => setIsEditMode(false)}
-                      style={styles.doneButton}
+                      style={styles.doneButtonFloat}
                     >
                       <ThemedText type="small" style={{ color: Colors.dark.primary }}>
                         Done
                       </ThemedText>
                     </Pressable>
                   ) : null}
-                  <View style={styles.grid}>
-                    {orderedItems.map((item, index) => (
+                  {displayItems.map((item, index) => {
+                    const originalIndex = orderedItems.findIndex(i => i.id === item.id);
+                    const isBeingDragged = draggedIndex === originalIndex;
+                    
+                    return (
                       <LauncherIcon
                         key={item.id}
                         item={item}
                         index={index}
-                        totalItems={orderedItems.length}
+                        totalItems={displayItems.length}
                         animationProgress={animationProgress}
                         isEditMode={isEditMode}
-                        wiggleOffset={(index % 3) * 0.5}
+                        position={positions[index] || { x: 0, y: 0, angle: 0 }}
                         onPress={() => handleItemPress(item)}
                         onLongPress={handleLongPress}
-                        onDragStart={() => setDraggedIndex(index)}
+                        onDragStart={handleDragStart}
+                        onDragUpdate={handleDragUpdate}
                         onDragEnd={handleDragEnd}
                         isDragging={draggedIndex !== null}
-                        draggedIndex={draggedIndex}
-                        positions={positions}
-                        translateX={translateX}
-                        translateY={translateY}
+                        isBeingDragged={isBeingDragged}
+                        animatedPosition={isBeingDragged ? dragPosition : positions[index] || { x: 0, y: 0 }}
                       />
-                    ))}
-                  </View>
+                    );
+                  })}
                 </View>
               </BlurView>
             ) : (
               <View
                 style={[
-                  styles.menuCard,
+                  styles.semiCircleContainerAndroid,
                   {
                     backgroundColor: theme.backgroundDefault,
                     borderColor: theme.border,
                   },
                 ]}
               >
-                <View style={styles.menuContent}>
-                  <View style={styles.menuHeader}>
-                    <ThemedText type="h4" style={styles.menuTitle}>
-                      ZEKE Menu
-                    </ThemedText>
-                    {isEditMode ? (
-                      <Pressable
-                        onPress={() => setIsEditMode(false)}
-                        style={styles.doneButton}
-                      >
-                        <ThemedText type="small" style={{ color: Colors.dark.primary }}>
-                          Done
-                        </ThemedText>
-                      </Pressable>
-                    ) : null}
-                  </View>
-                  <View style={styles.grid}>
-                    {orderedItems.map((item, index) => (
+                <View style={styles.iconAnchor}>
+                  {isEditMode ? (
+                    <Pressable
+                      onPress={() => setIsEditMode(false)}
+                      style={styles.doneButtonFloat}
+                    >
+                      <ThemedText type="small" style={{ color: Colors.dark.primary }}>
+                        Done
+                      </ThemedText>
+                    </Pressable>
+                  ) : null}
+                  {displayItems.map((item, index) => {
+                    const originalIndex = orderedItems.findIndex(i => i.id === item.id);
+                    const isBeingDragged = draggedIndex === originalIndex;
+                    
+                    return (
                       <LauncherIcon
                         key={item.id}
                         item={item}
                         index={index}
-                        totalItems={orderedItems.length}
+                        totalItems={displayItems.length}
                         animationProgress={animationProgress}
                         isEditMode={isEditMode}
-                        wiggleOffset={(index % 3) * 0.5}
+                        position={positions[index] || { x: 0, y: 0, angle: 0 }}
                         onPress={() => handleItemPress(item)}
                         onLongPress={handleLongPress}
-                        onDragStart={() => setDraggedIndex(index)}
+                        onDragStart={handleDragStart}
+                        onDragUpdate={handleDragUpdate}
                         onDragEnd={handleDragEnd}
                         isDragging={draggedIndex !== null}
-                        draggedIndex={draggedIndex}
-                        positions={positions}
-                        translateX={translateX}
-                        translateY={translateY}
+                        isBeingDragged={isBeingDragged}
+                        animatedPosition={isBeingDragged ? dragPosition : positions[index] || { x: 0, y: 0 }}
                       />
-                    ))}
-                  </View>
+                    );
+                  })}
                 </View>
               </View>
             )}
@@ -701,7 +712,6 @@ const styles = StyleSheet.create({
   },
   triggerContainer: {
     position: "absolute",
-    alignSelf: "center",
     zIndex: 1000,
     alignItems: "center",
     justifyContent: "center",
@@ -754,54 +764,39 @@ const styles = StyleSheet.create({
   },
   menuContainer: {
     position: "absolute",
-    alignSelf: "center",
     zIndex: 999,
   },
-  menuBlur: {
+  semiCircleContainer: {
     flex: 1,
-    borderRadius: BorderRadius.xl,
+    borderRadius: SEMI_CIRCLE_RADIUS + 50,
     borderWidth: 1,
     overflow: "hidden",
   },
-  menuCard: {
+  semiCircleContainerAndroid: {
     flex: 1,
-    borderRadius: BorderRadius.xl,
+    borderRadius: SEMI_CIRCLE_RADIUS + 50,
     borderWidth: 1,
     overflow: "hidden",
   },
-  menuContent: {
-    flex: 1,
-    padding: Spacing.lg,
-  },
-  menuHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: Spacing.md,
-  },
-  menuTitle: {
-    marginBottom: Spacing.md,
-  },
-  doneButton: {
+  iconAnchor: {
     position: "absolute",
-    right: 0,
-    top: 0,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-  },
-  grid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: GRID_GAP,
+    right: SEMI_CIRCLE_RADIUS + ICON_CONTAINER_SIZE / 2 + 20,
+    bottom: SEMI_CIRCLE_RADIUS + ICON_CONTAINER_SIZE / 2 + 20,
+    width: 0,
+    height: 0,
   },
   iconWrapper: {
+    position: "absolute",
     width: ICON_CONTAINER_SIZE,
+    height: ICON_CONTAINER_SIZE + 16,
     alignItems: "center",
+    marginLeft: -ICON_CONTAINER_SIZE / 2,
+    marginTop: -ICON_CONTAINER_SIZE / 2,
   },
   iconGlow: {
     position: "absolute",
     top: -4,
-    left: -4,
+    left: (ICON_CONTAINER_SIZE - ICON_SIZE) / 2 - 4,
     width: ICON_SIZE + 8,
     height: ICON_SIZE + 8,
     borderRadius: BorderRadius.md + 4,
@@ -838,15 +833,16 @@ const styles = StyleSheet.create({
   iconLabel: {
     marginTop: Spacing.xs,
     textAlign: "center",
-    width: "100%",
+    fontSize: 10,
+    width: ICON_CONTAINER_SIZE,
   },
   deleteButton: {
     position: "absolute",
-    top: -6,
-    left: -6,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    top: -4,
+    left: (ICON_CONTAINER_SIZE - ICON_SIZE) / 2 - 4,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
     backgroundColor: Colors.dark.error,
     justifyContent: "center",
     alignItems: "center",
@@ -855,5 +851,16 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.3,
     shadowRadius: 2,
+  },
+  doneButtonFloat: {
+    position: "absolute",
+    left: -SEMI_CIRCLE_RADIUS - 60,
+    top: -SEMI_CIRCLE_RADIUS - 40,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    backgroundColor: "rgba(99, 102, 241, 0.2)",
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    borderColor: "rgba(99, 102, 241, 0.4)",
   },
 });
