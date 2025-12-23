@@ -1170,7 +1170,7 @@ const styles = StyleSheet.create({
   monitoringCard: {
     padding: Spacing.lg,
     borderRadius: BorderRadius.md,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.xl,
   },
   monitoringHeader: {
     flexDirection: "row",
@@ -1254,12 +1254,12 @@ const styles = StyleSheet.create({
   dashboardCard: {
     padding: Spacing.lg,
     borderRadius: BorderRadius.md,
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.xl,
   },
   emptyCard: {
     borderRadius: BorderRadius.md,
     padding: Spacing.xl,
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.xl,
   },
   emptyCardContent: {
     alignItems: "center",
@@ -1273,12 +1273,12 @@ const styles = StyleSheet.create({
   liveTranscriptionCard: {
     borderRadius: BorderRadius.md,
     padding: Spacing.lg,
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.xl,
   },
   settingsCard: {
     borderRadius: BorderRadius.md,
     padding: Spacing.lg,
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.xl,
   },
   settingsCardContent: {
     flexDirection: "row",
