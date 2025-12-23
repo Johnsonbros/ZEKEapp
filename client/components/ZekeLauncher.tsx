@@ -322,57 +322,46 @@ function LauncherIcon({
   const baseY = position.y;
 
   const iconAnimatedStyle = useAnimatedStyle(() => {
-    const ringDelay = position.ring * 0.08;
-    const indexDelay = position.indexInRing * 0.03;
+    const ringDelay = position.ring * 0.16;
+    const indexDelay = position.indexInRing * 0.08;
     const staggerDelay = ringDelay + indexDelay;
-    const adjustedProgress = Math.max(
-      0,
-      Math.min(1, (animationProgress.value - staggerDelay) / (1 - staggerDelay * 0.5)),
-    );
+    
+    const rawProgress = Math.max(0, Math.min(1, 
+      (animationProgress.value - staggerDelay) / Math.max(0.4, 1 - staggerDelay)
+    ));
+    
+    const eased = 1 - (1 - rawProgress) * (1 - rawProgress) * (1 - rawProgress);
 
-    const distance = Math.sqrt(baseX * baseX + baseY * baseY);
-    const distanceFactor = Math.min(1, distance / 300);
-    
-    const liquidOvershoot = 1.08 + distanceFactor * 0.06;
-    const liquidBounce = 0.97 - distanceFactor * 0.02;
-    
     const currentX = interpolate(
-      adjustedProgress,
-      [0, 0.5, 0.75, 1],
-      [0, baseX * liquidOvershoot, baseX * liquidBounce, baseX],
+      eased,
+      [0, 1],
+      [0, baseX],
       Extrapolation.CLAMP,
     );
 
     const currentY = interpolate(
-      adjustedProgress,
-      [0, 0.5, 0.75, 1],
-      [0, baseY * liquidOvershoot, baseY * liquidBounce, baseY],
+      eased,
+      [0, 1],
+      [0, baseY],
       Extrapolation.CLAMP,
     );
 
     const scale = interpolate(
-      adjustedProgress,
-      [0, 0.35, 0.6, 0.85, 1],
-      [0.2, 1.1, 1.02, 0.98, 1],
+      eased,
+      [0, 0.7, 1],
+      [0.4, 1.01, 1],
       Extrapolation.CLAMP,
     );
 
     const opacity = interpolate(
-      adjustedProgress,
-      [0, 0.2, 0.5],
-      [0, 0.9, 1],
-      Extrapolation.CLAMP,
-    );
-
-    const liquidRotate = interpolate(
-      adjustedProgress,
-      [0, 0.4, 0.7, 1],
-      [0, 2, -1, 0],
+      eased,
+      [0, 0.3, 1],
+      [0, 1, 1],
       Extrapolation.CLAMP,
     );
 
     const wiggle = isEditMode ? wiggleAnim.value : 0;
-    const dragScale = isBeingDragged ? 1.15 : (isDragging ? 0.95 : 1);
+    const dragScale = isBeingDragged ? 1.08 : (isDragging ? 0.94 : 1);
 
     const finalX = isBeingDragged 
       ? baseX + translateX.value 
@@ -387,7 +376,7 @@ function LauncherIcon({
         { translateX: finalX },
         { translateY: finalY },
         { scale: scale * scaleAnim.value * dragScale },
-        { rotate: `${wiggle + liquidRotate}deg` },
+        { rotate: `${wiggle}deg` },
       ],
       zIndex: isBeingDragged ? 100 : 1,
     };
@@ -411,6 +400,12 @@ function LauncherIcon({
 
   const tapGesture = Gesture.Tap()
     .maxDuration(400)
+    .onBegin(() => {
+      scaleAnim.value = withTiming(0.94, { duration: 80 });
+    })
+    .onFinalize(() => {
+      scaleAnim.value = withTiming(1, { duration: 120 });
+    })
     .onEnd(() => {
       if (!isEditMode) {
         runOnJS(onPress)();
@@ -642,22 +637,18 @@ export function ZekeLauncher({ items, skinId = "default" }: ZekeLauncherProps) {
         setIsEditMode(false);
         return;
       }
-      animationProgress.value = withSpring(0, {
-        damping: 20,
-        stiffness: 300,
-        mass: 0.6,
-        overshootClamping: true,
+      animationProgress.value = withTiming(0, { 
+        duration: 180,
+        easing: Easing.in(Easing.cubic),
       });
-      backdropOpacity.value = withTiming(0, { duration: 250 });
-      setTimeout(() => setIsOpen(false), 300);
+      backdropOpacity.value = withTiming(0, { duration: 180 });
+      setTimeout(() => setIsOpen(false), 200);
     } else {
       setIsOpen(true);
-      backdropOpacity.value = withTiming(1, { duration: 200 });
-      animationProgress.value = withSpring(1, {
-        damping: 16,
-        stiffness: 200,
-        mass: 0.4,
-        overshootClamping: false,
+      backdropOpacity.value = withTiming(1, { duration: 250 });
+      animationProgress.value = withTiming(1, { 
+        duration: 280,
+        easing: Easing.out(Easing.cubic),
       });
     }
   }, [isOpen, isEditMode, animationProgress, backdropOpacity, skin]);
