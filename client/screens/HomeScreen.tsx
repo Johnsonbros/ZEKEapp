@@ -33,7 +33,6 @@ import { DeviceCard, DeviceInfo } from "@/components/DeviceCard";
 import { PulsingDot } from "@/components/PulsingDot";
 import { SyncStatusBar } from "@/components/SyncStatusBar";
 import { SpeakerTagList } from "@/components/SpeakerTag";
-import { QuickActionsMenu, QuickAction } from "@/components/QuickActionsMenu";
 import { OmiHealthCard } from "@/components/OmiHealthCard";
 import { NewsBriefingSection, type NewsStory } from "@/components/NewsBriefingCard";
 import { ZekeAlertStack, type ZekeAlert } from "@/components/ZekeAlertBanner";
@@ -444,60 +443,6 @@ export default function HomeScreen() {
   const unpurchasedGroceryItems = groceryItems.filter(
     (item) => !item.isPurchased,
   );
-
-  const quickActions: QuickAction[] = [
-    {
-      id: "upload",
-      icon: "upload-cloud",
-      label: "Upload",
-      gradientColors: Gradients.accent,
-      onPress: handleUploadPress,
-    },
-    {
-      id: "call",
-      icon: "phone",
-      label: "Call",
-      gradientColors: ["#6366F1", "#8B5CF6"],
-      onPress: handleCallPress,
-    },
-    {
-      id: "message",
-      icon: "message-circle",
-      label: "Message",
-      gradientColors: ["#8B5CF6", "#A855F7"],
-      onPress: handleMessagePress,
-    },
-    {
-      id: "calendar",
-      icon: "calendar",
-      label: "Calendar",
-      gradientColors: ["#10B981", "#059669"],
-      onPress: () => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        navigation.navigate("CalendarTab");
-      },
-    },
-    {
-      id: "tasks",
-      icon: "check-square",
-      label: "Tasks",
-      gradientColors: ["#F59E0B", "#D97706"],
-      onPress: () => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        navigation.navigate("TasksTab");
-      },
-    },
-    {
-      id: "location",
-      icon: "map-pin",
-      label: "Location",
-      gradientColors: ["#EF4444", "#DC2626"],
-      onPress: () => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        navigation.navigate("Location");
-      },
-    },
-  ];
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.backgroundRoot }}>
@@ -1168,7 +1113,6 @@ export default function HomeScreen() {
         </Pressable>
         </View>
       </ScrollView>
-      <QuickActionsMenu actions={quickActions} />
     </View>
   );
 }
