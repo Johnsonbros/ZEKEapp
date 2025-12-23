@@ -2,9 +2,7 @@ import React from "react";
 import { View, StyleSheet } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
-import { useNavigation, CompositeNavigationProp, NavigatorScreenParams } from "@react-navigation/native";
-import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { NavigatorScreenParams } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
 
 import HomeStackNavigator from "@/navigation/HomeStackNavigator";
@@ -14,7 +12,6 @@ import GeoStackNavigator from "@/navigation/GeoStackNavigator";
 import TasksStackNavigator from "@/navigation/TasksStackNavigator";
 import { ZekeLauncher, LauncherItem } from "@/components/ZekeLauncher";
 import { Gradients } from "@/constants/theme";
-import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 import type { HomeStackParamList } from "@/navigation/HomeStackNavigator";
 
 export type MainTabParamList = {
@@ -27,16 +24,11 @@ export type MainTabParamList = {
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
-type NavigationProp = CompositeNavigationProp<
-  BottomTabNavigationProp<MainTabParamList>,
-  CompositeNavigationProp<
-    NativeStackNavigationProp<HomeStackParamList>,
-    NativeStackNavigationProp<RootStackParamList>
-  >
->;
+interface ZekeLauncherWrapperProps {
+  navigation: any;
+}
 
-function ZekeLauncherWrapper() {
-  const navigation = useNavigation<NavigationProp>();
+function ZekeLauncherWrapper({ navigation }: ZekeLauncherWrapperProps) {
 
   const launcherItems: LauncherItem[] = [
     {
@@ -129,7 +121,7 @@ export default function MainTabNavigator() {
     <View style={styles.container}>
       <Tab.Navigator
         initialRouteName="HomeTab"
-        tabBar={() => <ZekeLauncherWrapper />}
+        tabBar={({ navigation }) => <ZekeLauncherWrapper navigation={navigation} />}
         screenOptions={{
           headerShown: false,
         }}
