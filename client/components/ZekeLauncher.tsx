@@ -322,46 +322,52 @@ function LauncherIcon({
   const baseY = position.y;
 
   const iconAnimatedStyle = useAnimatedStyle(() => {
-    const ringDelay = position.ring * 0.16;
-    const indexDelay = position.indexInRing * 0.08;
-    const staggerDelay = ringDelay + indexDelay;
-    
-    const rawProgress = Math.max(0, Math.min(1, 
-      (animationProgress.value - staggerDelay) / Math.max(0.4, 1 - staggerDelay)
-    ));
-    
-    const eased = 1 - (1 - rawProgress) * (1 - rawProgress) * (1 - rawProgress);
+    const staggerDelay = index * 0.06;
+    const adjustedProgress = Math.max(
+      0,
+      Math.min(1, (animationProgress.value - staggerDelay) / (1 - staggerDelay)),
+    );
 
+    const liquidOvershoot = 1.12;
+    const liquidBounce = 0.96;
+    
     const currentX = interpolate(
-      eased,
-      [0, 1],
-      [0, baseX],
+      adjustedProgress,
+      [0, 0.4, 0.7, 1],
+      [0, baseX * liquidOvershoot, baseX * liquidBounce, baseX],
       Extrapolation.CLAMP,
     );
 
     const currentY = interpolate(
-      eased,
-      [0, 1],
-      [0, baseY],
+      adjustedProgress,
+      [0, 0.4, 0.7, 1],
+      [0, baseY * liquidOvershoot, baseY * liquidBounce, baseY],
       Extrapolation.CLAMP,
     );
 
     const scale = interpolate(
-      eased,
-      [0, 0.7, 1],
-      [0.4, 1.01, 1],
+      adjustedProgress,
+      [0, 0.3, 0.5, 0.8, 1],
+      [0.1, 1.18, 1.08, 0.97, 1],
       Extrapolation.CLAMP,
     );
 
     const opacity = interpolate(
-      eased,
-      [0, 0.3, 1],
-      [0, 1, 1],
+      adjustedProgress,
+      [0, 0.15, 0.4],
+      [0, 0.8, 1],
+      Extrapolation.CLAMP,
+    );
+
+    const liquidRotate = interpolate(
+      adjustedProgress,
+      [0, 0.3, 0.6, 1],
+      [0, 3, -2, 0],
       Extrapolation.CLAMP,
     );
 
     const wiggle = isEditMode ? wiggleAnim.value : 0;
-    const dragScale = isBeingDragged ? 1.08 : (isDragging ? 0.94 : 1);
+    const dragScale = isBeingDragged ? 1.15 : (isDragging ? 0.95 : 1);
 
     const finalX = isBeingDragged 
       ? baseX + translateX.value 
@@ -376,7 +382,7 @@ function LauncherIcon({
         { translateX: finalX },
         { translateY: finalY },
         { scale: scale * scaleAnim.value * dragScale },
-        { rotate: `${wiggle}deg` },
+        { rotate: `${wiggle + liquidRotate}deg` },
       ],
       zIndex: isBeingDragged ? 100 : 1,
     };
@@ -400,12 +406,6 @@ function LauncherIcon({
 
   const tapGesture = Gesture.Tap()
     .maxDuration(400)
-    .onBegin(() => {
-      scaleAnim.value = withTiming(0.94, { duration: 80 });
-    })
-    .onFinalize(() => {
-      scaleAnim.value = withTiming(1, { duration: 120 });
-    })
     .onEnd(() => {
       if (!isEditMode) {
         runOnJS(onPress)();
@@ -637,18 +637,22 @@ export function ZekeLauncher({ items, skinId = "default" }: ZekeLauncherProps) {
         setIsEditMode(false);
         return;
       }
-      animationProgress.value = withTiming(0, { 
-        duration: 180,
-        easing: Easing.in(Easing.cubic),
+      animationProgress.value = withSpring(0, {
+        damping: 18,
+        stiffness: 280,
+        mass: 0.7,
+        overshootClamping: false,
       });
-      backdropOpacity.value = withTiming(0, { duration: 180 });
-      setTimeout(() => setIsOpen(false), 200);
+      backdropOpacity.value = withTiming(0, { duration: 280 });
+      setTimeout(() => setIsOpen(false), 350);
     } else {
       setIsOpen(true);
       backdropOpacity.value = withTiming(1, { duration: 250 });
-      animationProgress.value = withTiming(1, { 
-        duration: 280,
-        easing: Easing.out(Easing.cubic),
+      animationProgress.value = withSpring(1, {
+        damping: 14,
+        stiffness: 180,
+        mass: 0.5,
+        overshootClamping: false,
       });
     }
   }, [isOpen, isEditMode, animationProgress, backdropOpacity, skin]);

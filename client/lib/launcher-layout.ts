@@ -102,33 +102,9 @@ export function calculateSpiralPositions(
 ): RingPosition[] {
   const positions: RingPosition[] = [];
   const iconFootprint = config.iconContainerSize + config.minIconSpacing;
+  const sweepAngle = Math.PI / 2;
   const startRadius = config.baseRadius;
   const radialIncrement = iconFootprint;
-  
-  const sweepAngle = Math.PI * 0.6;
-  
-  let centerAngle: number;
-  switch (anchor) {
-    case "bottom-center":
-    case "bottom-right-quarter":
-    case "bottom-left-quarter":
-      centerAngle = -Math.PI / 2;
-      break;
-    case "bottom-right":
-      centerAngle = -Math.PI * 0.75;
-      break;
-    case "bottom-left":
-      centerAngle = -Math.PI * 0.25;
-      break;
-    case "top-right":
-      centerAngle = Math.PI * 0.75;
-      break;
-    case "top-left":
-      centerAngle = Math.PI * 0.25;
-      break;
-    default:
-      centerAngle = -Math.PI / 2;
-  }
   
   let placedCount = 0;
   let ring = 0;
@@ -139,19 +115,54 @@ export function calculateSpiralPositions(
     const maxIconsInRing = Math.max(1, Math.floor(sweepAngle / minAngleStep));
     const iconsToPlace = Math.min(maxIconsInRing, itemCount - placedCount);
     
-    const halfSweep = sweepAngle / 2;
+    const usedSweep = iconsToPlace * minAngleStep;
+    const startPadding = (sweepAngle - usedSweep) / 2;
     
     for (let i = 0; i < iconsToPlace; i++) {
-      const t = iconsToPlace > 1 ? i / (iconsToPlace - 1) : 0.5;
-      const angle = centerAngle - halfSweep + t * sweepAngle;
+      const localAngle = startPadding + (i + 0.5) * minAngleStep;
       
-      const x = Math.cos(angle) * radius;
-      const y = Math.sin(angle) * radius;
+      let x: number;
+      let y: number;
+      let finalAngle: number;
+      
+      switch (anchor) {
+        case "bottom-right":
+          finalAngle = Math.PI / 2 + localAngle;
+          x = -Math.abs(Math.cos(finalAngle) * radius);
+          y = -Math.abs(Math.sin(finalAngle) * radius);
+          break;
+        case "bottom-left":
+          finalAngle = localAngle;
+          x = Math.abs(Math.cos(finalAngle) * radius);
+          y = -Math.abs(Math.sin(finalAngle) * radius);
+          break;
+        case "bottom-center":
+        case "bottom-right-quarter":
+        case "bottom-left-quarter":
+          finalAngle = Math.PI / 2 + localAngle;
+          x = -Math.abs(Math.cos(finalAngle) * radius);
+          y = -Math.abs(Math.sin(finalAngle) * radius);
+          break;
+        case "top-right":
+          finalAngle = Math.PI + localAngle;
+          x = -Math.abs(Math.cos(finalAngle) * radius);
+          y = Math.abs(Math.sin(finalAngle) * radius);
+          break;
+        case "top-left":
+          finalAngle = Math.PI * 1.5 + localAngle;
+          x = Math.abs(Math.cos(finalAngle) * radius);
+          y = Math.abs(Math.sin(finalAngle) * radius);
+          break;
+        default:
+          finalAngle = Math.PI / 2 + localAngle;
+          x = -Math.abs(Math.cos(finalAngle) * radius);
+          y = -Math.abs(Math.sin(finalAngle) * radius);
+      }
       
       positions.push({
         x,
         y,
-        angle,
+        angle: finalAngle,
         ring,
         indexInRing: i,
       });
