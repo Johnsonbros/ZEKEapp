@@ -29,6 +29,7 @@ interface ZekeLauncherWrapperProps {
 }
 
 function ZekeLauncherWrapper({ navigation }: ZekeLauncherWrapperProps) {
+  console.log("[ZekeLauncher] Wrapper rendered, navigation available:", !!navigation);
 
   const launcherItems: LauncherItem[] = [
     {
@@ -37,6 +38,7 @@ function ZekeLauncherWrapper({ navigation }: ZekeLauncherWrapperProps) {
       label: "Home",
       gradientColors: ["#6366F1", "#8B5CF6"],
       onPress: () => {
+        console.log("[ZekeLauncher] Home pressed, navigating to HomeTab");
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         navigation.navigate("HomeTab");
       },
