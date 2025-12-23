@@ -103,8 +103,7 @@ function TriggerButton({
     anchor,
     skin.trigger.size,
     insets,
-    skin.layout.padding,
-    SCREEN_WIDTH
+    skin.layout.padding
   );
 
   const triggerAnimatedStyle = useAnimatedStyle(() => {
@@ -164,7 +163,7 @@ function TriggerButton({
         skin.layout.padding
       );
       
-      const currentPos = getTriggerPositionStyle(anchor, skin.trigger.size, insets, skin.layout.padding, SCREEN_WIDTH);
+      const currentPos = getTriggerPositionStyle(anchor, skin.trigger.size, insets, skin.layout.padding);
       const triggerX = (currentPos.right !== undefined ? SCREEN_WIDTH - currentPos.right - skin.trigger.size / 2 : currentPos.left! + skin.trigger.size / 2) + event.translationX;
       const triggerY = (currentPos.bottom !== undefined ? SCREEN_HEIGHT - currentPos.bottom - skin.trigger.size / 2 : currentPos.top! + skin.trigger.size / 2) + event.translationY;
       
@@ -798,8 +797,7 @@ export function ZekeLauncher({ items, skinId = "default" }: ZekeLauncherProps) {
     clampedMenuSize,
     skin.trigger.size,
     insets,
-    skin.layout.padding,
-    SCREEN_WIDTH
+    skin.layout.padding
   );
 
   const iconAnchorStyle = getIconAnchorStyle(

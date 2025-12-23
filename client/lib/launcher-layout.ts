@@ -21,7 +21,7 @@ export function getSnapPoints(
   padding: number = 16
 ): SnapPoint[] {
   const halfTrigger = triggerSize / 2;
-  const bottomY = screenHeight - 100 - halfTrigger;
+  const bottomY = screenHeight - insets.bottom - padding - halfTrigger;
   
   return [
     {
@@ -332,12 +332,9 @@ export function getTriggerPositionStyle(
   anchor: AnchorPosition,
   triggerSize: number,
   insets: { top: number; bottom: number; left: number; right: number },
-  padding: number = 16,
-  screenWidth?: number
+  padding: number = 16
 ): { top?: number; bottom?: number; left?: number; right?: number } {
-  const bottomPos = 100;
-  const halfTrigger = triggerSize / 2;
-  const width = screenWidth || 400;
+  const bottomPos = insets.bottom + padding;
   
   switch (anchor) {
     case "bottom-right":
@@ -345,11 +342,11 @@ export function getTriggerPositionStyle(
     case "bottom-left":
       return { bottom: bottomPos, left: padding };
     case "bottom-center":
-      return { bottom: bottomPos, left: width / 2 - halfTrigger };
+      return { bottom: bottomPos, right: padding };
     case "bottom-right-quarter":
-      return { bottom: bottomPos, left: width * 0.75 - halfTrigger };
+      return { bottom: bottomPos, right: padding };
     case "bottom-left-quarter":
-      return { bottom: bottomPos, left: width * 0.25 - halfTrigger };
+      return { bottom: bottomPos, left: padding };
     case "top-right":
       return { top: insets.top + padding, right: padding };
     case "top-left":
@@ -364,12 +361,10 @@ export function getMenuPositionStyle(
   _menuSize: number,
   triggerSize: number,
   insets: { top: number; bottom: number; left: number; right: number },
-  padding: number = 16,
-  screenWidth?: number
+  padding: number = 16
 ): { top?: number; bottom?: number; left?: number; right?: number } {
   const triggerHalf = triggerSize / 2;
-  const bottomPos = 100 + triggerHalf;
-  const width = screenWidth || 400;
+  const bottomPos = insets.bottom + padding + triggerHalf;
   
   switch (anchor) {
     case "bottom-right":
@@ -385,17 +380,17 @@ export function getMenuPositionStyle(
     case "bottom-center":
       return {
         bottom: bottomPos,
-        left: width / 2,
+        right: padding + triggerHalf,
       };
     case "bottom-right-quarter":
       return {
         bottom: bottomPos,
-        left: width * 0.75,
+        right: padding + triggerHalf,
       };
     case "bottom-left-quarter":
       return {
         bottom: bottomPos,
-        left: width * 0.25,
+        left: padding + triggerHalf,
       };
     case "top-right":
       return {
