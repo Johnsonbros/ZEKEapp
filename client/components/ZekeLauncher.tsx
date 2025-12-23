@@ -322,47 +322,52 @@ function LauncherIcon({
   const baseY = position.y;
 
   const iconAnimatedStyle = useAnimatedStyle(() => {
-    const staggerDelay = index * 0.06;
+    const ringDelay = position.ring * 0.08;
+    const indexDelay = position.indexInRing * 0.03;
+    const staggerDelay = ringDelay + indexDelay;
     const adjustedProgress = Math.max(
       0,
-      Math.min(1, (animationProgress.value - staggerDelay) / (1 - staggerDelay)),
+      Math.min(1, (animationProgress.value - staggerDelay) / (1 - staggerDelay * 0.5)),
     );
 
-    const liquidOvershoot = 1.12;
-    const liquidBounce = 0.96;
+    const distance = Math.sqrt(baseX * baseX + baseY * baseY);
+    const distanceFactor = Math.min(1, distance / 300);
+    
+    const liquidOvershoot = 1.08 + distanceFactor * 0.06;
+    const liquidBounce = 0.97 - distanceFactor * 0.02;
     
     const currentX = interpolate(
       adjustedProgress,
-      [0, 0.4, 0.7, 1],
+      [0, 0.5, 0.75, 1],
       [0, baseX * liquidOvershoot, baseX * liquidBounce, baseX],
       Extrapolation.CLAMP,
     );
 
     const currentY = interpolate(
       adjustedProgress,
-      [0, 0.4, 0.7, 1],
+      [0, 0.5, 0.75, 1],
       [0, baseY * liquidOvershoot, baseY * liquidBounce, baseY],
       Extrapolation.CLAMP,
     );
 
     const scale = interpolate(
       adjustedProgress,
-      [0, 0.3, 0.5, 0.8, 1],
-      [0.1, 1.18, 1.08, 0.97, 1],
+      [0, 0.35, 0.6, 0.85, 1],
+      [0.2, 1.1, 1.02, 0.98, 1],
       Extrapolation.CLAMP,
     );
 
     const opacity = interpolate(
       adjustedProgress,
-      [0, 0.15, 0.4],
-      [0, 0.8, 1],
+      [0, 0.2, 0.5],
+      [0, 0.9, 1],
       Extrapolation.CLAMP,
     );
 
     const liquidRotate = interpolate(
       adjustedProgress,
-      [0, 0.3, 0.6, 1],
-      [0, 3, -2, 0],
+      [0, 0.4, 0.7, 1],
+      [0, 2, -1, 0],
       Extrapolation.CLAMP,
     );
 
@@ -638,20 +643,20 @@ export function ZekeLauncher({ items, skinId = "default" }: ZekeLauncherProps) {
         return;
       }
       animationProgress.value = withSpring(0, {
-        damping: 18,
-        stiffness: 280,
-        mass: 0.7,
-        overshootClamping: false,
+        damping: 20,
+        stiffness: 300,
+        mass: 0.6,
+        overshootClamping: true,
       });
-      backdropOpacity.value = withTiming(0, { duration: 280 });
-      setTimeout(() => setIsOpen(false), 350);
+      backdropOpacity.value = withTiming(0, { duration: 250 });
+      setTimeout(() => setIsOpen(false), 300);
     } else {
       setIsOpen(true);
-      backdropOpacity.value = withTiming(1, { duration: 250 });
+      backdropOpacity.value = withTiming(1, { duration: 200 });
       animationProgress.value = withSpring(1, {
-        damping: 14,
-        stiffness: 180,
-        mass: 0.5,
+        damping: 16,
+        stiffness: 200,
+        mass: 0.4,
         overshootClamping: false,
       });
     }
