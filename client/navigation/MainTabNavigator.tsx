@@ -2,7 +2,7 @@ import React from "react";
 import { View, StyleSheet } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
-import { useNavigation, CompositeNavigationProp } from "@react-navigation/native";
+import { useNavigation, CompositeNavigationProp, NavigatorScreenParams } from "@react-navigation/native";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as Haptics from "expo-haptics";
@@ -18,7 +18,7 @@ import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 import type { HomeStackParamList } from "@/navigation/HomeStackNavigator";
 
 export type MainTabParamList = {
-  HomeTab: undefined;
+  HomeTab: NavigatorScreenParams<HomeStackParamList> | undefined;
   CommsTab: undefined;
   CalendarTab: undefined;
   GeoTab: undefined;
@@ -96,7 +96,7 @@ function ZekeLauncherWrapper() {
       gradientColors: Gradients.accent,
       onPress: () => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        navigation.navigate("AudioUpload" as any);
+        navigation.navigate("HomeTab", { screen: "AudioUpload" });
       },
     },
     {
@@ -116,7 +116,7 @@ function ZekeLauncherWrapper() {
       gradientColors: ["#64748B", "#475569"],
       onPress: () => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        navigation.navigate("Settings" as any);
+        navigation.navigate("HomeTab", { screen: "Settings" });
       },
     },
   ];
