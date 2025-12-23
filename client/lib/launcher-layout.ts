@@ -21,7 +21,7 @@ export function getSnapPoints(
   padding: number = 16
 ): SnapPoint[] {
   const halfTrigger = triggerSize / 2;
-  const bottomY = screenHeight - insets.bottom - padding - halfTrigger;
+  const bottomY = screenHeight - 100 - halfTrigger;
   
   return [
     {
@@ -334,7 +334,7 @@ export function getTriggerPositionStyle(
   insets: { top: number; bottom: number; left: number; right: number },
   padding: number = 16
 ): { top?: number; bottom?: number; left?: number; right?: number } {
-  const bottomPos = insets.bottom + padding;
+  const bottomPos = 100;
   
   switch (anchor) {
     case "bottom-right":
@@ -364,7 +364,7 @@ export function getMenuPositionStyle(
   padding: number = 16
 ): { top?: number; bottom?: number; left?: number; right?: number } {
   const triggerHalf = triggerSize / 2;
-  const bottomPos = insets.bottom + padding + triggerHalf;
+  const bottomPos = 100 + triggerHalf;
   
   switch (anchor) {
     case "bottom-right":
