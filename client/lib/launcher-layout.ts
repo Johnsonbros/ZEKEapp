@@ -332,7 +332,8 @@ export function getTriggerPositionStyle(
   anchor: AnchorPosition,
   triggerSize: number,
   insets: { top: number; bottom: number; left: number; right: number },
-  padding: number = 16
+  padding: number = 16,
+  screenWidth?: number
 ): { top?: number; bottom?: number; left?: number; right?: number } {
   const bottomPos = insets.bottom + padding;
   
@@ -342,10 +343,19 @@ export function getTriggerPositionStyle(
     case "bottom-left":
       return { bottom: bottomPos, left: padding };
     case "bottom-center":
+      if (screenWidth) {
+        return { bottom: bottomPos, left: (screenWidth - triggerSize) / 2 };
+      }
       return { bottom: bottomPos, right: padding };
     case "bottom-right-quarter":
+      if (screenWidth) {
+        return { bottom: bottomPos, left: screenWidth * 0.75 - triggerSize / 2 };
+      }
       return { bottom: bottomPos, right: padding };
     case "bottom-left-quarter":
+      if (screenWidth) {
+        return { bottom: bottomPos, left: screenWidth * 0.25 - triggerSize / 2 };
+      }
       return { bottom: bottomPos, left: padding };
     case "top-right":
       return { top: insets.top + padding, right: padding };
@@ -361,7 +371,8 @@ export function getMenuPositionStyle(
   _menuSize: number,
   triggerSize: number,
   insets: { top: number; bottom: number; left: number; right: number },
-  padding: number = 16
+  padding: number = 16,
+  screenWidth?: number
 ): { top?: number; bottom?: number; left?: number; right?: number } {
   const triggerHalf = triggerSize / 2;
   const bottomPos = insets.bottom + padding + triggerHalf;
@@ -378,16 +389,34 @@ export function getMenuPositionStyle(
         left: padding + triggerHalf,
       };
     case "bottom-center":
+      if (screenWidth) {
+        return {
+          bottom: bottomPos,
+          left: screenWidth / 2,
+        };
+      }
       return {
         bottom: bottomPos,
         right: padding + triggerHalf,
       };
     case "bottom-right-quarter":
+      if (screenWidth) {
+        return {
+          bottom: bottomPos,
+          left: screenWidth * 0.75,
+        };
+      }
       return {
         bottom: bottomPos,
         right: padding + triggerHalf,
       };
     case "bottom-left-quarter":
+      if (screenWidth) {
+        return {
+          bottom: bottomPos,
+          left: screenWidth * 0.25,
+        };
+      }
       return {
         bottom: bottomPos,
         left: padding + triggerHalf,
