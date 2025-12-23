@@ -81,10 +81,82 @@ export interface LayoutConfig {
 export const DEFAULT_LAYOUT_CONFIG: LayoutConfig = {
   iconSize: 64,
   iconContainerSize: 80,
-  baseRadius: 100,
-  ringSpacing: 75,
-  minIconSpacing: 12,
+  baseRadius: 110,
+  ringSpacing: 95,
+  minIconSpacing: 20,
 };
+
+export function calculateSpiralPositions(
+  itemCount: number,
+  anchor: AnchorPosition,
+  config: LayoutConfig = DEFAULT_LAYOUT_CONFIG
+): RingPosition[] {
+  const positions: RingPosition[] = [];
+  const iconFootprint = config.iconContainerSize + config.minIconSpacing;
+  const sweepAngle = Math.PI / 2;
+  const startRadius = config.baseRadius;
+  const radialIncrement = iconFootprint;
+  
+  let placedCount = 0;
+  let ring = 0;
+  
+  while (placedCount < itemCount) {
+    const radius = startRadius + ring * radialIncrement;
+    const minAngleStep = iconFootprint / radius;
+    const maxIconsInRing = Math.max(1, Math.floor(sweepAngle / minAngleStep));
+    const iconsToPlace = Math.min(maxIconsInRing, itemCount - placedCount);
+    
+    const usedSweep = iconsToPlace * minAngleStep;
+    const startPadding = (sweepAngle - usedSweep) / 2;
+    
+    for (let i = 0; i < iconsToPlace; i++) {
+      const localAngle = startPadding + (i + 0.5) * minAngleStep;
+      
+      let x: number;
+      let y: number;
+      let finalAngle: number;
+      
+      switch (anchor) {
+        case "bottom-right":
+          finalAngle = Math.PI / 2 + localAngle;
+          x = -Math.abs(Math.cos(finalAngle) * radius);
+          y = -Math.abs(Math.sin(finalAngle) * radius);
+          break;
+        case "bottom-left":
+          finalAngle = localAngle;
+          x = Math.abs(Math.cos(finalAngle) * radius);
+          y = -Math.abs(Math.sin(finalAngle) * radius);
+          break;
+        case "top-right":
+          finalAngle = Math.PI + localAngle;
+          x = -Math.abs(Math.cos(finalAngle) * radius);
+          y = Math.abs(Math.sin(finalAngle) * radius);
+          break;
+        case "top-left":
+          finalAngle = Math.PI * 1.5 + localAngle;
+          x = Math.abs(Math.cos(finalAngle) * radius);
+          y = Math.abs(Math.sin(finalAngle) * radius);
+          break;
+        default:
+          finalAngle = Math.PI / 2 + localAngle;
+          x = -Math.abs(Math.cos(finalAngle) * radius);
+          y = -Math.abs(Math.sin(finalAngle) * radius);
+      }
+      
+      positions.push({
+        x,
+        y,
+        angle: finalAngle,
+        ring,
+        indexInRing: i,
+      });
+      placedCount++;
+    }
+    ring++;
+  }
+  
+  return positions;
+}
 
 export function calculateRingDistribution(itemCount: number): number[] {
   const rings: number[] = [];
@@ -227,7 +299,7 @@ export function calculateScaledIconPositions(
   scale: number = 1,
   config: LayoutConfig = DEFAULT_LAYOUT_CONFIG
 ): RingPosition[] {
-  const positions = calculateIconPositions(itemCount, anchor, config);
+  const positions = calculateSpiralPositions(itemCount, anchor, config);
   
   if (scale >= 1) {
     return positions;

@@ -321,40 +321,47 @@ function LauncherIcon({
   const baseY = position.y;
 
   const iconAnimatedStyle = useAnimatedStyle(() => {
-    const delay = index * skin.animations.iconStaggerDelay;
+    const staggerDelay = index * 0.06;
     const adjustedProgress = Math.max(
       0,
-      Math.min(1, (animationProgress.value - delay) / (1 - delay * totalItems * 0.3)),
+      Math.min(1, (animationProgress.value - staggerDelay) / (1 - staggerDelay)),
     );
 
-    const explosionX = baseX * 1.4;
-    const explosionY = baseY * 1.4;
-
+    const liquidOvershoot = 1.12;
+    const liquidBounce = 0.96;
+    
     const currentX = interpolate(
       adjustedProgress,
-      [0, 0.3, 1],
-      [0, explosionX * 0.3, baseX],
+      [0, 0.4, 0.7, 1],
+      [0, baseX * liquidOvershoot, baseX * liquidBounce, baseX],
       Extrapolation.CLAMP,
     );
 
     const currentY = interpolate(
       adjustedProgress,
-      [0, 0.3, 1],
-      [0, explosionY * 0.3, baseY],
+      [0, 0.4, 0.7, 1],
+      [0, baseY * liquidOvershoot, baseY * liquidBounce, baseY],
       Extrapolation.CLAMP,
     );
 
     const scale = interpolate(
       adjustedProgress,
-      [0, 0.2, 0.6, 1],
-      [0.2, 1.15, 0.95, 1],
+      [0, 0.3, 0.5, 0.8, 1],
+      [0.1, 1.18, 1.08, 0.97, 1],
       Extrapolation.CLAMP,
     );
 
     const opacity = interpolate(
       adjustedProgress,
-      [0, 0.2],
-      [0, 1],
+      [0, 0.15, 0.4],
+      [0, 0.8, 1],
+      Extrapolation.CLAMP,
+    );
+
+    const liquidRotate = interpolate(
+      adjustedProgress,
+      [0, 0.3, 0.6, 1],
+      [0, 3, -2, 0],
       Extrapolation.CLAMP,
     );
 
@@ -374,7 +381,7 @@ function LauncherIcon({
         { translateX: finalX },
         { translateY: finalY },
         { scale: scale * scaleAnim.value * dragScale },
-        { rotate: `${wiggle}deg` },
+        { rotate: `${wiggle + liquidRotate}deg` },
       ],
       zIndex: isBeingDragged ? 100 : 1,
     };
@@ -630,19 +637,21 @@ export function ZekeLauncher({ items, skinId = "default" }: ZekeLauncherProps) {
         return;
       }
       animationProgress.value = withSpring(0, {
-        damping: skin.animations.closeDamping,
-        stiffness: skin.animations.closeStiffness,
-        mass: 0.8,
+        damping: 18,
+        stiffness: 280,
+        mass: 0.7,
+        overshootClamping: false,
       });
-      backdropOpacity.value = withTiming(0, { duration: 250 });
-      setTimeout(() => setIsOpen(false), 300);
+      backdropOpacity.value = withTiming(0, { duration: 280 });
+      setTimeout(() => setIsOpen(false), 350);
     } else {
       setIsOpen(true);
-      backdropOpacity.value = withTiming(1, { duration: 300 });
+      backdropOpacity.value = withTiming(1, { duration: 250 });
       animationProgress.value = withSpring(1, {
-        damping: skin.animations.openDamping,
-        stiffness: skin.animations.openStiffness,
-        mass: 0.6,
+        damping: 14,
+        stiffness: 180,
+        mass: 0.5,
+        overshootClamping: false,
       });
     }
   }, [isOpen, isEditMode, animationProgress, backdropOpacity, skin]);
@@ -759,19 +768,25 @@ export function ZekeLauncher({ items, skinId = "default" }: ZekeLauncherProps) {
   const menuContainerStyle = useAnimatedStyle(() => {
     const scale = interpolate(
       animationProgress.value,
-      [0, 0.5, 1],
-      [0.8, 1.02, 1],
+      [0, 0.3, 0.6, 0.85, 1],
+      [0.6, 1.08, 0.98, 1.02, 1],
       Extrapolation.CLAMP,
     );
     const opacity = interpolate(
       animationProgress.value,
-      [0, 0.2],
-      [0, 1],
+      [0, 0.15, 0.35],
+      [0, 0.7, 1],
+      Extrapolation.CLAMP,
+    );
+    const rotate = interpolate(
+      animationProgress.value,
+      [0, 0.4, 0.7, 1],
+      [5, -2, 1, 0],
       Extrapolation.CLAMP,
     );
     return {
       opacity,
-      transform: [{ scale }],
+      transform: [{ scale }, { rotate: `${rotate}deg` }],
     };
   });
 
