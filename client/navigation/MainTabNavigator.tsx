@@ -129,8 +129,8 @@ export default function MainTabNavigator() {
     <View style={styles.container}>
       <Tab.Navigator
         initialRouteName="HomeTab"
+        tabBar={() => <ZekeLauncherWrapper />}
         screenOptions={{
-          tabBarStyle: { display: "none" },
           headerShown: false,
         }}
       >
@@ -185,7 +185,6 @@ export default function MainTabNavigator() {
           }}
         />
       </Tab.Navigator>
-      <ZekeLauncherWrapper />
     </View>
   );
 }
