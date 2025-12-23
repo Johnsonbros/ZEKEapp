@@ -205,8 +205,8 @@ export default function SettingsScreen() {
       ref={scrollViewRef}
       style={{ flex: 1, backgroundColor: theme.backgroundRoot }}
       contentContainerStyle={{
-        paddingTop: headerHeight + Spacing.xl,
-        paddingBottom: tabBarHeight + Spacing.xl + 40,
+        paddingTop: headerHeight + Spacing.md,
+        paddingBottom: tabBarHeight + Spacing.lg + 20,
         paddingHorizontal: Spacing.lg,
       }}
       scrollIndicatorInsets={{ bottom: insets.bottom }}
