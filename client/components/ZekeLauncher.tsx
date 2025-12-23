@@ -33,10 +33,27 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
-import { Spacing, BorderRadius, Colors, Gradients } from "@/constants/theme";
+import { Spacing, BorderRadius, Colors } from "@/constants/theme";
+import {
+  AnchorPosition,
+  calculateIconPositions,
+  calculateScaledIconPositions,
+  getMenuSize,
+  getClampedMenuSize,
+  getTriggerPositionStyle,
+  getMenuPositionStyle,
+  getIconAnchorStyle,
+  getSnapPoints,
+  findClosestSnapPoint,
+  RingPosition,
+  calculateRingDistribution,
+} from "@/lib/launcher-layout";
+import { LauncherSkin, DEFAULT_SKIN, getSkin } from "@/lib/launcher-skins";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-const STORAGE_KEY = "@zeke_launcher_order";
+const ORDER_STORAGE_KEY = "@zeke_launcher_order";
+const ANCHOR_STORAGE_KEY = "@zeke_launcher_anchor";
+const SKIN_STORAGE_KEY = "@zeke_launcher_skin";
 
 export interface LauncherItem {
   id: string;
@@ -48,35 +65,54 @@ export interface LauncherItem {
 
 interface ZekeLauncherProps {
   items: LauncherItem[];
+  skinId?: string;
 }
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-const ICON_SIZE = 48;
-const ICON_CONTAINER_SIZE = 60;
-const TRIGGER_SIZE = 56;
-const SEMI_CIRCLE_RADIUS = 140;
-const INNER_RADIUS = 80;
-
-function TriggerButton({
-  onPress,
-  isOpen,
-  pulseAnim,
-  glowAnim,
-}: {
+interface TriggerButtonProps {
   onPress: () => void;
+  onLongPress: () => void;
   isOpen: boolean;
   pulseAnim: SharedValue<number>;
   glowAnim: SharedValue<number>;
-}) {
+  anchor: AnchorPosition;
+  skin: LauncherSkin;
+  isDraggable: boolean;
+  onDragEnd: (newAnchor: AnchorPosition) => void;
+}
+
+function TriggerButton({
+  onPress,
+  onLongPress,
+  isOpen,
+  pulseAnim,
+  glowAnim,
+  anchor,
+  skin,
+  isDraggable,
+  onDragEnd,
+}: TriggerButtonProps) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  const dragScale = useSharedValue(1);
+
+  const positionStyle = getTriggerPositionStyle(
+    anchor,
+    skin.trigger.size,
+    insets,
+    skin.layout.padding
+  );
 
   const triggerAnimatedStyle = useAnimatedStyle(() => {
-    const scale = interpolate(pulseAnim.value, [0, 1], [1, 1.05]);
+    const scale = interpolate(pulseAnim.value, [0, 1], [1, 1.05]) * dragScale.value;
     const rotate = isOpen ? 45 : 0;
     return {
       transform: [
+        { translateX: translateX.value },
+        { translateY: translateY.value },
         { scale },
         { rotate: `${rotate}deg` },
       ],
@@ -88,7 +124,11 @@ function TriggerButton({
     const scale = interpolate(glowAnim.value, [0, 1], [1, 1.3]);
     return {
       opacity,
-      transform: [{ scale }],
+      transform: [
+        { translateX: translateX.value },
+        { translateY: translateY.value },
+        { scale },
+      ],
     };
   });
 
@@ -97,76 +137,127 @@ function TriggerButton({
     return { opacity };
   });
 
+  const longPressGesture = Gesture.LongPress()
+    .minDuration(600)
+    .onStart(() => {
+      if (isDraggable) {
+        dragScale.value = withSpring(1.15);
+        runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Heavy);
+        runOnJS(onLongPress)();
+      }
+    });
+
+  const panGesture = Gesture.Pan()
+    .enabled(isDraggable && !isOpen)
+    .activateAfterLongPress(600)
+    .onUpdate((event) => {
+      translateX.value = event.translationX;
+      translateY.value = event.translationY;
+    })
+    .onEnd((event) => {
+      const snapPoints = getSnapPoints(
+        SCREEN_WIDTH,
+        SCREEN_HEIGHT,
+        skin.trigger.size,
+        insets,
+        skin.layout.padding
+      );
+      
+      const currentPos = getTriggerPositionStyle(anchor, skin.trigger.size, insets, skin.layout.padding);
+      const triggerX = (currentPos.right !== undefined ? SCREEN_WIDTH - currentPos.right - skin.trigger.size / 2 : currentPos.left! + skin.trigger.size / 2) + event.translationX;
+      const triggerY = (currentPos.bottom !== undefined ? SCREEN_HEIGHT - currentPos.bottom - skin.trigger.size / 2 : currentPos.top! + skin.trigger.size / 2) + event.translationY;
+      
+      const closest = findClosestSnapPoint(triggerX, triggerY, snapPoints);
+      
+      translateX.value = withSpring(0);
+      translateY.value = withSpring(0);
+      dragScale.value = withSpring(1);
+      
+      runOnJS(onDragEnd)(closest.anchor);
+      runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Medium);
+    });
+
+  const tapGesture = Gesture.Tap()
+    .maxDuration(400)
+    .onEnd(() => {
+      runOnJS(onPress)();
+    });
+
+  const composedGesture = Gesture.Race(
+    panGesture,
+    Gesture.Simultaneous(longPressGesture, tapGesture)
+  );
+
   return (
     <View
       style={[
         styles.triggerContainer,
-        {
-          bottom: insets.bottom + Spacing.md,
-          right: Spacing.md,
-        },
+        positionStyle,
       ]}
     >
-      <Animated.View style={[styles.triggerGlow, glowAnimatedStyle]}>
+      <Animated.View
+        style={[
+          styles.triggerGlow,
+          {
+            width: skin.trigger.size + 20,
+            height: skin.trigger.size + 20,
+            borderRadius: skin.trigger.borderRadius + 10,
+          },
+          glowAnimatedStyle,
+        ]}
+      >
         <LinearGradient
-          colors={["#6366F1", "#8B5CF6"]}
+          colors={skin.trigger.glowColors}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={styles.triggerGlowGradient}
+          style={[
+            styles.triggerGlowGradient,
+            { borderRadius: skin.trigger.borderRadius + 10 },
+          ]}
         />
       </Animated.View>
 
-      <AnimatedPressable onPress={onPress} style={[styles.trigger, triggerAnimatedStyle]}>
-        <LinearGradient
-          colors={Gradients.primary}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.triggerGradient}
+      <GestureDetector gesture={composedGesture}>
+        <AnimatedPressable
+          style={[
+            styles.trigger,
+            {
+              width: skin.trigger.size,
+              height: skin.trigger.size,
+              borderRadius: skin.trigger.borderRadius,
+              shadowColor: skin.trigger.shadowColor,
+            },
+            triggerAnimatedStyle,
+          ]}
         >
-          <Animated.View style={[styles.triggerInnerGlow, innerGlowStyle]} />
-          <View style={styles.triggerIconContainer}>
-            <Feather
-              name={isOpen ? "x" : "grid"}
-              size={24}
-              color="#FFFFFF"
+          <LinearGradient
+            colors={skin.trigger.gradientColors}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[
+              styles.triggerGradient,
+              { borderRadius: skin.trigger.borderRadius },
+            ]}
+          >
+            <Animated.View
+              style={[
+                styles.triggerInnerGlow,
+                { borderRadius: skin.trigger.borderRadius },
+                innerGlowStyle,
+              ]}
             />
-          </View>
-          <View style={styles.scanLine} />
-        </LinearGradient>
-      </AnimatedPressable>
+            <View style={styles.triggerIconContainer}>
+              <Feather
+                name={isOpen ? "x" : "grid"}
+                size={skin.trigger.iconSize}
+                color={skin.trigger.iconColor}
+              />
+            </View>
+          </LinearGradient>
+        </AnimatedPressable>
+      </GestureDetector>
     </View>
   );
-}
-
-interface SemiCirclePosition {
-  x: number;
-  y: number;
-  angle: number;
-}
-
-function calculateSemiCirclePositions(itemCount: number): SemiCirclePosition[] {
-  const positions: SemiCirclePosition[] = [];
-  const startAngle = Math.PI;
-  const endAngle = Math.PI / 2;
-  const angleRange = startAngle - endAngle;
-  
-  const rings = Math.ceil(itemCount / 4);
-  let itemIndex = 0;
-  
-  for (let ring = 0; ring < rings && itemIndex < itemCount; ring++) {
-    const ringRadius = INNER_RADIUS + ring * (SEMI_CIRCLE_RADIUS - INNER_RADIUS) / Math.max(1, rings - 1);
-    const itemsInRing = Math.min(4, itemCount - itemIndex);
-    
-    for (let i = 0; i < itemsInRing && itemIndex < itemCount; i++) {
-      const angle = startAngle - (i + 0.5) * (angleRange / itemsInRing);
-      const x = Math.cos(angle) * ringRadius;
-      const y = -Math.sin(angle) * ringRadius;
-      positions.push({ x, y, angle });
-      itemIndex++;
-    }
-  }
-  
-  return positions;
 }
 
 interface LauncherIconProps {
@@ -175,7 +266,8 @@ interface LauncherIconProps {
   totalItems: number;
   animationProgress: SharedValue<number>;
   isEditMode: boolean;
-  position: SemiCirclePosition;
+  position: RingPosition;
+  skin: LauncherSkin;
   onPress: () => void;
   onLongPress: () => void;
   onDragStart: (index: number) => void;
@@ -183,7 +275,6 @@ interface LauncherIconProps {
   onDragEnd: (index: number) => void;
   isDragging: boolean;
   isBeingDragged: boolean;
-  animatedPosition: { x: number; y: number };
 }
 
 function LauncherIcon({
@@ -193,6 +284,7 @@ function LauncherIcon({
   animationProgress,
   isEditMode,
   position,
+  skin,
   onPress,
   onLongPress,
   onDragStart,
@@ -200,7 +292,6 @@ function LauncherIcon({
   onDragEnd,
   isDragging,
   isBeingDragged,
-  animatedPosition,
 }: LauncherIconProps) {
   const { theme } = useTheme();
   const wiggleAnim = useSharedValue(0);
@@ -230,14 +321,14 @@ function LauncherIcon({
   const baseY = position.y;
 
   const iconAnimatedStyle = useAnimatedStyle(() => {
-    const delay = index * 0.05;
+    const delay = index * skin.animations.iconStaggerDelay;
     const adjustedProgress = Math.max(
       0,
       Math.min(1, (animationProgress.value - delay) / (1 - delay * totalItems * 0.3)),
     );
 
-    const explosionX = baseX * 1.5;
-    const explosionY = baseY * 1.5;
+    const explosionX = baseX * 1.4;
+    const explosionY = baseY * 1.4;
 
     const currentX = interpolate(
       adjustedProgress,
@@ -340,34 +431,98 @@ function LauncherIcon({
 
   return (
     <GestureDetector gesture={composedGesture}>
-      <Animated.View style={[styles.iconWrapper, iconAnimatedStyle]}>
-        <Animated.View style={[styles.iconGlow, glowStyle]}>
+      <Animated.View
+        style={[
+          styles.iconWrapper,
+          {
+            width: skin.icon.containerSize,
+            height: skin.icon.containerSize + 20,
+            marginLeft: -skin.icon.containerSize / 2,
+            marginTop: -skin.icon.containerSize / 2,
+          },
+          iconAnimatedStyle,
+        ]}
+      >
+        <Animated.View
+          style={[
+            styles.iconGlow,
+            {
+              top: -4,
+              left: (skin.icon.containerSize - skin.icon.size) / 2 - 4,
+              width: skin.icon.size + 8,
+              height: skin.icon.size + 8,
+              borderRadius: skin.icon.borderRadius,
+            },
+            glowStyle,
+          ]}
+        >
           <LinearGradient
             colors={item.gradientColors}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={styles.iconGlowGradient}
+            style={[
+              styles.iconGlowGradient,
+              { borderRadius: skin.icon.borderRadius },
+            ]}
           />
         </Animated.View>
         
-        <View style={styles.iconContainer}>
+        <View
+          style={[
+            styles.iconContainer,
+            {
+              width: skin.icon.size,
+              height: skin.icon.size,
+              borderRadius: skin.icon.borderRadius,
+              shadowColor: skin.icon.shadowColor,
+            },
+          ]}
+        >
           <LinearGradient
             colors={item.gradientColors}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={styles.iconGradient}
+            style={[
+              styles.iconGradient,
+              { borderRadius: skin.icon.borderRadius },
+            ]}
           >
-            <View style={styles.iconInnerBorder} />
-            <Feather name={item.icon} size={20} color="#FFFFFF" />
+            <View
+              style={[
+                styles.iconInnerBorder,
+                {
+                  borderRadius: skin.icon.borderRadius,
+                  borderColor: skin.icon.innerBorderColor,
+                },
+              ]}
+            />
+            <Feather name={item.icon} size={skin.icon.iconSize} color="#FFFFFF" />
           </LinearGradient>
         </View>
         
-        <ThemedText type="caption" style={styles.iconLabel} numberOfLines={1}>
+        <ThemedText
+          type="caption"
+          style={[
+            styles.iconLabel,
+            {
+              fontSize: skin.icon.labelFontSize,
+              width: skin.icon.containerSize,
+            },
+          ]}
+          numberOfLines={1}
+        >
           {item.label}
         </ThemedText>
 
         {isEditMode ? (
-          <View style={styles.deleteButton}>
+          <View
+            style={[
+              styles.deleteButton,
+              {
+                left: (skin.icon.containerSize - skin.icon.size) / 2 - 4,
+              },
+            ]}
+          >
             <Feather name="minus" size={10} color="#FFFFFF" />
           </View>
         ) : null}
@@ -376,15 +531,18 @@ function LauncherIcon({
   );
 }
 
-export function ZekeLauncher({ items }: ZekeLauncherProps) {
+export function ZekeLauncher({ items, skinId = "default" }: ZekeLauncherProps) {
   const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const [isOpen, setIsOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [orderedItems, setOrderedItems] = useState<LauncherItem[]>(items);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-  const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
   const [previewOrder, setPreviewOrder] = useState<LauncherItem[]>([]);
+  const [anchor, setAnchor] = useState<AnchorPosition>("bottom-right");
+  const [currentSkinId, setCurrentSkinId] = useState(skinId);
+
+  const skin = useMemo(() => getSkin(currentSkinId), [currentSkinId]);
 
   const animationProgress = useSharedValue(0);
   const pulseAnim = useSharedValue(0);
@@ -392,7 +550,7 @@ export function ZekeLauncher({ items }: ZekeLauncherProps) {
   const backdropOpacity = useSharedValue(0);
 
   useEffect(() => {
-    loadOrder();
+    loadSettings();
   }, []);
 
   useEffect(() => {
@@ -415,11 +573,16 @@ export function ZekeLauncher({ items }: ZekeLauncherProps) {
     );
   }, [pulseAnim, glowAnim]);
 
-  const loadOrder = async () => {
+  const loadSettings = async () => {
     try {
-      const saved = await AsyncStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const orderIds: string[] = JSON.parse(saved);
+      const [savedOrder, savedAnchor, savedSkin] = await Promise.all([
+        AsyncStorage.getItem(ORDER_STORAGE_KEY),
+        AsyncStorage.getItem(ANCHOR_STORAGE_KEY),
+        AsyncStorage.getItem(SKIN_STORAGE_KEY),
+      ]);
+      
+      if (savedOrder) {
+        const orderIds: string[] = JSON.parse(savedOrder);
         const reordered = orderIds
           .map((id) => items.find((item) => item.id === id))
           .filter(Boolean) as LauncherItem[];
@@ -427,6 +590,14 @@ export function ZekeLauncher({ items }: ZekeLauncherProps) {
         setOrderedItems([...reordered, ...newItems]);
       } else {
         setOrderedItems(items);
+      }
+      
+      if (savedAnchor) {
+        setAnchor(savedAnchor as AnchorPosition);
+      }
+      
+      if (savedSkin) {
+        setCurrentSkinId(savedSkin);
       }
     } catch {
       setOrderedItems(items);
@@ -436,9 +607,17 @@ export function ZekeLauncher({ items }: ZekeLauncherProps) {
   const saveOrder = async (newOrder: LauncherItem[]) => {
     try {
       const orderIds = newOrder.map((item) => item.id);
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(orderIds));
+      await AsyncStorage.setItem(ORDER_STORAGE_KEY, JSON.stringify(orderIds));
     } catch {
       console.log("Failed to save order");
+    }
+  };
+
+  const saveAnchor = async (newAnchor: AnchorPosition) => {
+    try {
+      await AsyncStorage.setItem(ANCHOR_STORAGE_KEY, newAnchor);
+    } catch {
+      console.log("Failed to save anchor");
     }
   };
 
@@ -451,8 +630,8 @@ export function ZekeLauncher({ items }: ZekeLauncherProps) {
         return;
       }
       animationProgress.value = withSpring(0, {
-        damping: 18,
-        stiffness: 120,
+        damping: skin.animations.closeDamping,
+        stiffness: skin.animations.closeStiffness,
         mass: 0.8,
       });
       backdropOpacity.value = withTiming(0, { duration: 250 });
@@ -461,12 +640,21 @@ export function ZekeLauncher({ items }: ZekeLauncherProps) {
       setIsOpen(true);
       backdropOpacity.value = withTiming(1, { duration: 300 });
       animationProgress.value = withSpring(1, {
-        damping: 14,
-        stiffness: 100,
+        damping: skin.animations.openDamping,
+        stiffness: skin.animations.openStiffness,
         mass: 0.6,
       });
     }
-  }, [isOpen, isEditMode, animationProgress, backdropOpacity]);
+  }, [isOpen, isEditMode, animationProgress, backdropOpacity, skin]);
+
+  const handleTriggerLongPress = useCallback(() => {
+    // Trigger long press enables drag mode (visual feedback only)
+  }, []);
+
+  const handleTriggerDragEnd = useCallback((newAnchor: AnchorPosition) => {
+    setAnchor(newAnchor);
+    saveAnchor(newAnchor);
+  }, []);
 
   const handleItemPress = useCallback(
     (item: LauncherItem) => {
@@ -488,10 +676,36 @@ export function ZekeLauncher({ items }: ZekeLauncherProps) {
     setIsEditMode(true);
   }, []);
 
+  const { menuSize: clampedMenuSize, scale: menuScale } = useMemo(() => {
+    const displayItems = previewOrder.length > 0 ? previewOrder : orderedItems;
+    return getClampedMenuSize(
+      displayItems.length,
+      anchor,
+      SCREEN_WIDTH,
+      SCREEN_HEIGHT,
+      skin.trigger.size,
+      insets,
+      skin.layout.padding,
+      {
+        iconSize: skin.icon.size,
+        iconContainerSize: skin.icon.containerSize,
+        baseRadius: skin.layout.baseRadius,
+        ringSpacing: skin.layout.ringSpacing,
+        minIconSpacing: 12,
+      }
+    );
+  }, [orderedItems, previewOrder, anchor, skin, insets]);
+
   const positions = useMemo(() => {
     const displayItems = previewOrder.length > 0 ? previewOrder : orderedItems;
-    return calculateSemiCirclePositions(displayItems.length);
-  }, [orderedItems, previewOrder]);
+    return calculateScaledIconPositions(displayItems.length, anchor, menuScale, {
+      iconSize: skin.icon.size,
+      iconContainerSize: skin.icon.containerSize,
+      baseRadius: skin.layout.baseRadius,
+      ringSpacing: skin.layout.ringSpacing,
+      minIconSpacing: 12,
+    });
+  }, [orderedItems, previewOrder, anchor, skin, menuScale]);
 
   const findClosestPosition = useCallback((x: number, y: number): number => {
     let closest = 0;
@@ -515,8 +729,6 @@ export function ZekeLauncher({ items }: ZekeLauncherProps) {
   }, [orderedItems]);
 
   const handleDragUpdate = useCallback((fromIndex: number, x: number, y: number) => {
-    setDragPosition({ x, y });
-    
     const targetIndex = findClosestPosition(x, y);
     
     if (targetIndex !== fromIndex && previewOrder.length > 0) {
@@ -531,14 +743,13 @@ export function ZekeLauncher({ items }: ZekeLauncherProps) {
     }
   }, [orderedItems, previewOrder, findClosestPosition]);
 
-  const handleDragEnd = useCallback((fromIndex: number) => {
+  const handleDragEnd = useCallback((_fromIndex: number) => {
     if (previewOrder.length > 0) {
       setOrderedItems(previewOrder);
       saveOrder(previewOrder);
     }
     setDraggedIndex(null);
     setPreviewOrder([]);
-    setDragPosition({ x: 0, y: 0 });
   }, [previewOrder]);
 
   const backdropAnimatedStyle = useAnimatedStyle(() => ({
@@ -565,7 +776,20 @@ export function ZekeLauncher({ items }: ZekeLauncherProps) {
   });
 
   const displayItems = previewOrder.length > 0 ? previewOrder : orderedItems;
-  const menuSize = SEMI_CIRCLE_RADIUS * 2 + ICON_CONTAINER_SIZE + 40;
+
+  const menuPositionStyle = getMenuPositionStyle(
+    anchor,
+    clampedMenuSize,
+    skin.trigger.size,
+    insets,
+    skin.layout.padding
+  );
+
+  const iconAnchorStyle = getIconAnchorStyle(
+    anchor,
+    clampedMenuSize,
+    skin.trigger.size
+  );
 
   return (
     <>
@@ -589,24 +813,27 @@ export function ZekeLauncher({ items }: ZekeLauncherProps) {
             style={[
               styles.menuContainer,
               {
-                width: menuSize,
-                height: menuSize,
-                bottom: insets.bottom + Spacing.md + TRIGGER_SIZE / 2 - menuSize / 2,
-                right: Spacing.md + TRIGGER_SIZE / 2 - menuSize / 2,
+                width: clampedMenuSize,
+                height: clampedMenuSize,
               },
+              menuPositionStyle,
               menuContainerStyle,
             ]}
           >
             {Platform.OS === "ios" ? (
               <BlurView
-                intensity={60}
+                intensity={skin.menu.blurIntensity}
                 tint={isDark ? "dark" : "light"}
                 style={[
                   styles.semiCircleContainer,
-                  { borderColor: theme.border },
+                  {
+                    borderRadius: skin.menu.borderRadius,
+                    borderWidth: skin.menu.borderWidth,
+                    borderColor: skin.menu.borderColor,
+                  },
                 ]}
               >
-                <View style={styles.iconAnchor}>
+                <View style={[styles.iconAnchor, iconAnchorStyle]}>
                   {isEditMode ? (
                     <Pressable
                       onPress={() => setIsEditMode(false)}
@@ -629,7 +856,8 @@ export function ZekeLauncher({ items }: ZekeLauncherProps) {
                         totalItems={displayItems.length}
                         animationProgress={animationProgress}
                         isEditMode={isEditMode}
-                        position={positions[index] || { x: 0, y: 0, angle: 0 }}
+                        position={positions[index] || { x: 0, y: 0, angle: 0, ring: 0, indexInRing: 0 }}
+                        skin={skin}
                         onPress={() => handleItemPress(item)}
                         onLongPress={handleLongPress}
                         onDragStart={handleDragStart}
@@ -637,7 +865,6 @@ export function ZekeLauncher({ items }: ZekeLauncherProps) {
                         onDragEnd={handleDragEnd}
                         isDragging={draggedIndex !== null}
                         isBeingDragged={isBeingDragged}
-                        animatedPosition={isBeingDragged ? dragPosition : positions[index] || { x: 0, y: 0 }}
                       />
                     );
                   })}
@@ -649,11 +876,13 @@ export function ZekeLauncher({ items }: ZekeLauncherProps) {
                   styles.semiCircleContainerAndroid,
                   {
                     backgroundColor: theme.backgroundDefault,
+                    borderRadius: skin.menu.borderRadius,
+                    borderWidth: skin.menu.borderWidth,
                     borderColor: theme.border,
                   },
                 ]}
               >
-                <View style={styles.iconAnchor}>
+                <View style={[styles.iconAnchor, iconAnchorStyle]}>
                   {isEditMode ? (
                     <Pressable
                       onPress={() => setIsEditMode(false)}
@@ -676,7 +905,8 @@ export function ZekeLauncher({ items }: ZekeLauncherProps) {
                         totalItems={displayItems.length}
                         animationProgress={animationProgress}
                         isEditMode={isEditMode}
-                        position={positions[index] || { x: 0, y: 0, angle: 0 }}
+                        position={positions[index] || { x: 0, y: 0, angle: 0, ring: 0, indexInRing: 0 }}
+                        skin={skin}
                         onPress={() => handleItemPress(item)}
                         onLongPress={handleLongPress}
                         onDragStart={handleDragStart}
@@ -684,7 +914,6 @@ export function ZekeLauncher({ items }: ZekeLauncherProps) {
                         onDragEnd={handleDragEnd}
                         isDragging={draggedIndex !== null}
                         isBeingDragged={isBeingDragged}
-                        animatedPosition={isBeingDragged ? dragPosition : positions[index] || { x: 0, y: 0 }}
                       />
                     );
                   })}
@@ -697,9 +926,14 @@ export function ZekeLauncher({ items }: ZekeLauncherProps) {
 
       <TriggerButton
         onPress={handleToggle}
+        onLongPress={handleTriggerLongPress}
         isOpen={isOpen}
         pulseAnim={pulseAnim}
         glowAnim={glowAnim}
+        anchor={anchor}
+        skin={skin}
+        isDraggable={!isOpen}
+        onDragEnd={handleTriggerDragEnd}
       />
     </>
   );
@@ -718,22 +952,14 @@ const styles = StyleSheet.create({
   },
   triggerGlow: {
     position: "absolute",
-    width: TRIGGER_SIZE + 20,
-    height: TRIGGER_SIZE + 20,
-    borderRadius: BorderRadius.md + 10,
   },
   triggerGlowGradient: {
     width: "100%",
     height: "100%",
-    borderRadius: BorderRadius.md + 10,
   },
   trigger: {
-    width: TRIGGER_SIZE,
-    height: TRIGGER_SIZE,
-    borderRadius: BorderRadius.md,
     overflow: "hidden",
     elevation: 12,
-    shadowColor: "#6366F1",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.5,
     shadowRadius: 12,
@@ -743,24 +969,14 @@ const styles = StyleSheet.create({
     height: "100%",
     justifyContent: "center",
     alignItems: "center",
-    borderRadius: BorderRadius.md,
   },
   triggerInnerGlow: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(255, 255, 255, 0.15)",
-    borderRadius: BorderRadius.md,
   },
   triggerIconContainer: {
     justifyContent: "center",
     alignItems: "center",
-  },
-  scanLine: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 2,
-    backgroundColor: "rgba(255, 255, 255, 0.4)",
   },
   menuContainer: {
     position: "absolute",
@@ -768,51 +984,29 @@ const styles = StyleSheet.create({
   },
   semiCircleContainer: {
     flex: 1,
-    borderRadius: SEMI_CIRCLE_RADIUS + 50,
-    borderWidth: 1,
-    overflow: "hidden",
   },
   semiCircleContainerAndroid: {
     flex: 1,
-    borderRadius: SEMI_CIRCLE_RADIUS + 50,
-    borderWidth: 1,
-    overflow: "hidden",
   },
   iconAnchor: {
     position: "absolute",
-    right: SEMI_CIRCLE_RADIUS + ICON_CONTAINER_SIZE / 2 + 20,
-    bottom: SEMI_CIRCLE_RADIUS + ICON_CONTAINER_SIZE / 2 + 20,
     width: 0,
     height: 0,
   },
   iconWrapper: {
     position: "absolute",
-    width: ICON_CONTAINER_SIZE,
-    height: ICON_CONTAINER_SIZE + 16,
     alignItems: "center",
-    marginLeft: -ICON_CONTAINER_SIZE / 2,
-    marginTop: -ICON_CONTAINER_SIZE / 2,
   },
   iconGlow: {
     position: "absolute",
-    top: -4,
-    left: (ICON_CONTAINER_SIZE - ICON_SIZE) / 2 - 4,
-    width: ICON_SIZE + 8,
-    height: ICON_SIZE + 8,
-    borderRadius: BorderRadius.md + 4,
   },
   iconGlowGradient: {
     width: "100%",
     height: "100%",
-    borderRadius: BorderRadius.md + 4,
   },
   iconContainer: {
-    width: ICON_SIZE,
-    height: ICON_SIZE,
-    borderRadius: BorderRadius.md,
     overflow: "hidden",
     elevation: 6,
-    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 6,
@@ -822,24 +1016,18 @@ const styles = StyleSheet.create({
     height: "100%",
     justifyContent: "center",
     alignItems: "center",
-    borderRadius: BorderRadius.md,
   },
   iconInnerBorder: {
     ...StyleSheet.absoluteFillObject,
-    borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.2)",
   },
   iconLabel: {
     marginTop: Spacing.xs,
     textAlign: "center",
-    fontSize: 10,
-    width: ICON_CONTAINER_SIZE,
   },
   deleteButton: {
     position: "absolute",
     top: -4,
-    left: (ICON_CONTAINER_SIZE - ICON_SIZE) / 2 - 4,
     width: 16,
     height: 16,
     borderRadius: 8,
@@ -854,8 +1042,8 @@ const styles = StyleSheet.create({
   },
   doneButtonFloat: {
     position: "absolute",
-    left: -SEMI_CIRCLE_RADIUS - 60,
-    top: -SEMI_CIRCLE_RADIUS - 40,
+    left: -150,
+    top: -80,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs,
     backgroundColor: "rgba(99, 102, 241, 0.2)",
