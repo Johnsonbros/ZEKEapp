@@ -2,7 +2,10 @@ export type AnchorPosition =
   | "bottom-right" 
   | "bottom-left" 
   | "top-right" 
-  | "top-left";
+  | "top-left"
+  | "bottom-center"
+  | "bottom-right-quarter"
+  | "bottom-left-quarter";
 
 export interface SnapPoint {
   anchor: AnchorPosition;
@@ -18,27 +21,33 @@ export function getSnapPoints(
   padding: number = 16
 ): SnapPoint[] {
   const halfTrigger = triggerSize / 2;
+  const bottomY = screenHeight - insets.bottom - padding - halfTrigger;
   
   return [
     {
       anchor: "bottom-right",
       x: screenWidth - padding - halfTrigger,
-      y: screenHeight - insets.bottom - padding - halfTrigger,
+      y: bottomY,
     },
     {
       anchor: "bottom-left",
       x: padding + halfTrigger,
-      y: screenHeight - insets.bottom - padding - halfTrigger,
+      y: bottomY,
     },
     {
-      anchor: "top-right",
-      x: screenWidth - padding - halfTrigger,
-      y: insets.top + padding + halfTrigger,
+      anchor: "bottom-center",
+      x: screenWidth / 2,
+      y: bottomY,
     },
     {
-      anchor: "top-left",
-      x: padding + halfTrigger,
-      y: insets.top + padding + halfTrigger,
+      anchor: "bottom-right-quarter",
+      x: screenWidth * 0.75,
+      y: bottomY,
+    },
+    {
+      anchor: "bottom-left-quarter",
+      x: screenWidth * 0.25,
+      y: bottomY,
     },
   ];
 }
@@ -125,6 +134,13 @@ export function calculateSpiralPositions(
         case "bottom-left":
           finalAngle = localAngle;
           x = Math.abs(Math.cos(finalAngle) * radius);
+          y = -Math.abs(Math.sin(finalAngle) * radius);
+          break;
+        case "bottom-center":
+        case "bottom-right-quarter":
+        case "bottom-left-quarter":
+          finalAngle = Math.PI / 2 + localAngle;
+          x = -Math.abs(Math.cos(finalAngle) * radius);
           y = -Math.abs(Math.sin(finalAngle) * radius);
           break;
         case "top-right":
@@ -318,17 +334,25 @@ export function getTriggerPositionStyle(
   insets: { top: number; bottom: number; left: number; right: number },
   padding: number = 16
 ): { top?: number; bottom?: number; left?: number; right?: number } {
+  const bottomPos = insets.bottom + padding;
+  
   switch (anchor) {
     case "bottom-right":
-      return { bottom: insets.bottom + padding, right: padding };
+      return { bottom: bottomPos, right: padding };
     case "bottom-left":
-      return { bottom: insets.bottom + padding, left: padding };
+      return { bottom: bottomPos, left: padding };
+    case "bottom-center":
+      return { bottom: bottomPos, right: padding };
+    case "bottom-right-quarter":
+      return { bottom: bottomPos, right: padding };
+    case "bottom-left-quarter":
+      return { bottom: bottomPos, left: padding };
     case "top-right":
       return { top: insets.top + padding, right: padding };
     case "top-left":
       return { top: insets.top + padding, left: padding };
     default:
-      return { bottom: insets.bottom + padding, right: padding };
+      return { bottom: bottomPos, right: padding };
   }
 }
 
@@ -340,16 +364,32 @@ export function getMenuPositionStyle(
   padding: number = 16
 ): { top?: number; bottom?: number; left?: number; right?: number } {
   const triggerHalf = triggerSize / 2;
+  const bottomPos = insets.bottom + padding + triggerHalf;
   
   switch (anchor) {
     case "bottom-right":
       return {
-        bottom: insets.bottom + padding + triggerHalf,
+        bottom: bottomPos,
         right: padding + triggerHalf,
       };
     case "bottom-left":
       return {
-        bottom: insets.bottom + padding + triggerHalf,
+        bottom: bottomPos,
+        left: padding + triggerHalf,
+      };
+    case "bottom-center":
+      return {
+        bottom: bottomPos,
+        right: padding + triggerHalf,
+      };
+    case "bottom-right-quarter":
+      return {
+        bottom: bottomPos,
+        right: padding + triggerHalf,
+      };
+    case "bottom-left-quarter":
+      return {
+        bottom: bottomPos,
         left: padding + triggerHalf,
       };
     case "top-right":
@@ -364,7 +404,7 @@ export function getMenuPositionStyle(
       };
     default:
       return {
-        bottom: insets.bottom + padding + triggerHalf,
+        bottom: bottomPos,
         right: padding + triggerHalf,
       };
   }
@@ -382,6 +422,21 @@ export function getIconAnchorStyle(
         bottom: 0,
       };
     case "bottom-left":
+      return {
+        left: 0,
+        bottom: 0,
+      };
+    case "bottom-center":
+      return {
+        left: 0,
+        bottom: 0,
+      };
+    case "bottom-right-quarter":
+      return {
+        right: 0,
+        bottom: 0,
+      };
+    case "bottom-left-quarter":
       return {
         left: 0,
         bottom: 0,
