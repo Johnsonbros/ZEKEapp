@@ -82,6 +82,21 @@ The audio WebSocket at `/ws/audio` supports both legacy and spec-compliant messa
 - `client/lib/vad-client.ts`: Energy-based voice activity detection for mobile
 
 ### Known Limitations
-- Opus decoder is a placeholder (returns simulated PCM data) - requires libopus WebAssembly for production
 - VAD uses energy-based detection (Silero VAD recommended for production)
 - BLE functionality runs in mock mode on Expo Go - requires EAS native Android build for real device connections
+
+### Opus Decoder (December 2024)
+- Real WebAssembly-based Opus decoder using `opus-decoder` npm package
+- Lazy WASM initialization on first decode (no startup delay)
+- Float32 → Int16 PCM conversion for transcription service compatibility
+- Decode result validation (channelData exists with samples)
+- **Data Integrity**: Only WASM-decoded PCM reaches transcription
+  - Fallback/simulated frames are skipped (marked with `isFallback: true`)
+  - Exception frames are dropped (not stored as raw Opus)
+- **Client Notifications**: WARNING sent on first decode failure
+- **Session Termination**: After 10 consecutive failures, ERROR sent and session closed
+- **Metrics Separation**: `totalFramesDecoded` vs `fallbackFramesDecoded`
+- Health metrics endpoint: `GET /api/wearable/audio/decoder-health`
+  - Returns HTTP 503 when decoder is degraded (fallback ratio > 50%)
+  - Returns `warning_elevated_fallback` status when ratio > 10%
+  - Exposes `fallbackRatio` for monitoring dashboards

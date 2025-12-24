@@ -342,7 +342,7 @@ export function registerWearableRoutes(app: Express): void {
       }
 
       const opusData = new Uint8Array(req.file.buffer);
-      const decoded = opusDecoderService.decodeFrame(opusData);
+      const decoded = await opusDecoderService.decodeFrame(opusData);
 
       if (!decoded) {
         return res.status(400).json({ error: "Failed to decode Opus audio" });
@@ -358,6 +358,56 @@ export function registerWearableRoutes(app: Express): void {
     } catch (error) {
       console.error("[Wearable Routes] Opus decode error:", error);
       res.status(500).json({ error: "Failed to decode audio" });
+    }
+  });
+
+  // Note: This endpoint inherits device auth from middleware applied to /api/* routes
+  app.get("/api/wearable/audio/decoder-health", async (_req: Request, res: Response) => {
+    try {
+      const metrics = opusDecoderService.getHealthMetrics();
+      const totalDecodes = metrics.totalFramesDecoded + metrics.fallbackFramesDecoded;
+      const fallbackRatio = totalDecodes > 0 
+        ? (metrics.fallbackFramesDecoded / totalDecodes) * 100 
+        : 0;
+      
+      // Determine status with threshold checks
+      let status: string;
+      let httpStatus = 200;
+      
+      if (!metrics.isInitialized) {
+        status = "not_initialized";
+      } else if (metrics.fallbackFramesDecoded > 0 && metrics.totalFramesDecoded === 0) {
+        status = "degraded_fallback_only";
+        httpStatus = 503; // Service unavailable - decoder not working
+      } else if (fallbackRatio > 50) {
+        status = "degraded_high_fallback";
+        httpStatus = 503; // More than half of decodes are fallback
+      } else if (fallbackRatio > 10) {
+        status = "warning_elevated_fallback";
+      } else if (metrics.totalFramesDecoded > 0) {
+        status = "healthy";
+      } else {
+        status = "ready";
+      }
+      
+      res.status(httpStatus).json({
+        status,
+        metrics: {
+          totalFramesDecoded: metrics.totalFramesDecoded,
+          fallbackFramesDecoded: metrics.fallbackFramesDecoded,
+          totalErrors: metrics.totalErrors,
+          fallbackRatio: Math.round(fallbackRatio * 100) / 100,
+          errorRate: totalDecodes > 0 
+            ? Math.round((metrics.totalErrors / totalDecodes) * 10000) / 100 
+            : 0,
+          averageDecodeLatencyMs: Math.round(metrics.averageDecodeLatencyMs * 100) / 100,
+          lastDecodeLatencyMs: Math.round(metrics.lastDecodeLatencyMs * 100) / 100,
+          isInitialized: metrics.isInitialized,
+        },
+      });
+    } catch (error) {
+      console.error("[Wearable Routes] Decoder health error:", error);
+      res.status(500).json({ error: "Failed to get decoder health" });
     }
   });
 
@@ -769,6 +819,7 @@ export function registerWearableRoutes(app: Express): void {
   console.log("  DELETE /api/wearable/voice/profiles/:id - Delete voice profile");
   console.log("  POST /api/wearable/voice/profiles/:id/link-speaker - Link profile to diarization ID");
   console.log("  POST /api/wearable/audio/decode-opus - Decode Opus to WAV");
+  console.log("  GET  /api/wearable/audio/decoder-health - Get decoder health metrics");
   console.log("  POST /api/wearable/audio/vad - Analyze audio for speech");
   console.log("  GET  /api/wearable/sessions - Get conversation sessions");
   console.log("  GET  /api/wearable/sessions/:id - Get session details");

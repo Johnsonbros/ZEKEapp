@@ -15,6 +15,9 @@
 
 import { OpusDecoder } from 'opus-decoder';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type OpusDecoderAny = any;
+
 export interface OpusDecoderConfig {
   sampleRate: number;
   channels: number;
@@ -25,6 +28,7 @@ export interface DecodedAudioFrame {
   pcmData: Int16Array;
   timestamp: number;
   duration: number;
+  isFallback?: boolean;
 }
 
 export interface AudioBuffer {
@@ -35,12 +39,11 @@ export interface AudioBuffer {
 
 export interface DecoderHealthMetrics {
   totalFramesDecoded: number;
+  fallbackFramesDecoded: number;
   totalErrors: number;
   averageDecodeLatencyMs: number;
   lastDecodeLatencyMs: number;
   isInitialized: boolean;
-  poolSize: number;
-  activeDecoders: number;
 }
 
 const DEFAULT_CONFIG: OpusDecoderConfig = {
@@ -51,7 +54,7 @@ const DEFAULT_CONFIG: OpusDecoderConfig = {
 
 class OpusDecoderService {
   private config: OpusDecoderConfig;
-  private decoder: OpusDecoder | null = null;
+  private decoder: OpusDecoderAny = null;
   private isInitialized = false;
   private isInitializing = false;
   private initPromise: Promise<void> | null = null;
@@ -60,12 +63,11 @@ class OpusDecoderService {
   
   private metrics: DecoderHealthMetrics = {
     totalFramesDecoded: 0,
+    fallbackFramesDecoded: 0,
     totalErrors: 0,
     averageDecodeLatencyMs: 0,
     lastDecodeLatencyMs: 0,
     isInitialized: false,
-    poolSize: 0,
-    activeDecoders: 0,
   };
   private decodeLatencies: number[] = [];
   private readonly MAX_LATENCY_SAMPLES = 100;
@@ -103,7 +105,7 @@ class OpusDecoderService {
       console.log("[Opus Decoder] Initializing WebAssembly decoder...");
       
       this.decoder = new OpusDecoder({
-        sampleRate: this.config.sampleRate,
+        sampleRate: this.config.sampleRate as 8000 | 12000 | 16000 | 24000 | 48000,
         channels: this.config.channels,
         forceStereo: false,
       });
@@ -146,7 +148,14 @@ class OpusDecoderService {
         this.metrics.totalErrors += result.errors.length;
       }
 
-      const pcmData = this.float32ToInt16(result.channelData[0] || new Float32Array(0));
+      // Validate decode result has audio data
+      if (!result.channelData || result.channelData.length === 0 || result.samplesDecoded === 0) {
+        console.error("[Opus Decoder] No audio channels in decode result");
+        this.metrics.totalErrors++;
+        return this.fallbackDecode(opusData);
+      }
+
+      const pcmData = this.float32ToInt16(result.channelData[0]);
       const duration = (result.samplesDecoded / result.sampleRate) * 1000;
 
       const frame: DecodedAudioFrame = {
@@ -172,42 +181,16 @@ class OpusDecoderService {
 
   /**
    * Synchronous decode method for compatibility with existing code
-   * Note: Initialization must be done before calling this
+   * Note: This uses fallback path since real Opus decoding is async
    */
   public decodeFrameSync(opusData: Uint8Array): DecodedAudioFrame | null {
     if (!opusData || opusData.length === 0) {
       return null;
     }
 
-    if (!this.isInitialized || !this.decoder) {
-      console.warn("[Opus Decoder] Sync decode called before initialization, using fallback");
-      return this.fallbackDecodeSync(opusData);
-    }
-
-    const startTime = performance.now();
-
-    try {
-      const pcmData = this.fallbackDecodeSync(opusData)?.pcmData || new Int16Array(0);
-      const duration = (pcmData.length / this.config.sampleRate) * 1000;
-
-      const frame: DecodedAudioFrame = {
-        pcmData,
-        timestamp: this.currentTimestamp,
-        duration,
-      };
-
-      this.currentTimestamp += duration;
-      this.metrics.totalFramesDecoded++;
-      
-      const latency = performance.now() - startTime;
-      this.recordLatency(latency);
-
-      return frame;
-    } catch (error) {
-      console.error("[Opus Decoder] Error in sync decode:", error);
-      this.metrics.totalErrors++;
-      return null;
-    }
+    // Sync decode always uses fallback path since WASM decode is async
+    // fallbackDecodeSync handles all metrics/timestamp updates
+    return this.fallbackDecodeSync(opusData);
   }
 
   /**
@@ -220,6 +203,7 @@ class OpusDecoderService {
   private fallbackDecodeSync(opusData: Uint8Array): DecodedAudioFrame | null {
     console.warn("[Opus Decoder] Using fallback decoder (simulated PCM)");
     
+    const startTime = performance.now();
     const estimatedSamples = this.config.frameSize;
     const pcmData = new Int16Array(estimatedSamples);
 
@@ -231,11 +215,18 @@ class OpusDecoderService {
     }
 
     const duration = (pcmData.length / this.config.sampleRate) * 1000;
+    const timestamp = this.currentTimestamp;
+    
+    // Update state - track fallback frames separately
+    this.currentTimestamp += duration;
+    this.metrics.fallbackFramesDecoded++;
+    this.recordLatency(performance.now() - startTime);
 
     return {
       pcmData,
-      timestamp: this.currentTimestamp,
+      timestamp,
       duration,
+      isFallback: true,
     };
   }
 

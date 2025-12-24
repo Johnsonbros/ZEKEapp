@@ -97,6 +97,8 @@ interface AudioSession {
   transcriptionInterval: ReturnType<typeof setInterval> | null;
   fullTranscript: string;
   lastHeartbeat: Date;
+  consecutiveFallbacks: number;
+  totalFallbacks: number;
 }
 
 const sessions = new Map<WebSocket, AudioSession>();
@@ -234,6 +236,8 @@ function handleStart(ws: WebSocket, deviceId: string): void {
     transcriptionInterval: null,
     fullTranscript: "",
     lastHeartbeat: new Date(),
+    consecutiveFallbacks: 0,
+    totalFallbacks: 0,
   });
 
   startTranscriptionInterval(ws);
@@ -256,6 +260,8 @@ function handleConfig(ws: WebSocket, config: ConfigMessage): void {
     transcriptionInterval: null,
     fullTranscript: "",
     lastHeartbeat: new Date(),
+    consecutiveFallbacks: 0,
+    totalFallbacks: 0,
   });
 
   startTranscriptionInterval(ws);
@@ -380,17 +386,74 @@ async function handleBinaryOpusFrame(ws: WebSocket, opusData: Buffer): Promise<v
     try {
       const { getOpusDecoder } = await import("./services/opus-decoder");
       const decoder = getOpusDecoder();
-      const frame = decoder.decodeFrame(new Uint8Array(opusData));
+      const frame = await decoder.decodeFrame(new Uint8Array(opusData));
       
       if (frame && frame.pcmData) {
-        // Convert Int16Array to Buffer for storage
-        const pcmBuffer = Buffer.from(frame.pcmData.buffer);
+        if (frame.isFallback) {
+          // Track fallback events for monitoring
+          session.consecutiveFallbacks++;
+          session.totalFallbacks++;
+          
+          // After 10 consecutive fallbacks, notify client and tear down session
+          const MAX_CONSECUTIVE_FALLBACKS = 10;
+          if (session.consecutiveFallbacks >= MAX_CONSECUTIVE_FALLBACKS) {
+            console.error(`[Audio] CRITICAL: ${MAX_CONSECUTIVE_FALLBACKS} consecutive decode failures for device ${session.deviceId} - terminating session`);
+            sendMessage(ws, {
+              type: "ERROR",
+              message: `Audio decoder failed after ${MAX_CONSECUTIVE_FALLBACKS} consecutive attempts. Session terminated.`,
+            });
+            cleanupSession(ws);
+            ws.close(1011, "Decoder failure threshold exceeded");
+            return;
+          }
+          
+          // Send warning on first fallback to notify client early
+          if (session.totalFallbacks === 1) {
+            sendMessage(ws, {
+              type: "WARNING",
+              message: "Audio decoder using fallback mode. Some audio data may be lost.",
+            });
+          }
+          
+          // Skip fallback frames - simulated PCM should not be sent to transcription
+          console.warn(`[Audio] Skipping fallback frame (simulated PCM) - ${opusData.length} bytes from device ${session.deviceId} (consecutive: ${session.consecutiveFallbacks})`);
+          return;
+        }
+        
+        // Reset consecutive fallback counter on successful decode
+        session.consecutiveFallbacks = 0;
+        
+        // Convert Int16Array to Buffer with correct byte length (Int16 = 2 bytes per sample)
+        const byteLength = frame.pcmData.length * Int16Array.BYTES_PER_ELEMENT;
+        const pcmBuffer = Buffer.from(frame.pcmData.buffer, frame.pcmData.byteOffset, byteLength);
         session.audioChunks.push(pcmBuffer);
-        console.log(`[Audio] Decoded Opus frame: ${opusData.length} bytes → ${pcmBuffer.length} PCM bytes from device ${session.deviceId}`);
+        console.log(`[Audio] Decoded Opus frame (WASM): ${opusData.length} bytes → ${pcmBuffer.length} PCM bytes from device ${session.deviceId}`);
       }
     } catch (error) {
-      console.error("[Audio] Opus decode error, storing raw:", error);
-      session.audioChunks.push(opusData);
+      // Do NOT store raw Opus data - it will corrupt transcription
+      console.error(`[Audio] Opus decode error for device ${session.deviceId}:`, error);
+      session.consecutiveFallbacks++;
+      session.totalFallbacks++;
+      
+      // Send warning on first failure to notify client
+      if (session.totalFallbacks === 1) {
+        sendMessage(ws, {
+          type: "WARNING",
+          message: "Audio decode error encountered. Some audio data may be lost.",
+        });
+      }
+      
+      // Apply same threshold as fallback frames
+      const MAX_CONSECUTIVE_FALLBACKS = 10;
+      if (session.consecutiveFallbacks >= MAX_CONSECUTIVE_FALLBACKS) {
+        console.error(`[Audio] CRITICAL: ${MAX_CONSECUTIVE_FALLBACKS} consecutive decode failures for device ${session.deviceId} - terminating session`);
+        sendMessage(ws, {
+          type: "ERROR",
+          message: `Audio decoder failed after ${MAX_CONSECUTIVE_FALLBACKS} consecutive attempts. Session terminated.`,
+        });
+        cleanupSession(ws);
+        ws.close(1011, "Decoder failure threshold exceeded");
+      }
     }
   } else {
     // Store raw frame directly (PCM or unknown codec)
