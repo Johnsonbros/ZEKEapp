@@ -450,7 +450,7 @@ export default function HomeScreen() {
         ref={scrollViewRef}
         style={{ flex: 1 }}
         contentContainerStyle={{
-          paddingTop: headerHeight,
+          paddingTop: headerHeight - Spacing.lg,
           paddingBottom: tabBarHeight + Spacing.lg + 40,
           paddingHorizontal: Spacing.lg,
         }}
@@ -1120,7 +1120,6 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   headerSection: {
     marginBottom: Spacing.md,
-    marginTop: -Spacing.md,
   },
   greetingSection: {
     marginBottom: Spacing.lg,
