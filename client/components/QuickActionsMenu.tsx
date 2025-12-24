@@ -73,7 +73,8 @@ export function QuickActionsMenu({ actions }: QuickActionsMenuProps) {
   const actionAnimations = actionAnimationsRef.current;
 
   const fabBottomPosition = tabBarHeight + Spacing.sm;
-  const fabIsCentered = true;
+  const fabRightPosition = Spacing.lg;
+  const menuCentered = true;
 
   const handleToggle = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -230,8 +231,7 @@ export function QuickActionsMenu({ actions }: QuickActionsMenuProps) {
             index={index}
             totalActions={actions.length}
             animationProgress={actionAnimations[index]}
-            fabBottomPosition={fabBottomPosition}
-            fabIsCentered={fabIsCentered}
+            menuCentered={menuCentered}
             targetX={position.x}
             targetY={position.y}
             rotationOffset={rotationOffset}
@@ -244,9 +244,9 @@ export function QuickActionsMenu({ actions }: QuickActionsMenuProps) {
         onPress={handleToggle}
         style={[
           styles.fab,
-          styles.fabCentered,
           {
             bottom: fabBottomPosition,
+            right: fabRightPosition,
           },
           fabAnimatedStyle,
         ]}
@@ -270,8 +270,7 @@ interface RadialActionButtonProps {
   index: number;
   totalActions: number;
   animationProgress: SharedValue<number>;
-  fabBottomPosition: number;
-  fabIsCentered: boolean;
+  menuCentered: boolean;
   targetX: number;
   targetY: number;
   rotationOffset: number;
@@ -284,8 +283,7 @@ function RadialActionButton({
   index,
   totalActions,
   animationProgress,
-  fabBottomPosition,
-  fabIsCentered,
+  menuCentered,
   targetX,
   targetY,
   rotationOffset,
@@ -375,16 +373,11 @@ function RadialActionButton({
     };
   });
 
-  const fabCenterOffset = FAB_SIZE / 2 - ACTION_BUTTON_SIZE / 2;
-
   return (
     <Animated.View
       style={[
         styles.radialActionContainer,
-        fabIsCentered ? styles.radialActionCentered : null,
-        {
-          bottom: fabBottomPosition + fabCenterOffset,
-        },
+        menuCentered ? styles.radialActionCentered : null,
         animatedStyle,
       ]}
       pointerEvents={isOpen ? "auto" : "none"}
@@ -444,7 +437,9 @@ const styles = StyleSheet.create({
   },
   radialActionCentered: {
     left: "50%",
+    top: "50%",
     marginLeft: -ACTION_BUTTON_SIZE / 2,
+    marginTop: -ACTION_BUTTON_SIZE / 2,
   },
   radialActionPressable: {
     alignItems: "center",
