@@ -81,7 +81,7 @@ interface StopMessage {
 type ClientMessage = LegacyClientMessage | ConfigMessage | AudioMessage | SilenceMessage | HeartbeatMessage | StopMessage;
 
 interface ServerMessage {
-  type: "TRANSCRIPTION" | "ERROR" | "config_ack" | "heartbeat_ack";
+  type: "TRANSCRIPTION" | "ERROR" | "WARNING" | "config_ack" | "heartbeat_ack";
   text?: string;
   isFinal?: boolean;
   message?: string;

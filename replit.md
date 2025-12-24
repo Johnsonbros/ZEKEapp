@@ -78,8 +78,25 @@ The audio WebSocket at `/ws/audio` supports both legacy and spec-compliant messa
 - `STOP`: End session
 
 ### Client Libraries
-- `client/lib/audio-streaming.ts`: WebSocket client with sendBinaryOpus() and sendAudioRaw()
+- `client/lib/audio-streaming.ts`: Low-level WebSocket client with sendBinaryOpus() and sendAudioRaw()
+- `client/lib/audioStreamer.ts`: High-level AudioStreamer that integrates BLE audio with WebSocket transcription
 - `client/lib/vad-client.ts`: Energy-based voice activity detection for mobile
+- `client/lib/bluetooth.ts`: BLE device management with battery monitoring
+
+### Audio Streaming Flow (December 2024)
+1. AudioStreamerImpl connects to `/ws/audio` WebSocket
+2. Sends `config` message with device type (omi/limitless), codec (opus), sample rate
+3. Server responds with `config_ack` immediately
+4. Client sets `isConfigured = true`, enabling audio transmission
+5. BLE audio chunks are sent as raw binary Opus frames via `sendBinaryOpus()`
+6. Heartbeat with battery/signal info sent every 30 seconds
+
+### Battery Monitoring (December 2024)
+- Uses standard BLE Battery Service (0x180F) and Battery Level Characteristic (0x2A19)
+- Reads initial battery level on device connection via `readBatteryLevel()`
+- Monitors for real-time updates via BLE notifications
+- Battery level stored in `connectedDevice.batteryLevel`
+- Battery info included in WebSocket heartbeat messages
 
 ### Known Limitations
 - VAD uses energy-based detection (Silero VAD recommended for production)
