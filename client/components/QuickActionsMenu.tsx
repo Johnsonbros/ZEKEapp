@@ -73,7 +73,7 @@ export function QuickActionsMenu({ actions }: QuickActionsMenuProps) {
   const actionAnimations = actionAnimationsRef.current;
 
   const fabBottomPosition = tabBarHeight + Spacing.sm;
-  const fabRightPosition = Spacing.lg;
+  const fabIsCentered = true;
 
   const handleToggle = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -136,8 +136,8 @@ export function QuickActionsMenu({ actions }: QuickActionsMenuProps) {
   }));
 
   const calculateArcPosition = (index: number, total: number) => {
-    const startAngle = Math.PI;
-    const endAngle = Math.PI * 1.5;
+    const startAngle = Math.PI * 1.15;
+    const endAngle = Math.PI * 1.85;
     const angleRange = endAngle - startAngle;
     const angleStep = total > 1 ? angleRange / (total - 1) : 0;
     const angle = startAngle + angleStep * index;
@@ -231,7 +231,7 @@ export function QuickActionsMenu({ actions }: QuickActionsMenuProps) {
             totalActions={actions.length}
             animationProgress={actionAnimations[index]}
             fabBottomPosition={fabBottomPosition}
-            fabRightPosition={fabRightPosition}
+            fabIsCentered={fabIsCentered}
             targetX={position.x}
             targetY={position.y}
             rotationOffset={rotationOffset}
@@ -244,9 +244,9 @@ export function QuickActionsMenu({ actions }: QuickActionsMenuProps) {
         onPress={handleToggle}
         style={[
           styles.fab,
+          styles.fabCentered,
           {
             bottom: fabBottomPosition,
-            right: fabRightPosition,
           },
           fabAnimatedStyle,
         ]}
@@ -271,7 +271,7 @@ interface RadialActionButtonProps {
   totalActions: number;
   animationProgress: SharedValue<number>;
   fabBottomPosition: number;
-  fabRightPosition: number;
+  fabIsCentered: boolean;
   targetX: number;
   targetY: number;
   rotationOffset: number;
@@ -285,7 +285,7 @@ function RadialActionButton({
   totalActions,
   animationProgress,
   fabBottomPosition,
-  fabRightPosition,
+  fabIsCentered,
   targetX,
   targetY,
   rotationOffset,
@@ -381,9 +381,9 @@ function RadialActionButton({
     <Animated.View
       style={[
         styles.radialActionContainer,
+        fabIsCentered ? styles.radialActionCentered : null,
         {
           bottom: fabBottomPosition + fabCenterOffset,
-          right: fabRightPosition + fabCenterOffset,
         },
         animatedStyle,
       ]}
@@ -426,6 +426,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.35,
     shadowRadius: 10,
   },
+  fabCentered: {
+    left: "50%",
+    marginLeft: -FAB_SIZE / 2,
+  },
   fabGradient: {
     width: FAB_SIZE,
     height: FAB_SIZE,
@@ -437,6 +441,10 @@ const styles = StyleSheet.create({
     position: "absolute",
     zIndex: 999,
     alignItems: "center",
+  },
+  radialActionCentered: {
+    left: "50%",
+    marginLeft: -ACTION_BUTTON_SIZE / 2,
   },
   radialActionPressable: {
     alignItems: "center",
