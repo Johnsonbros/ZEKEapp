@@ -199,7 +199,21 @@ GET  /api/wearable/sessions - Get conversation sessions
 POST /api/wearable/sessions/:id/create-memory - Create memory from session
 ```
 
+### Knowledge Graph Integration
+Speaker profiles can be linked to the ZEKE backend knowledge graph:
+- `GET /api/wearable/speakers/relationships` - Get speaker relationships from knowledge graph
+- `POST /api/wearable/speakers/:id/link` - Link speaker profile to knowledge graph entity
+- `GET /api/wearable/speakers/:id/context` - Get full context for speaker (profile + graph + conversations)
+
+### Conversation Bridge
+The conversation bridge (`server/services/conversation-bridge.ts`) connects Omi/Limitless transcripts to ZEKE backend:
+- Tracks active conversations with speaker attribution
+- Sends completed conversations to ZEKE for memory creation
+- Updates knowledge graph with speaker relationships
+- Processes day summaries from Omi webhooks
+
 ### Known Limitations
 - Opus decoder is a placeholder (returns simulated PCM data)
 - VAD uses energy-based detection (Silero VAD recommended for production)
 - Voice enrollment requires WAV audio format
+- Knowledge graph integration requires main ZEKE backend to support `/api/knowledge-graph/*` endpoints

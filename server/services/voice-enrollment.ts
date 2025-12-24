@@ -314,9 +314,11 @@ class VoiceEnrollmentService {
    */
   public async getProfiles(deviceId: string): Promise<Array<{
     id: string;
+    speakerName: string;
     name: string;
     hasVoiceEnrollment: boolean;
     enrollmentQuality?: string;
+    externalSpeakerId?: number;
     createdAt: Date;
   }>> {
     const profiles = await db
@@ -324,17 +326,55 @@ class VoiceEnrollmentService {
       .from(speakerProfiles)
       .where(eq(speakerProfiles.deviceId, deviceId));
 
-    return profiles.map(profile => {
+    return profiles.map((profile) => {
       const characteristics = profile.voiceCharacteristics as VoiceCharacteristics | null;
       
       return {
         id: profile.id,
+        speakerName: profile.name,
         name: profile.name,
         hasVoiceEnrollment: !!characteristics?.embedding,
         enrollmentQuality: characteristics?.embedding?.quality,
+        externalSpeakerId: profile.externalSpeakerId ?? undefined,
         createdAt: profile.createdAt,
       };
     });
+  }
+
+  /**
+   * Link a speaker profile to a diarization speaker ID
+   */
+  public async linkSpeakerId(profileId: string, externalSpeakerId: number): Promise<boolean> {
+    try {
+      await db
+        .update(speakerProfiles)
+        .set({ externalSpeakerId, updatedAt: new Date() })
+        .where(eq(speakerProfiles.id, profileId));
+      console.log(`[Voice Enrollment] Linked profile ${profileId} to speaker ID ${externalSpeakerId}`);
+      return true;
+    } catch (error) {
+      console.error("[Voice Enrollment] Link speaker ID error:", error);
+      return false;
+    }
+  }
+
+  /**
+   * Get profile by external speaker ID
+   */
+  public async getProfileBySpeakerId(deviceId: string, externalSpeakerId: number): Promise<{ id: string; name: string } | null> {
+    const profiles = await db
+      .select()
+      .from(speakerProfiles)
+      .where(and(
+        eq(speakerProfiles.deviceId, deviceId),
+        eq(speakerProfiles.externalSpeakerId, externalSpeakerId)
+      ))
+      .limit(1);
+
+    if (profiles.length > 0) {
+      return { id: profiles[0].id, name: profiles[0].name };
+    }
+    return null;
   }
 
   /**

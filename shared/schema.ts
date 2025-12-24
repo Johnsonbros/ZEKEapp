@@ -283,6 +283,7 @@ export const speakerProfiles = pgTable("speaker_profiles", {
     .default(sql`gen_random_uuid()`),
   deviceId: varchar("device_id").references(() => devices.id).notNull(),
   name: text("name").notNull(),
+  externalSpeakerId: integer("external_speaker_id"),
   voiceCharacteristics: jsonb("voice_characteristics"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

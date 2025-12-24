@@ -12,3 +12,4 @@ export { limitlessApiService, type LimitlessLifelog, type LimitlessContent, type
 export { opusDecoderService, createOpusDecoder, type OpusDecoderConfig, type DecodedAudioFrame, type AudioBuffer } from "./opus-decoder";
 export { vadService, createVADService, type VADConfig, type VADResult, type SpeechSegment, type VADEvent } from "./vad-service";
 export { voiceEnrollmentService, type VoiceEnrollmentRequest, type VoiceEnrollmentResult, type SpeakerMatchResult, type VoiceCharacteristics } from "./voice-enrollment";
+export { conversationBridgeService } from "./conversation-bridge";

@@ -24,7 +24,8 @@ import {
   limitlessApiService, 
   opusDecoderService, 
   vadService, 
-  voiceEnrollmentService 
+  voiceEnrollmentService,
+  conversationBridgeService
 } from "./services";
 
 const upload = multer({ 
@@ -308,6 +309,28 @@ export function registerWearableRoutes(app: Express): void {
     }
   });
 
+  app.post("/api/wearable/voice/profiles/:id/link-speaker", async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { externalSpeakerId } = req.body;
+
+      if (externalSpeakerId === undefined || typeof externalSpeakerId !== "number") {
+        return res.status(400).json({ error: "externalSpeakerId (number) is required" });
+      }
+
+      const linked = await voiceEnrollmentService.linkSpeakerId(id, externalSpeakerId);
+
+      if (linked) {
+        res.json({ success: true, profileId: id, externalSpeakerId });
+      } else {
+        res.status(404).json({ error: "Profile not found or link failed" });
+      }
+    } catch (error) {
+      console.error("[Wearable Routes] Link speaker error:", error);
+      res.status(500).json({ error: "Failed to link speaker" });
+    }
+  });
+
   // ============================================
   // Audio Processing Routes
   // ============================================
@@ -414,11 +437,19 @@ export function registerWearableRoutes(app: Express): void {
     try {
       const { id } = req.params;
 
-      const sessions = await db
+      let sessions = await db
         .select()
         .from(conversationSessions)
         .where(eq(conversationSessions.id, id))
         .limit(1);
+
+      if (sessions.length === 0) {
+        sessions = await db
+          .select()
+          .from(conversationSessions)
+          .where(eq(conversationSessions.externalId, id))
+          .limit(1);
+      }
 
       if (sessions.length === 0) {
         return res.status(404).json({ error: "Session not found" });
@@ -435,11 +466,19 @@ export function registerWearableRoutes(app: Express): void {
     try {
       const { id } = req.params;
 
-      const sessions = await db
+      let sessions = await db
         .select()
         .from(conversationSessions)
         .where(eq(conversationSessions.id, id))
         .limit(1);
+
+      if (sessions.length === 0) {
+        sessions = await db
+          .select()
+          .from(conversationSessions)
+          .where(eq(conversationSessions.externalId, id))
+          .limit(1);
+      }
 
       if (sessions.length === 0) {
         return res.status(404).json({ error: "Session not found" });
@@ -480,6 +519,22 @@ export function registerWearableRoutes(app: Express): void {
     } catch (error) {
       console.error("[Wearable Routes] Create memory error:", error);
       res.status(500).json({ error: "Failed to create memory" });
+    }
+  });
+
+  app.post("/api/wearable/sessions/:id/reconcile", async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const result = await conversationBridgeService.reconcileSession(id);
+
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(404).json(result);
+      }
+    } catch (error) {
+      console.error("[Wearable Routes] Reconcile session error:", error);
+      res.status(500).json({ error: "Failed to reconcile session" });
     }
   });
 
@@ -573,6 +628,136 @@ export function registerWearableRoutes(app: Express): void {
     }
   });
 
+  // ============================================
+  // Knowledge Graph Routes
+  // ============================================
+
+  const ZEKE_BACKEND_URL = process.env.EXPO_PUBLIC_ZEKE_BACKEND_URL || "https://zekeai.replit.app";
+
+  app.get("/api/wearable/speakers/relationships", async (req: Request, res: Response) => {
+    try {
+      const deviceId = req.query.deviceId as string;
+      const speakerId = req.query.speakerId as string;
+
+      const response = await fetch(
+        `${ZEKE_BACKEND_URL}/api/knowledge-graph/relationships?type=person${speakerId ? `&entity=${speakerId}` : ""}`,
+        {
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+
+      if (!response.ok) {
+        return res.status(response.status).json({ error: "Failed to fetch relationships" });
+      }
+
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      console.error("[Wearable Routes] Get speaker relationships error:", error);
+      res.status(500).json({ error: "Failed to get speaker relationships" });
+    }
+  });
+
+  app.post("/api/wearable/speakers/:id/link", async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { entityName, relationship } = req.body;
+
+      if (!entityName || !relationship) {
+        return res.status(400).json({ error: "entityName and relationship are required" });
+      }
+
+      const profile = await db
+        .select()
+        .from(speakerProfiles)
+        .where(eq(speakerProfiles.id, id))
+        .limit(1);
+
+      if (profile.length === 0) {
+        return res.status(404).json({ error: "Speaker profile not found" });
+      }
+
+      const response = await fetch(`${ZEKE_BACKEND_URL}/api/knowledge-graph/update`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          entities: [
+            {
+              name: profile[0].speakerName,
+              type: "person",
+              attributes: { speakerId: id, source: "voice_enrollment" },
+            },
+            {
+              name: entityName,
+              type: "person",
+              attributes: {},
+            },
+          ],
+          relationships: [
+            {
+              source: profile[0].speakerName,
+              target: entityName,
+              type: relationship,
+              context: `Linked via voice enrollment on ${new Date().toLocaleDateString()}`,
+            },
+          ],
+        }),
+      });
+
+      if (!response.ok) {
+        return res.status(response.status).json({ error: "Failed to create relationship" });
+      }
+
+      res.json({ success: true, message: `Linked ${profile[0].speakerName} to ${entityName}` });
+    } catch (error) {
+      console.error("[Wearable Routes] Link speaker error:", error);
+      res.status(500).json({ error: "Failed to link speaker to knowledge graph" });
+    }
+  });
+
+  app.get("/api/wearable/speakers/:id/context", async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+
+      const profile = await db
+        .select()
+        .from(speakerProfiles)
+        .where(eq(speakerProfiles.id, id))
+        .limit(1);
+
+      if (profile.length === 0) {
+        return res.status(404).json({ error: "Speaker profile not found" });
+      }
+
+      const [relationshipsRes, sessionsRes] = await Promise.all([
+        fetch(`${ZEKE_BACKEND_URL}/api/knowledge-graph/entity/${encodeURIComponent(profile[0].speakerName)}`, {
+          headers: { "Content-Type": "application/json" },
+        }).catch(() => null),
+        db
+          .select()
+          .from(conversationSessions)
+          .where(eq(conversationSessions.deviceId, profile[0].deviceId))
+          .orderBy(desc(conversationSessions.startTime))
+          .limit(10),
+      ]);
+
+      const entityData = relationshipsRes?.ok ? await relationshipsRes.json() : null;
+
+      res.json({
+        profile: {
+          id: profile[0].id,
+          name: profile[0].speakerName,
+          createdAt: profile[0].createdAt,
+        },
+        knowledgeGraph: entityData,
+        recentConversations: sessionsRes.length,
+      });
+    } catch (error) {
+      console.error("[Wearable Routes] Get speaker context error:", error);
+      res.status(500).json({ error: "Failed to get speaker context" });
+    }
+  });
+
   console.log("[Wearable Routes] Endpoints registered:");
   console.log("  POST /api/wearable/limitless/configure - Configure Limitless API");
   console.log("  GET  /api/wearable/limitless/status - Get Limitless connection status");
@@ -582,12 +767,17 @@ export function registerWearableRoutes(app: Express): void {
   console.log("  POST /api/wearable/voice/match - Match voice to profiles");
   console.log("  GET  /api/wearable/voice/profiles - Get voice profiles");
   console.log("  DELETE /api/wearable/voice/profiles/:id - Delete voice profile");
+  console.log("  POST /api/wearable/voice/profiles/:id/link-speaker - Link profile to diarization ID");
   console.log("  POST /api/wearable/audio/decode-opus - Decode Opus to WAV");
   console.log("  POST /api/wearable/audio/vad - Analyze audio for speech");
   console.log("  GET  /api/wearable/sessions - Get conversation sessions");
   console.log("  GET  /api/wearable/sessions/:id - Get session details");
   console.log("  POST /api/wearable/sessions/:id/create-memory - Create memory from session");
+  console.log("  POST /api/wearable/sessions/:id/reconcile - Reprocess session speaker links");
   console.log("  GET  /api/wearable/sync-queue - Get offline sync queue");
   console.log("  POST /api/wearable/sync-queue - Add to sync queue");
   console.log("  PATCH /api/wearable/sync-queue/:id - Update sync queue item");
+  console.log("  GET  /api/wearable/speakers/relationships - Get speaker relationships");
+  console.log("  POST /api/wearable/speakers/:id/link - Link speaker to knowledge graph");
+  console.log("  GET  /api/wearable/speakers/:id/context - Get speaker context");
 }

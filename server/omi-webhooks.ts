@@ -4,6 +4,7 @@ import OpenAI from "openai";
 import { db } from "./db";
 import { userLists, listItems, transcriptSessions } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
+import { conversationBridgeService } from "./services/conversation-bridge";
 
 // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -352,6 +353,9 @@ export function registerOmiWebhooks(app: Express): void {
       }
 
       const sessionId = data.session_id || "default";
+      const deviceId = (req.headers["x-device-id"] as string) || "omi-webhook";
+      
+      await conversationBridgeService.addSegments(sessionId, data.segments, deviceId);
       
       let existingSegments = sessionTranscripts.get(sessionId) || [];
       existingSegments = [...existingSegments, ...data.segments];
@@ -396,6 +400,17 @@ export function registerOmiWebhooks(app: Express): void {
 
       console.log("[Omi Memory] Received memory trigger:", JSON.stringify(req.body).substring(0, 500));
       
+      const result = await conversationBridgeService.processOmiMemoryTrigger(req.body);
+      
+      if (result.success) {
+        console.log(`[Omi Memory] Created memory ${result.memoryId}`);
+        return res.json({ 
+          message: result.summary || "Memory created successfully",
+          memoryId: result.memoryId 
+        });
+      }
+      
+      console.log(`[Omi Memory] Memory creation skipped: ${result.error}`);
       return res.json({ message: "" });
     } catch (error) {
       console.error("[Omi Memory] Error:", error);
@@ -427,7 +442,9 @@ export function registerOmiWebhooks(app: Express): void {
 
       console.log("[Omi Day Summary] Received:", JSON.stringify(req.body).substring(0, 500));
       
-      return res.json({ message: "" });
+      await conversationBridgeService.processDaySummary(req.body);
+      
+      return res.json({ message: "Day summary processed" });
     } catch (error) {
       console.error("[Omi Day Summary] Error:", error);
       return res.status(500).json({ message: "", error: "Internal server error" });
