@@ -216,7 +216,7 @@ class AudioStreamingClient {
   }
 
   /**
-   * Send raw audio data without VAD filtering
+   * Send raw audio data without VAD filtering (JSON format)
    */
   sendAudioRaw(base64Data: string): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.isConfigured) {
@@ -228,6 +228,19 @@ class AudioStreamingClient {
       data: base64Data,
     };
     this.ws.send(JSON.stringify(audioMessage));
+  }
+
+  /**
+   * Send binary Opus frame directly (spec-compliant format)
+   * Use this for raw Opus packets from wearable devices
+   */
+  sendBinaryOpus(opusData: Uint8Array): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.isConfigured) {
+      return;
+    }
+
+    // Send as binary data (ArrayBuffer)
+    this.ws.send(opusData);
   }
 
   /**

@@ -352,6 +352,53 @@ function handleAudioChunk(ws: WebSocket, base64Data: string): void {
   }
 }
 
+/**
+ * Check if a buffer contains JSON data (starts with '{' or '[')
+ */
+function isJsonBuffer(data: Buffer): boolean {
+  if (data.length === 0) return false;
+  const firstByte = data[0];
+  return firstByte === 0x7b || firstByte === 0x5b; // '{' or '['
+}
+
+/**
+ * Handle binary Opus frames directly (spec-compliant format)
+ * Decodes Opus to PCM using the opus-decoder service before storing
+ */
+async function handleBinaryOpusFrame(ws: WebSocket, opusData: Buffer): Promise<void> {
+  const session = sessions.get(ws);
+  if (!session) {
+    sendMessage(ws, {
+      type: "ERROR",
+      message: "No active session. Send config message first.",
+    });
+    return;
+  }
+
+  // If session is configured for Opus codec, decode to PCM
+  if (session.codec === "opus") {
+    try {
+      const { getOpusDecoder } = await import("./services/opus-decoder");
+      const decoder = getOpusDecoder();
+      const frame = decoder.decodeFrame(new Uint8Array(opusData));
+      
+      if (frame && frame.pcmData) {
+        // Convert Int16Array to Buffer for storage
+        const pcmBuffer = Buffer.from(frame.pcmData.buffer);
+        session.audioChunks.push(pcmBuffer);
+        console.log(`[Audio] Decoded Opus frame: ${opusData.length} bytes → ${pcmBuffer.length} PCM bytes from device ${session.deviceId}`);
+      }
+    } catch (error) {
+      console.error("[Audio] Opus decode error, storing raw:", error);
+      session.audioChunks.push(opusData);
+    }
+  } else {
+    // Store raw frame directly (PCM or unknown codec)
+    session.audioChunks.push(opusData);
+    console.log(`[Audio] Received binary frame: ${opusData.length} bytes from device ${session.deviceId} (total chunks: ${session.audioChunks.length})`);
+  }
+}
+
 async function handleStop(ws: WebSocket): Promise<void> {
   const session = sessions.get(ws);
   if (!session) {
@@ -464,6 +511,12 @@ function setupAudioWebSocket(server: Server): WebSocketServer {
 
     ws.on("message", async (data: Buffer | string) => {
       try {
+        // Handle binary Opus frames directly (spec-compliant format)
+        if (Buffer.isBuffer(data) && !isJsonBuffer(data)) {
+          await handleBinaryOpusFrame(ws, data);
+          return;
+        }
+
         const messageStr = typeof data === "string" ? data : data.toString();
         const message: ClientMessage = JSON.parse(messageStr);
 

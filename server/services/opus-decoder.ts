@@ -239,3 +239,7 @@ export const opusDecoderService = new OpusDecoderService();
 export function createOpusDecoder(config?: Partial<OpusDecoderConfig>): OpusDecoderService {
   return new OpusDecoderService(config);
 }
+
+export function getOpusDecoder(): OpusDecoderService {
+  return opusDecoderService;
+}
