@@ -159,3 +159,47 @@ These improvements require changes to the main ZEKE backend:
 - **Registration**: `POST /api/zeke/push/register` - Register device push token with ZEKE backend
 - **Integration**: Uses Expo Notifications for token generation and handling
 - **Helper Functions**: `notifications.ts` provides registration and permission handling
+
+## Wearable Integration (December 2024)
+
+### Architecture Overview
+The wearable integration supports Omi and Limitless AI devices with:
+- **Backend Services**: `server/services/` contains Limitless API client, Opus decoder, VAD, and voice enrollment
+- **Database Schema**: Three new tables for credentials, sessions, and offline queue
+- **API Routes**: 16 endpoints at `/api/wearable/*` for device management
+- **Client Services**: `client/lib/` contains wearable API client, Limitless fallback, and offline sync
+
+### Limitless Integration
+- **REST API Client**: `server/services/limitless-api.ts` fetches pre-transcribed lifelogs from Limitless pendant
+- **Credential Storage**: API keys stored in `limitless_credentials` table (encrypted at rest)
+- **Auto-Sync**: Client fallback service triggers sync when BLE connection fails
+
+### Voice Enrollment
+- **Speaker Identification**: `server/services/voice-enrollment.ts` generates voice embeddings
+- **Profile Storage**: `speaker_profiles` table with voice characteristics
+- **UI Screen**: `VoiceEnrollmentScreen.tsx` for recording voice samples
+
+### Audio Processing
+- **Opus Decoder**: Placeholder implementation in `server/services/opus-decoder.ts` (production needs libopus via WebAssembly)
+- **Voice Activity Detection**: Energy-based VAD in `server/services/vad-service.ts` (consider Silero VAD for production)
+
+### Offline Sync
+- **Queue Service**: `client/lib/offline-sync.ts` queues recordings when offline
+- **Priority Batching**: Longer recordings get higher priority
+- **Auto-Retry**: Exponential backoff with max 5 retries
+
+### API Endpoints
+```
+POST /api/wearable/limitless/configure - Configure Limitless API key
+GET  /api/wearable/limitless/status - Get connection status
+POST /api/wearable/limitless/sync - Sync lifelogs
+POST /api/wearable/voice/enroll - Enroll voice sample
+POST /api/wearable/voice/match - Match voice to profiles
+GET  /api/wearable/sessions - Get conversation sessions
+POST /api/wearable/sessions/:id/create-memory - Create memory from session
+```
+
+### Known Limitations
+- Opus decoder is a placeholder (returns simulated PCM data)
+- VAD uses energy-based detection (Silero VAD recommended for production)
+- Voice enrollment requires WAV audio format

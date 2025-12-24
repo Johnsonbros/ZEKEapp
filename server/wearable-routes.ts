@@ -1,0 +1,593 @@
+/**
+ * Wearable Integration Routes
+ * 
+ * API endpoints for Omi and Limitless AI wearable device integration.
+ * Provides routes for:
+ * - Limitless API management and lifelog syncing
+ * - Voice enrollment for speaker identification
+ * - Audio processing with VAD and Opus decoding
+ * - Offline sync queue management
+ */
+
+import type { Express, Request, Response } from "express";
+import multer from "multer";
+import { db } from "./db";
+import { 
+  limitlessCredentials, 
+  conversationSessions, 
+  offlineSyncQueue, 
+  speakerProfiles,
+  memories 
+} from "@shared/schema";
+import { eq, and, desc } from "drizzle-orm";
+import { 
+  limitlessApiService, 
+  opusDecoderService, 
+  vadService, 
+  voiceEnrollmentService 
+} from "./services";
+
+const upload = multer({ 
+  storage: multer.memoryStorage(), 
+  limits: { fileSize: 50 * 1024 * 1024 } 
+});
+
+export function registerWearableRoutes(app: Express): void {
+  console.log("[Wearable Routes] Registering wearable integration endpoints...");
+
+  // ============================================
+  // Limitless API Routes
+  // ============================================
+
+  app.post("/api/wearable/limitless/configure", async (req: Request, res: Response) => {
+    try {
+      const { deviceId, apiKey } = req.body;
+
+      if (!deviceId || !apiKey) {
+        return res.status(400).json({ error: "deviceId and apiKey are required" });
+      }
+
+      limitlessApiService.setApiKey(apiKey);
+      const testResult = await limitlessApiService.testConnection();
+
+      if (!testResult.success) {
+        return res.status(400).json({ 
+          error: "Failed to connect to Limitless API", 
+          details: testResult.error 
+        });
+      }
+
+      const existing = await db
+        .select()
+        .from(limitlessCredentials)
+        .where(eq(limitlessCredentials.deviceId, deviceId))
+        .limit(1);
+
+      if (existing.length > 0) {
+        await db
+          .update(limitlessCredentials)
+          .set({ apiKey, isActive: true, updatedAt: new Date() })
+          .where(eq(limitlessCredentials.id, existing[0].id));
+      } else {
+        await db.insert(limitlessCredentials).values({
+          deviceId,
+          apiKey,
+          isActive: true,
+        });
+      }
+
+      console.log("[Wearable Routes] Limitless API configured for device:", deviceId);
+      res.json({ success: true, message: "Limitless API configured successfully" });
+    } catch (error) {
+      console.error("[Wearable Routes] Limitless configure error:", error);
+      res.status(500).json({ error: "Failed to configure Limitless API" });
+    }
+  });
+
+  app.get("/api/wearable/limitless/status", async (req: Request, res: Response) => {
+    try {
+      const deviceId = req.query.deviceId as string;
+
+      if (!deviceId) {
+        return res.status(400).json({ error: "deviceId is required" });
+      }
+
+      const credentials = await db
+        .select()
+        .from(limitlessCredentials)
+        .where(and(
+          eq(limitlessCredentials.deviceId, deviceId),
+          eq(limitlessCredentials.isActive, true)
+        ))
+        .limit(1);
+
+      if (credentials.length === 0) {
+        return res.json({ configured: false });
+      }
+
+      limitlessApiService.setApiKey(credentials[0].apiKey);
+      const testResult = await limitlessApiService.testConnection();
+
+      res.json({
+        configured: true,
+        connected: testResult.success,
+        lastSyncAt: credentials[0].lastSyncAt,
+        error: testResult.error,
+      });
+    } catch (error) {
+      console.error("[Wearable Routes] Limitless status error:", error);
+      res.status(500).json({ error: "Failed to get Limitless status" });
+    }
+  });
+
+  app.post("/api/wearable/limitless/sync", async (req: Request, res: Response) => {
+    try {
+      const { deviceId } = req.body;
+
+      if (!deviceId) {
+        return res.status(400).json({ error: "deviceId is required" });
+      }
+
+      const credentials = await db
+        .select()
+        .from(limitlessCredentials)
+        .where(and(
+          eq(limitlessCredentials.deviceId, deviceId),
+          eq(limitlessCredentials.isActive, true)
+        ))
+        .limit(1);
+
+      if (credentials.length === 0) {
+        return res.status(400).json({ error: "Limitless API not configured for this device" });
+      }
+
+      limitlessApiService.setApiKey(credentials[0].apiKey);
+      const syncResult = await limitlessApiService.syncNewLifelogs();
+
+      const createdSessions: string[] = [];
+      for (const lifelog of syncResult.newLifelogs) {
+        const parsed = limitlessApiService.parseLifelogToTranscript(lifelog);
+        
+        const session = await db.insert(conversationSessions).values({
+          deviceId,
+          externalId: lifelog.id,
+          source: "limitless",
+          status: "completed",
+          startTime: new Date(lifelog.startTime),
+          endTime: new Date(lifelog.endTime),
+          transcript: parsed.fullText,
+          speakers: Array.from(parsed.speakers.entries()).map(([name, id]) => ({ name, id })),
+          metadata: { title: lifelog.title, markdown: lifelog.markdown },
+        }).returning();
+
+        createdSessions.push(session[0].id);
+      }
+
+      await db
+        .update(limitlessCredentials)
+        .set({ lastSyncAt: new Date(), updatedAt: new Date() })
+        .where(eq(limitlessCredentials.id, credentials[0].id));
+
+      console.log("[Wearable Routes] Synced", syncResult.syncedCount, "lifelogs from Limitless");
+      res.json({
+        success: true,
+        syncedCount: syncResult.syncedCount,
+        sessionIds: createdSessions,
+        errors: syncResult.errors,
+      });
+    } catch (error) {
+      console.error("[Wearable Routes] Limitless sync error:", error);
+      res.status(500).json({ error: "Failed to sync from Limitless" });
+    }
+  });
+
+  app.get("/api/wearable/limitless/lifelogs", async (req: Request, res: Response) => {
+    try {
+      const deviceId = req.query.deviceId as string;
+      const limit = parseInt(req.query.limit as string) || 20;
+      const hours = parseInt(req.query.hours as string) || 24;
+
+      if (!deviceId) {
+        return res.status(400).json({ error: "deviceId is required" });
+      }
+
+      const credentials = await db
+        .select()
+        .from(limitlessCredentials)
+        .where(and(
+          eq(limitlessCredentials.deviceId, deviceId),
+          eq(limitlessCredentials.isActive, true)
+        ))
+        .limit(1);
+
+      if (credentials.length === 0) {
+        return res.status(400).json({ error: "Limitless API not configured" });
+      }
+
+      limitlessApiService.setApiKey(credentials[0].apiKey);
+      const lifelogs = await limitlessApiService.fetchRecentLifelogs(hours);
+
+      res.json({
+        lifelogs: lifelogs.slice(0, limit),
+        total: lifelogs.length,
+      });
+    } catch (error) {
+      console.error("[Wearable Routes] Fetch lifelogs error:", error);
+      res.status(500).json({ error: "Failed to fetch lifelogs" });
+    }
+  });
+
+  // ============================================
+  // Voice Enrollment Routes
+  // ============================================
+
+  app.post("/api/wearable/voice/enroll", upload.single("audio"), async (req: Request, res: Response) => {
+    try {
+      const { deviceId, name } = req.body;
+
+      if (!deviceId || !name) {
+        return res.status(400).json({ error: "deviceId and name are required" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ error: "Audio file is required" });
+      }
+
+      const result = await voiceEnrollmentService.enrollVoice({
+        deviceId,
+        name,
+        audioData: req.file.buffer,
+        mimeType: req.file.mimetype,
+      });
+
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(400).json(result);
+      }
+    } catch (error) {
+      console.error("[Wearable Routes] Voice enrollment error:", error);
+      res.status(500).json({ error: "Failed to enroll voice" });
+    }
+  });
+
+  app.post("/api/wearable/voice/match", upload.single("audio"), async (req: Request, res: Response) => {
+    try {
+      const { deviceId } = req.body;
+
+      if (!deviceId) {
+        return res.status(400).json({ error: "deviceId is required" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ error: "Audio file is required" });
+      }
+
+      const result = await voiceEnrollmentService.matchSpeaker(
+        deviceId,
+        req.file.buffer,
+        req.file.mimetype
+      );
+
+      res.json(result);
+    } catch (error) {
+      console.error("[Wearable Routes] Voice matching error:", error);
+      res.status(500).json({ error: "Failed to match voice" });
+    }
+  });
+
+  app.get("/api/wearable/voice/profiles", async (req: Request, res: Response) => {
+    try {
+      const deviceId = req.query.deviceId as string;
+
+      if (!deviceId) {
+        return res.status(400).json({ error: "deviceId is required" });
+      }
+
+      const profiles = await voiceEnrollmentService.getProfiles(deviceId);
+      res.json({ profiles });
+    } catch (error) {
+      console.error("[Wearable Routes] Get profiles error:", error);
+      res.status(500).json({ error: "Failed to get voice profiles" });
+    }
+  });
+
+  app.delete("/api/wearable/voice/profiles/:id", async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const deleted = await voiceEnrollmentService.deleteProfile(id);
+
+      if (deleted) {
+        res.json({ success: true });
+      } else {
+        res.status(404).json({ error: "Profile not found" });
+      }
+    } catch (error) {
+      console.error("[Wearable Routes] Delete profile error:", error);
+      res.status(500).json({ error: "Failed to delete profile" });
+    }
+  });
+
+  // ============================================
+  // Audio Processing Routes
+  // ============================================
+
+  app.post("/api/wearable/audio/decode-opus", upload.single("audio"), async (req: Request, res: Response) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "Audio file is required" });
+      }
+
+      const opusData = new Uint8Array(req.file.buffer);
+      const decoded = opusDecoderService.decodeFrame(opusData);
+
+      if (!decoded) {
+        return res.status(400).json({ error: "Failed to decode Opus audio" });
+      }
+
+      const wavData = opusDecoderService.pcmToWav(decoded.pcmData);
+      
+      res.set({
+        "Content-Type": "audio/wav",
+        "Content-Length": wavData.length,
+      });
+      res.send(Buffer.from(wavData));
+    } catch (error) {
+      console.error("[Wearable Routes] Opus decode error:", error);
+      res.status(500).json({ error: "Failed to decode audio" });
+    }
+  });
+
+  app.post("/api/wearable/audio/vad", upload.single("audio"), async (req: Request, res: Response) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "Audio file is required" });
+      }
+
+      vadService.reset();
+
+      const pcmData = new Int16Array(req.file.buffer);
+      const frameSize = 480;
+      const results: Array<{ isSpeech: boolean; energy: number; probability: number }> = [];
+
+      for (let i = 0; i < pcmData.length; i += frameSize) {
+        const frame = pcmData.slice(i, i + frameSize);
+        if (frame.length === frameSize) {
+          const result = vadService.processFrame(frame);
+          results.push({
+            isSpeech: result.isSpeech,
+            energy: result.energy,
+            probability: result.probability,
+          });
+        }
+      }
+
+      const speechFrames = results.filter(r => r.isSpeech).length;
+      const totalFrames = results.length;
+      const speechRatio = totalFrames > 0 ? speechFrames / totalFrames : 0;
+
+      res.json({
+        hasSpeech: speechRatio > 0.1,
+        speechRatio,
+        speechFrames,
+        totalFrames,
+        frameResults: results.slice(0, 100),
+      });
+    } catch (error) {
+      console.error("[Wearable Routes] VAD error:", error);
+      res.status(500).json({ error: "Failed to process VAD" });
+    }
+  });
+
+  // ============================================
+  // Conversation Sessions Routes
+  // ============================================
+
+  app.get("/api/wearable/sessions", async (req: Request, res: Response) => {
+    try {
+      const deviceId = req.query.deviceId as string;
+      const source = req.query.source as string;
+      const limit = parseInt(req.query.limit as string) || 20;
+
+      let query = db.select().from(conversationSessions);
+
+      if (deviceId) {
+        query = query.where(eq(conversationSessions.deviceId, deviceId)) as typeof query;
+      }
+
+      if (source) {
+        query = query.where(eq(conversationSessions.source, source)) as typeof query;
+      }
+
+      const sessions = await query
+        .orderBy(desc(conversationSessions.startTime))
+        .limit(limit);
+
+      res.json({ sessions });
+    } catch (error) {
+      console.error("[Wearable Routes] Get sessions error:", error);
+      res.status(500).json({ error: "Failed to get sessions" });
+    }
+  });
+
+  app.get("/api/wearable/sessions/:id", async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+
+      const sessions = await db
+        .select()
+        .from(conversationSessions)
+        .where(eq(conversationSessions.id, id))
+        .limit(1);
+
+      if (sessions.length === 0) {
+        return res.status(404).json({ error: "Session not found" });
+      }
+
+      res.json(sessions[0]);
+    } catch (error) {
+      console.error("[Wearable Routes] Get session error:", error);
+      res.status(500).json({ error: "Failed to get session" });
+    }
+  });
+
+  app.post("/api/wearable/sessions/:id/create-memory", async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+
+      const sessions = await db
+        .select()
+        .from(conversationSessions)
+        .where(eq(conversationSessions.id, id))
+        .limit(1);
+
+      if (sessions.length === 0) {
+        return res.status(404).json({ error: "Session not found" });
+      }
+
+      const session = sessions[0];
+
+      if (session.memoryId) {
+        return res.status(400).json({ error: "Memory already created for this session" });
+      }
+
+      if (!session.transcript) {
+        return res.status(400).json({ error: "Session has no transcript" });
+      }
+
+      const metadata = session.metadata as { title?: string } | null;
+      const duration = session.endTime && session.startTime 
+        ? Math.round((session.endTime.getTime() - session.startTime.getTime()) / 1000)
+        : 0;
+
+      const memory = await db.insert(memories).values({
+        deviceId: session.deviceId,
+        title: metadata?.title || "Imported Conversation",
+        transcript: session.transcript,
+        speakers: session.speakers,
+        duration,
+        summary: null,
+        actionItems: [],
+        isStarred: false,
+      }).returning();
+
+      await db
+        .update(conversationSessions)
+        .set({ memoryId: memory[0].id, updatedAt: new Date() })
+        .where(eq(conversationSessions.id, id));
+
+      res.json({ success: true, memory: memory[0] });
+    } catch (error) {
+      console.error("[Wearable Routes] Create memory error:", error);
+      res.status(500).json({ error: "Failed to create memory" });
+    }
+  });
+
+  // ============================================
+  // Offline Sync Queue Routes
+  // ============================================
+
+  app.get("/api/wearable/sync-queue", async (req: Request, res: Response) => {
+    try {
+      const deviceId = req.query.deviceId as string;
+      const status = req.query.status as string;
+
+      let query = db.select().from(offlineSyncQueue);
+
+      if (deviceId) {
+        query = query.where(eq(offlineSyncQueue.deviceId, deviceId)) as typeof query;
+      }
+
+      if (status) {
+        query = query.where(eq(offlineSyncQueue.status, status)) as typeof query;
+      }
+
+      const items = await query.orderBy(desc(offlineSyncQueue.priority)).limit(100);
+
+      res.json({ items });
+    } catch (error) {
+      console.error("[Wearable Routes] Get sync queue error:", error);
+      res.status(500).json({ error: "Failed to get sync queue" });
+    }
+  });
+
+  app.post("/api/wearable/sync-queue", async (req: Request, res: Response) => {
+    try {
+      const { deviceId, recordingType, audioData, duration, priority = 0 } = req.body;
+
+      if (!deviceId || !recordingType) {
+        return res.status(400).json({ error: "deviceId and recordingType are required" });
+      }
+
+      const item = await db.insert(offlineSyncQueue).values({
+        deviceId,
+        recordingType,
+        audioData,
+        duration,
+        priority,
+        status: "pending",
+        recordedAt: new Date(),
+      }).returning();
+
+      res.json({ success: true, item: item[0] });
+    } catch (error) {
+      console.error("[Wearable Routes] Add to sync queue error:", error);
+      res.status(500).json({ error: "Failed to add to sync queue" });
+    }
+  });
+
+  app.patch("/api/wearable/sync-queue/:id", async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { status, errorMessage } = req.body;
+
+      const updates: Record<string, unknown> = {};
+      if (status) updates.status = status;
+      if (errorMessage !== undefined) updates.errorMessage = errorMessage;
+      if (status === "processed") updates.processedAt = new Date();
+      if (status === "failed") {
+        const current = await db
+          .select()
+          .from(offlineSyncQueue)
+          .where(eq(offlineSyncQueue.id, id))
+          .limit(1);
+        if (current.length > 0) {
+          updates.retryCount = current[0].retryCount + 1;
+        }
+      }
+
+      const updated = await db
+        .update(offlineSyncQueue)
+        .set(updates)
+        .where(eq(offlineSyncQueue.id, id))
+        .returning();
+
+      if (updated.length === 0) {
+        return res.status(404).json({ error: "Queue item not found" });
+      }
+
+      res.json(updated[0]);
+    } catch (error) {
+      console.error("[Wearable Routes] Update sync queue error:", error);
+      res.status(500).json({ error: "Failed to update sync queue item" });
+    }
+  });
+
+  console.log("[Wearable Routes] Endpoints registered:");
+  console.log("  POST /api/wearable/limitless/configure - Configure Limitless API");
+  console.log("  GET  /api/wearable/limitless/status - Get Limitless connection status");
+  console.log("  POST /api/wearable/limitless/sync - Sync lifelogs from Limitless");
+  console.log("  GET  /api/wearable/limitless/lifelogs - Fetch recent lifelogs");
+  console.log("  POST /api/wearable/voice/enroll - Enroll voice sample");
+  console.log("  POST /api/wearable/voice/match - Match voice to profiles");
+  console.log("  GET  /api/wearable/voice/profiles - Get voice profiles");
+  console.log("  DELETE /api/wearable/voice/profiles/:id - Delete voice profile");
+  console.log("  POST /api/wearable/audio/decode-opus - Decode Opus to WAV");
+  console.log("  POST /api/wearable/audio/vad - Analyze audio for speech");
+  console.log("  GET  /api/wearable/sessions - Get conversation sessions");
+  console.log("  GET  /api/wearable/sessions/:id - Get session details");
+  console.log("  POST /api/wearable/sessions/:id/create-memory - Create memory from session");
+  console.log("  GET  /api/wearable/sync-queue - Get offline sync queue");
+  console.log("  POST /api/wearable/sync-queue - Add to sync queue");
+  console.log("  PATCH /api/wearable/sync-queue/:id - Update sync queue item");
+}
