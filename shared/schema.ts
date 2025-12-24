@@ -21,7 +21,10 @@ export const devices = pgTable("devices", {
   type: text("type").notNull(),
   macAddress: text("mac_address"),
   batteryLevel: integer("battery_level"),
+  signalStrength: integer("signal_strength"),
+  firmwareVersion: text("firmware_version"),
   isConnected: boolean("is_connected").default(false).notNull(),
+  lastHeartbeat: timestamp("last_heartbeat"),
   lastSyncAt: timestamp("last_sync_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

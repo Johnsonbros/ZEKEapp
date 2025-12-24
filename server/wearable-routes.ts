@@ -683,7 +683,7 @@ export function registerWearableRoutes(app: Express): void {
         body: JSON.stringify({
           entities: [
             {
-              name: profile[0].speakerName,
+              name: profile[0].name,
               type: "person",
               attributes: { speakerId: id, source: "voice_enrollment" },
             },
@@ -695,7 +695,7 @@ export function registerWearableRoutes(app: Express): void {
           ],
           relationships: [
             {
-              source: profile[0].speakerName,
+              source: profile[0].name,
               target: entityName,
               type: relationship,
               context: `Linked via voice enrollment on ${new Date().toLocaleDateString()}`,
@@ -708,7 +708,7 @@ export function registerWearableRoutes(app: Express): void {
         return res.status(response.status).json({ error: "Failed to create relationship" });
       }
 
-      res.json({ success: true, message: `Linked ${profile[0].speakerName} to ${entityName}` });
+      res.json({ success: true, message: `Linked ${profile[0].name} to ${entityName}` });
     } catch (error) {
       console.error("[Wearable Routes] Link speaker error:", error);
       res.status(500).json({ error: "Failed to link speaker to knowledge graph" });
@@ -730,7 +730,7 @@ export function registerWearableRoutes(app: Express): void {
       }
 
       const [relationshipsRes, sessionsRes] = await Promise.all([
-        fetch(`${ZEKE_BACKEND_URL}/api/knowledge-graph/entity/${encodeURIComponent(profile[0].speakerName)}`, {
+        fetch(`${ZEKE_BACKEND_URL}/api/knowledge-graph/entity/${encodeURIComponent(profile[0].name)}`, {
           headers: { "Content-Type": "application/json" },
         }).catch(() => null),
         db
@@ -746,7 +746,7 @@ export function registerWearableRoutes(app: Express): void {
       res.json({
         profile: {
           id: profile[0].id,
-          name: profile[0].speakerName,
+          name: profile[0].name,
           createdAt: profile[0].createdAt,
         },
         knowledgeGraph: entityData,
