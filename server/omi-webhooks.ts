@@ -2,9 +2,33 @@ import type { Express, Request, Response } from "express";
 import crypto from "crypto";
 import OpenAI from "openai";
 import { db } from "./db";
-import { userLists, listItems, transcriptSessions } from "@shared/schema";
+import { userLists, listItems, transcriptSessions, devices } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import { conversationBridgeService } from "./services/conversation-bridge";
+
+const OMI_SYSTEM_DEVICE_ID = "omi-webhook-system";
+
+async function ensureOmiDevice(): Promise<string> {
+  const existing = await db
+    .select()
+    .from(devices)
+    .where(eq(devices.id, OMI_SYSTEM_DEVICE_ID))
+    .limit(1);
+
+  if (existing.length > 0) {
+    return OMI_SYSTEM_DEVICE_ID;
+  }
+
+  await db.insert(devices).values({
+    id: OMI_SYSTEM_DEVICE_ID,
+    name: "Omi Wearable Webhook",
+    type: "omi",
+    isConnected: false,
+  }).onConflictDoNothing();
+
+  console.log("[Omi Webhooks] Created system device:", OMI_SYSTEM_DEVICE_ID);
+  return OMI_SYSTEM_DEVICE_ID;
+}
 
 // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -353,7 +377,8 @@ export function registerOmiWebhooks(app: Express): void {
       }
 
       const sessionId = data.session_id || "default";
-      const deviceId = (req.headers["x-device-id"] as string) || "omi-webhook";
+      const headerDeviceId = req.headers["x-device-id"] as string;
+      const deviceId = headerDeviceId || await ensureOmiDevice();
       
       await conversationBridgeService.addSegments(sessionId, data.segments, deviceId);
       
