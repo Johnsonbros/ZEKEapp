@@ -85,11 +85,12 @@ The audio WebSocket at `/ws/audio` supports both legacy and spec-compliant messa
 
 ### Audio Streaming Flow (December 2024)
 1. AudioStreamerImpl connects to `/ws/audio` WebSocket
-2. Sends `config` message with device type (omi/limitless), codec (opus), sample rate
-3. Server responds with `config_ack` immediately
-4. Client sets `isConfigured = true`, enabling audio transmission
-5. BLE audio chunks are sent as raw binary Opus frames via `sendBinaryOpus()`
-6. Heartbeat with battery/signal info sent every 30 seconds
+2. Sends `config` message with device type (omi/limitless), codec (opus), sample rate, frame_format: "raw_opus_packets"
+3. Audio frames received before `config_ack` are buffered in `pendingChunks` array
+4. Server responds with `config_ack` immediately
+5. Client flushes all buffered audio chunks, sets `isConfigured = true`, starts heartbeat
+6. BLE audio chunks are sent as raw binary Opus frames via `sendBinaryOpus()`
+7. Heartbeat with battery/signal info sent every 30 seconds (only after config_ack)
 
 ### Battery Monitoring (December 2024)
 - Uses standard BLE Battery Service (0x180F) and Battery Level Characteristic (0x2A19)
