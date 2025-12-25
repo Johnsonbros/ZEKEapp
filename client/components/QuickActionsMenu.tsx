@@ -385,7 +385,7 @@ function RadialActionButton({
       pointerEvents={isOpen ? "auto" : "none"}
     >
       <Pressable onPress={onPress} style={styles.radialActionPressable}>
-        <View style={[styles.actionButtonShadow, { shadowColor: action.gradientColors[0] }]}>
+        <View style={[styles.actionButtonShadow, Platform.OS !== "web" ? { shadowColor: action.gradientColors[0] } : null]}>
           <LinearGradient
             colors={action.gradientColors}
             start={{ x: 0, y: 0 }}
@@ -416,10 +416,17 @@ const styles = StyleSheet.create({
     position: "absolute",
     zIndex: 1000,
     elevation: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
+    ...Platform.select({
+      web: {
+        boxShadow: "0px 6px 20px rgba(0, 0, 0, 0.35)",
+      },
+      default: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.35,
+        shadowRadius: 10,
+      },
+    }),
   },
   fabCentered: {
     left: "50%",
@@ -448,10 +455,17 @@ const styles = StyleSheet.create({
   },
   actionButtonShadow: {
     elevation: 8,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
     borderRadius: ACTION_BUTTON_SIZE / 2,
+    ...Platform.select({
+      web: {
+        boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.4)",
+      },
+      default: {
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.4,
+        shadowRadius: 8,
+      },
+    }),
   },
   radialActionGradient: {
     width: ACTION_BUTTON_SIZE,
