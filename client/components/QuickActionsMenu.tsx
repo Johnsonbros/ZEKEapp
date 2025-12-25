@@ -137,11 +137,13 @@ export function QuickActionsMenu({ actions }: QuickActionsMenuProps) {
   }));
 
   const calculateArcPosition = (index: number, total: number) => {
-    const startAngle = Math.PI * 1.15;
-    const endAngle = Math.PI * 1.85;
+    const spreadAngle = Math.PI * 0.85;
+    const centerAngle = -Math.PI / 2;
+    const startAngle = centerAngle - spreadAngle / 2;
+    const endAngle = centerAngle + spreadAngle / 2;
     const angleRange = endAngle - startAngle;
     const angleStep = total > 1 ? angleRange / (total - 1) : 0;
-    const angle = startAngle + angleStep * index;
+    const angle = total === 1 ? centerAngle : startAngle + angleStep * index;
     
     return {
       x: Math.cos(angle) * ARC_RADIUS,
