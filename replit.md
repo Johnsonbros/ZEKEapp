@@ -19,7 +19,7 @@ Client-side data (devices, memories, chat messages, settings) is stored using As
 
 ### Feature Specifications
 - **Core Features**: Home Screen (Command Center), Geo Tab (Location & Geofencing), Communications Hub (SMS, Voice, AI chat, Contacts), Calendar (CRUD, voice input), Tasks, Grocery, and Custom Lists (CRUD, voice input), Memories, and Settings.
-- **File Upload System**: Universal file upload supporting audio (transcription), images (AI vision analysis), documents (text extraction), and videos. Features include tagging, AI processing, sending to ZEKE as memories, and a file library view. Backend routes at `/api/uploads/*`.
+- **File Upload System**: Universal file upload supporting audio, images, documents (PDFs), and videos. Files are stored locally as base64 then forwarded directly to the ZEKE backend (zekeai.replit.app) for AI processing and memory creation. Features include tagging, retry on failure, and a file library view with status tracking. Backend routes at `/api/uploads/*` with `/api/uploads/:id/send-to-zeke` for ZEKE forwarding.
 - **Device Features (Native Capabilities)**: Access to contacts, sensors dashboard, battery monitor, device info, network status, biometric authentication, document picker, share, and text-to-speech.
 - **Real-Time Data**: Real-time transcription via Deepgram WebSocket proxy for BLE audio, and real-time WebSocket sync for updates and React Query cache invalidation.
 - **Wearable Integration**: Supports Omi and Limitless AI devices, including API clients, audio processing (Opus decoder, VAD), voice enrollment, speaker identification, and offline sync queuing.
