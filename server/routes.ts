@@ -30,7 +30,7 @@ import { insertDeviceSchema, insertMemorySchema, insertChatSessionSchema, insert
 import OpenAI from "openai";
 import multer from "multer";
 import { registerLocationRoutes } from "./location";
-import { registerZekeProxyRoutes } from "./zeke-proxy";
+import { registerZekeProxyRoutes, proxyToZeke, extractForwardHeaders } from "./zeke-proxy";
 import { requestPairingCode, verifyPairingCode, getPairingStatus } from "./sms-pairing";
 import { validateDeviceToken } from "./device-auth";
 
@@ -1959,7 +1959,7 @@ Return at most ${Math.min(limit, 10)} results. Only include memories with releva
     }
   });
 
-  // Send upload to ZEKE - creates a memory from the processed content
+  // Send upload to ZEKE - forwards file to ZEKE backend for processing
   app.post("/api/uploads/:id/send-to-zeke", async (req, res) => {
     try {
       const existingUpload = await storage.getUpload(req.params.id);
@@ -1967,93 +1967,66 @@ Return at most ${Math.min(limit, 10)} results. Only include memories with releva
         return res.status(404).json({ error: "Upload not found" });
       }
 
-      if (!existingUpload.processingResult) {
-        return res.status(400).json({ error: "Upload must be processed before sending to ZEKE" });
+      // Verify file data exists
+      if (!existingUpload.fileData) {
+        console.error(`[Upload] No file data found for upload ${req.params.id}`);
+        return res.status(400).json({ error: "File data not available for forwarding" });
       }
 
-      const processingResult = existingUpload.processingResult as any;
-      const transcript = processingResult.text || JSON.stringify(processingResult);
-
-      // Create or get device for uploads
-      let deviceId = existingUpload.deviceId;
-      if (!deviceId) {
-        const devices = await storage.getDevices();
-        const uploadDevice = devices.find(d => d.name === "File Uploads");
-        if (uploadDevice) {
-          deviceId = uploadDevice.id;
-        } else {
-          const newDevice = await storage.createDevice({
-            name: "File Uploads",
-            type: "upload",
-            isConnected: true
-          });
-          deviceId = newDevice.id;
-        }
-      }
-
-      // Analyze content and create memory
-      const analysisPrompt = `Analyze the following content and provide:
-1. A short, descriptive title (max 10 words)
-2. A summary (2-3 sentences)
-3. A list of action items or key points (if any)
-
-Content:
-${transcript.substring(0, 3000)}
-
-Respond in JSON format:
-{
-  "title": "...",
-  "summary": "...",
-  "actionItems": ["item 1", "item 2", ...]
-}`;
-
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          { role: "system", content: "You are an AI assistant that analyzes content. Always respond with valid JSON." },
-          { role: "user", content: analysisPrompt }
-        ],
-        max_completion_tokens: 500,
-        response_format: { type: "json_object" }
-      });
-
-      const responseContent = completion.choices[0]?.message?.content || '{}';
-      let analysis: { title?: string; summary?: string; actionItems?: string[] };
+      // Forward to ZEKE backend for processing
+      const headers = extractForwardHeaders(req.headers);
       
-      try {
-        analysis = JSON.parse(responseContent);
-      } catch {
-        analysis = {
-          title: existingUpload.originalName,
-          summary: transcript.substring(0, 200),
-          actionItems: []
-        };
+      // Prepare payload for ZEKE backend
+      const payload = {
+        fileName: existingUpload.originalName,
+        fileType: existingUpload.fileType,
+        mimeType: existingUpload.mimeType,
+        fileSize: existingUpload.fileSize,
+        fileData: existingUpload.fileData, // base64 encoded
+        tags: existingUpload.tags || [],
+        source: "mobile-upload"
+      };
+
+      console.log(`[Upload] Forwarding ${existingUpload.originalName} (${existingUpload.fileSize} bytes) to ZEKE backend...`);
+      
+      const result = await proxyToZeke("POST", "/api/uploads/process", payload, headers);
+      
+      if (!result.success) {
+        const errorMsg = result.data?.error || result.error || "Failed to send to ZEKE backend";
+        console.error(`[Upload] ZEKE backend error: ${errorMsg}`, result.data);
+        
+        // Update status to error so user can retry
+        await storage.updateUpload(req.params.id, {
+          status: "error",
+          errorMessage: errorMsg
+        });
+        
+        return res.status(result.status).json({ 
+          error: errorMsg,
+          details: result.data
+        });
       }
 
-      const memory = await storage.createMemory({
-        deviceId,
-        transcript,
-        duration: processingResult.duration || 0,
-        title: analysis.title || existingUpload.originalName,
-        summary: analysis.summary || null,
-        actionItems: analysis.actionItems || [],
-        speakers: existingUpload.tags as any
-      });
-
+      // Update local record with ZEKE response
       await storage.updateUpload(req.params.id, {
         status: "sent",
-        memoryId: memory.id,
-        sentToZekeAt: new Date()
+        memoryId: result.data?.memoryId || result.data?.id || null,
+        sentToZekeAt: new Date(),
+        processingResult: result.data,
+        errorMessage: null
       });
+
+      console.log(`[Upload] Successfully sent ${existingUpload.originalName} to ZEKE backend`);
 
       res.json({
         success: true,
-        memory,
-        message: "File content sent to ZEKE successfully"
+        data: result.data,
+        message: "File sent to ZEKE backend for processing"
       });
     } catch (error) {
       console.error("Error sending to ZEKE:", error);
-      res.status(500).json({ error: "Failed to send to ZEKE" });
+      const errorMsg = error instanceof Error ? error.message : "Failed to send to ZEKE";
+      res.status(500).json({ error: errorMsg });
     }
   });
 

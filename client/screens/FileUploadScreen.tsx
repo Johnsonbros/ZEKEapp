@@ -114,23 +114,6 @@ export default function FileUploadScreen() {
     queryKey: ["/api/uploads"],
   });
 
-  const processUploadMutation = useMutation({
-    mutationFn: async (uploadId: string) => {
-      const baseUrl = getApiUrl();
-      const url = new URL(`/api/uploads/${uploadId}/process`, baseUrl);
-      const res = await fetch(url.toString(), { 
-        method: "POST", 
-        credentials: "include",
-        headers: getAuthHeaders(),
-      });
-      if (!res.ok) throw new Error("Processing failed");
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/uploads"] });
-    },
-  });
-
   const sendToZekeMutation = useMutation({
     mutationFn: async (uploadId: string) => {
       const baseUrl = getApiUrl();
@@ -140,7 +123,10 @@ export default function FileUploadScreen() {
         credentials: "include",
         headers: getAuthHeaders(),
       });
-      if (!res.ok) throw new Error("Send failed");
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || "Send failed");
+      }
       return res.json();
     },
     onSuccess: () => {
@@ -289,42 +275,50 @@ export default function FileUploadScreen() {
       }
 
       const uploadResult = await response.json();
-      setUploadProgress(80);
+      setUploadProgress(70);
 
-      await processUploadMutation.mutateAsync(uploadResult.id);
-      setUploadProgress(100);
+      // Send directly to ZEKE backend for processing
+      try {
+        await sendToZekeMutation.mutateAsync(uploadResult.id);
+        setUploadProgress(100);
 
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-      Alert.alert(
-        "File Uploaded",
-        `Your ${selectedFile.fileType} has been processed and stored. Would you like to send it to ZEKE?`,
-        [
-          {
-            text: "Later",
-            style: "cancel",
-            onPress: () => {
-              setSelectedFile(null);
-              setTags([]);
-              refetchUploads();
+        Alert.alert(
+          "Success",
+          `Your ${selectedFile.fileType} has been sent to ZEKE for processing!`,
+          [
+            {
+              text: "OK",
+              onPress: () => {
+                setSelectedFile(null);
+                setTags([]);
+                refetchUploads();
+              },
             },
-          },
-          {
-            text: "Send to ZEKE",
-            onPress: async () => {
-              try {
-                await sendToZekeMutation.mutateAsync(uploadResult.id);
-                Alert.alert("Success", "Content sent to ZEKE as a memory!");
-              } catch {
-                Alert.alert("Error", "Failed to send to ZEKE");
-              }
-              setSelectedFile(null);
-              setTags([]);
-              refetchUploads();
+          ]
+        );
+      } catch (zekerror) {
+        // File uploaded but ZEKE forward failed - user can retry from library
+        console.error("ZEKE forward error:", zekerror);
+        setUploadProgress(100);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        Alert.alert(
+          "File Saved",
+          "Your file was saved but couldn't be sent to ZEKE right now. You can retry from your file library.",
+          [
+            {
+              text: "OK",
+              onPress: () => {
+                setSelectedFile(null);
+                setTags([]);
+                setShowLibrary(true);
+                refetchUploads();
+              },
             },
-          },
-        ]
-      );
+          ]
+        );
+      }
     } catch (error) {
       console.error("Upload error:", error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -362,12 +356,9 @@ export default function FileUploadScreen() {
 
   const handleSendToZeke = async (upload: Upload) => {
     try {
-      if (upload.status !== "processed") {
-        await processUploadMutation.mutateAsync(upload.id);
-      }
       await sendToZekeMutation.mutateAsync(upload.id);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert("Success", "Content sent to ZEKE as a memory!");
+      Alert.alert("Success", "Content sent to ZEKE for processing!");
     } catch {
       Alert.alert("Error", "Failed to send to ZEKE");
     }
