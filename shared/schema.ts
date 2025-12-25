@@ -447,3 +447,46 @@ export type ConversationSession = typeof conversationSessions.$inferSelect;
 
 export type InsertOfflineSyncQueue = z.infer<typeof insertOfflineSyncQueueSchema>;
 export type OfflineSyncQueueItem = typeof offlineSyncQueue.$inferSelect;
+
+// Uploads table for storing any file type (audio, images, documents, etc.)
+export const uploads = pgTable("uploads", {
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  deviceId: varchar("device_id").references(() => devices.id),
+  fileName: text("file_name").notNull(),
+  originalName: text("original_name").notNull(),
+  mimeType: text("mime_type").notNull(),
+  fileType: text("file_type").notNull(), // 'audio', 'image', 'document', 'video', 'other'
+  fileSize: integer("file_size").notNull(),
+  filePath: text("file_path"), // Local path if stored on server
+  fileData: text("file_data"), // Base64 encoded data for small files
+  tags: jsonb("tags").default([]).notNull(), // Array of string tags
+  status: text("status").default("pending").notNull(), // 'pending', 'processing', 'processed', 'sent', 'error'
+  processingResult: jsonb("processing_result"), // Transcription, OCR, etc.
+  memoryId: varchar("memory_id").references(() => memories.id), // Link to created memory
+  sentToZekeAt: timestamp("sent_to_zeke_at"),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const uploadsRelations = relations(uploads, ({ one }) => ({
+  device: one(devices, {
+    fields: [uploads.deviceId],
+    references: [devices.id],
+  }),
+  memory: one(memories, {
+    fields: [uploads.memoryId],
+    references: [memories.id],
+  }),
+}));
+
+export const insertUploadSchema = createInsertSchema(uploads).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertUpload = z.infer<typeof insertUploadSchema>;
+export type Upload = typeof uploads.$inferSelect;

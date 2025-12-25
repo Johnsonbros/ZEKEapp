@@ -26,7 +26,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "node:http";
 import { storage } from "./storage";
-import { insertDeviceSchema, insertMemorySchema, insertChatSessionSchema, insertChatMessageSchema, insertSpeakerProfileSchema } from "@shared/schema";
+import { insertDeviceSchema, insertMemorySchema, insertChatSessionSchema, insertChatMessageSchema, insertSpeakerProfileSchema, insertUploadSchema } from "@shared/schema";
 import OpenAI from "openai";
 import multer from "multer";
 import { registerLocationRoutes } from "./location";
@@ -1765,6 +1765,295 @@ Return at most ${Math.min(limit, 10)} results. Only include memories with releva
     } catch (error) {
       console.error("Error deleting speaker:", error);
       res.status(500).json({ error: "Failed to delete speaker" });
+    }
+  });
+
+  // Upload routes - for uploading any file type to ZEKE
+  function getFileType(mimeType: string): string {
+    if (mimeType.startsWith("audio/")) return "audio";
+    if (mimeType.startsWith("image/")) return "image";
+    if (mimeType.startsWith("video/")) return "video";
+    if (mimeType.includes("pdf") || mimeType.includes("document") || mimeType.includes("text/")) return "document";
+    return "other";
+  }
+
+  app.get("/api/uploads", async (req, res) => {
+    try {
+      const filters: { deviceId?: string; status?: string; fileType?: string; limit?: number } = {};
+      
+      if (req.query.deviceId) filters.deviceId = req.query.deviceId as string;
+      if (req.query.status) filters.status = req.query.status as string;
+      if (req.query.fileType) filters.fileType = req.query.fileType as string;
+      if (req.query.limit) filters.limit = parseInt(req.query.limit as string, 10);
+      
+      const uploads = await storage.getUploads(filters);
+      res.json(uploads);
+    } catch (error) {
+      console.error("Error fetching uploads:", error);
+      res.status(500).json({ error: "Failed to fetch uploads" });
+    }
+  });
+
+  app.get("/api/uploads/:id", async (req, res) => {
+    try {
+      const upload = await storage.getUpload(req.params.id);
+      if (!upload) {
+        return res.status(404).json({ error: "Upload not found" });
+      }
+      res.json(upload);
+    } catch (error) {
+      console.error("Error fetching upload:", error);
+      res.status(500).json({ error: "Failed to fetch upload" });
+    }
+  });
+
+  app.post("/api/uploads", upload.single("file"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file provided" });
+      }
+
+      const deviceId = req.body.deviceId || null;
+      const tags = req.body.tags ? JSON.parse(req.body.tags) : [];
+      const fileType = getFileType(req.file.mimetype);
+      
+      const fileData = req.file.buffer.toString("base64");
+
+      const uploadData = {
+        deviceId,
+        fileName: `${Date.now()}-${req.file.originalname}`,
+        originalName: req.file.originalname,
+        mimeType: req.file.mimetype,
+        fileType,
+        fileSize: req.file.size,
+        fileData,
+        tags,
+        status: "pending" as const,
+      };
+
+      const parsed = insertUploadSchema.safeParse(uploadData);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid upload data", details: parsed.error.errors });
+      }
+
+      const newUpload = await storage.createUpload(parsed.data);
+      res.status(201).json(newUpload);
+    } catch (error) {
+      console.error("Error creating upload:", error);
+      res.status(500).json({ error: "Failed to create upload" });
+    }
+  });
+
+  app.patch("/api/uploads/:id", async (req, res) => {
+    try {
+      const allowedFields = ["tags", "status", "processingResult", "memoryId", "errorMessage"];
+      const updates: Record<string, any> = {};
+      
+      for (const field of allowedFields) {
+        if (req.body[field] !== undefined) {
+          updates[field] = req.body[field];
+        }
+      }
+      
+      const upload = await storage.updateUpload(req.params.id, updates);
+      if (!upload) {
+        return res.status(404).json({ error: "Upload not found" });
+      }
+      res.json(upload);
+    } catch (error) {
+      console.error("Error updating upload:", error);
+      res.status(500).json({ error: "Failed to update upload" });
+    }
+  });
+
+  app.delete("/api/uploads/:id", async (req, res) => {
+    try {
+      const deleted = await storage.deleteUpload(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Upload not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting upload:", error);
+      res.status(500).json({ error: "Failed to delete upload" });
+    }
+  });
+
+  // Process upload - handles transcription for audio, OCR for images/documents
+  app.post("/api/uploads/:id/process", async (req, res) => {
+    try {
+      const existingUpload = await storage.getUpload(req.params.id);
+      if (!existingUpload) {
+        return res.status(404).json({ error: "Upload not found" });
+      }
+
+      await storage.updateUpload(req.params.id, { status: "processing" });
+
+      try {
+        let processingResult: any = {};
+
+        if (existingUpload.fileType === "audio" && existingUpload.fileData) {
+          const audioBuffer = Buffer.from(existingUpload.fileData, "base64");
+          const uint8Array = new Uint8Array(audioBuffer);
+          const file = new File([uint8Array], existingUpload.originalName, { type: existingUpload.mimeType });
+          
+          const transcription = await openai.audio.transcriptions.create({
+            file: file,
+            model: "whisper-1",
+            response_format: "verbose_json"
+          });
+
+          processingResult = {
+            type: "transcription",
+            text: transcription.text,
+            duration: transcription.duration || 0,
+            segments: transcription.segments || []
+          };
+        } else if ((existingUpload.fileType === "image" || existingUpload.fileType === "document") && existingUpload.fileData) {
+          const imageBase64 = `data:${existingUpload.mimeType};base64,${existingUpload.fileData}`;
+          
+          const response = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: [
+              {
+                role: "user",
+                content: [
+                  { type: "text", text: "Extract and describe all text and content from this image. If it's a document, provide a structured summary. If it's a photo, describe what you see including any text visible." },
+                  { type: "image_url", image_url: { url: imageBase64 } }
+                ]
+              }
+            ],
+            max_tokens: 2000
+          });
+
+          processingResult = {
+            type: "vision_analysis",
+            text: response.choices[0]?.message?.content || "",
+            model: "gpt-4o"
+          };
+        } else {
+          processingResult = {
+            type: "stored",
+            message: "File stored but no automatic processing available for this file type"
+          };
+        }
+
+        const updated = await storage.updateUpload(req.params.id, {
+          status: "processed",
+          processingResult
+        });
+
+        res.json(updated);
+      } catch (processingError) {
+        console.error("Processing error:", processingError);
+        const errorMessage = processingError instanceof Error ? processingError.message : "Processing failed";
+        await storage.updateUpload(req.params.id, {
+          status: "error",
+          errorMessage
+        });
+        res.status(500).json({ error: errorMessage });
+      }
+    } catch (error) {
+      console.error("Error processing upload:", error);
+      res.status(500).json({ error: "Failed to process upload" });
+    }
+  });
+
+  // Send upload to ZEKE - creates a memory from the processed content
+  app.post("/api/uploads/:id/send-to-zeke", async (req, res) => {
+    try {
+      const existingUpload = await storage.getUpload(req.params.id);
+      if (!existingUpload) {
+        return res.status(404).json({ error: "Upload not found" });
+      }
+
+      if (!existingUpload.processingResult) {
+        return res.status(400).json({ error: "Upload must be processed before sending to ZEKE" });
+      }
+
+      const processingResult = existingUpload.processingResult as any;
+      const transcript = processingResult.text || JSON.stringify(processingResult);
+
+      // Create or get device for uploads
+      let deviceId = existingUpload.deviceId;
+      if (!deviceId) {
+        const devices = await storage.getDevices();
+        const uploadDevice = devices.find(d => d.name === "File Uploads");
+        if (uploadDevice) {
+          deviceId = uploadDevice.id;
+        } else {
+          const newDevice = await storage.createDevice({
+            name: "File Uploads",
+            type: "upload",
+            isConnected: true
+          });
+          deviceId = newDevice.id;
+        }
+      }
+
+      // Analyze content and create memory
+      const analysisPrompt = `Analyze the following content and provide:
+1. A short, descriptive title (max 10 words)
+2. A summary (2-3 sentences)
+3. A list of action items or key points (if any)
+
+Content:
+${transcript.substring(0, 3000)}
+
+Respond in JSON format:
+{
+  "title": "...",
+  "summary": "...",
+  "actionItems": ["item 1", "item 2", ...]
+}`;
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: "You are an AI assistant that analyzes content. Always respond with valid JSON." },
+          { role: "user", content: analysisPrompt }
+        ],
+        max_completion_tokens: 500,
+        response_format: { type: "json_object" }
+      });
+
+      const responseContent = completion.choices[0]?.message?.content || '{}';
+      let analysis: { title?: string; summary?: string; actionItems?: string[] };
+      
+      try {
+        analysis = JSON.parse(responseContent);
+      } catch {
+        analysis = {
+          title: existingUpload.originalName,
+          summary: transcript.substring(0, 200),
+          actionItems: []
+        };
+      }
+
+      const memory = await storage.createMemory({
+        deviceId,
+        transcript,
+        duration: processingResult.duration || 0,
+        title: analysis.title || existingUpload.originalName,
+        summary: analysis.summary || null,
+        actionItems: analysis.actionItems || [],
+        speakers: existingUpload.tags as any
+      });
+
+      await storage.updateUpload(req.params.id, {
+        status: "sent",
+        memoryId: memory.id,
+        sentToZekeAt: new Date()
+      });
+
+      res.json({
+        success: true,
+        memory,
+        message: "File content sent to ZEKE successfully"
+      });
+    } catch (error) {
+      console.error("Error sending to ZEKE:", error);
+      res.status(500).json({ error: "Failed to send to ZEKE" });
     }
   });
 

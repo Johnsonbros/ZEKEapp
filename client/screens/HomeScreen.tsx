@@ -295,7 +295,7 @@ export default function HomeScreen() {
 
   const handleUploadPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    navigation.navigate("AudioUpload");
+    navigation.navigate("FileUpload");
   };
 
   const handleCallPress = () => {
@@ -1102,10 +1102,10 @@ export default function HomeScreen() {
             </View>
             <View style={styles.uploadContent}>
               <ThemedText type="body" style={styles.uploadTitle}>
-                Upload Audio
+                Upload to ZEKE
               </ThemedText>
               <ThemedText type="small" style={styles.uploadSubtitle}>
-                Transcribe audio files and save to ZEKE
+                Upload any file to process and store
               </ThemedText>
             </View>
             <Feather name="chevron-right" size={24} color="#FFFFFF" />
