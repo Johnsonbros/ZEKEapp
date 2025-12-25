@@ -554,12 +554,12 @@ export default function FileUploadScreen() {
                   <Pressable
                     key={index}
                     onPress={() => handleRemoveTag(tag)}
-                    style={[styles.tag, { backgroundColor: Colors.dark.primary + "20" }]}
+                    style={[styles.tag, { backgroundColor: Colors.dark.primary, borderWidth: 1, borderColor: Colors.dark.primary }]}
                   >
-                    <ThemedText type="caption" style={{ color: Colors.dark.primary }}>
+                    <ThemedText type="caption" style={{ color: "#FFFFFF", fontWeight: "600" }}>
                       #{tag}
                     </ThemedText>
-                    <Feather name="x" size={12} color={Colors.dark.primary} style={{ marginLeft: 4 }} />
+                    <Feather name="x" size={12} color="#FFFFFF" style={{ marginLeft: 4 }} />
                   </Pressable>
                 ))}
               </View>
@@ -603,13 +603,28 @@ export default function FileUploadScreen() {
           </View>
           <View style={styles.uploadingRow}>
             <ActivityIndicator color={Colors.dark.primary} size="small" />
-            <ThemedText type="body" style={{ marginLeft: Spacing.sm }}>
+            <ThemedText type="body" style={{ marginLeft: Spacing.sm, flex: 1 }}>
               {uploadProgress < 40
                 ? "Uploading..."
                 : uploadProgress < 80
                   ? "Processing with AI..."
                   : "Almost done..."}
             </ThemedText>
+            <Pressable
+              onPress={() => {
+                setIsUploading(false);
+                setUploadProgress(0);
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              }}
+              style={({ pressed }) => [
+                styles.cancelButton,
+                { backgroundColor: Colors.dark.error, opacity: pressed ? 0.8 : 1 }
+              ]}
+            >
+              <ThemedText type="caption" style={{ color: "#FFFFFF", fontWeight: "600" }}>
+                Cancel
+              </ThemedText>
+            </Pressable>
           </View>
         </View>
       ) : (
@@ -779,6 +794,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+  },
+  cancelButton: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.sm,
+    marginLeft: Spacing.sm,
   },
   libraryButton: {
     flexDirection: "row",
