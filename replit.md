@@ -19,6 +19,7 @@ Client-side data (devices, memories, chat messages, settings) is stored using As
 
 ### Feature Specifications
 - **Core Features**: Home Screen (Command Center), Geo Tab (Location & Geofencing), Communications Hub (SMS, Voice, AI chat, Contacts), Calendar (CRUD, voice input), Tasks, Grocery, and Custom Lists (CRUD, voice input), Memories, and Settings.
+- **File Upload System**: Universal file upload supporting audio (transcription), images (AI vision analysis), documents (text extraction), and videos. Features include tagging, AI processing, sending to ZEKE as memories, and a file library view. Backend routes at `/api/uploads/*`.
 - **Device Features (Native Capabilities)**: Access to contacts, sensors dashboard, battery monitor, device info, network status, biometric authentication, document picker, share, and text-to-speech.
 - **Real-Time Data**: Real-time transcription via Deepgram WebSocket proxy for BLE audio, and real-time WebSocket sync for updates and React Query cache invalidation.
 - **Wearable Integration**: Supports Omi and Limitless AI devices, including API clients, audio processing (Opus decoder, VAD), voice enrollment, speaker identification, and offline sync queuing.
