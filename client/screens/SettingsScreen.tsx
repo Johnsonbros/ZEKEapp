@@ -156,7 +156,19 @@ export default function SettingsScreen() {
                 fileType: "image",
                 fileSize: blob.size,
                 fileData: base64data.split(',')[1],
-                tags: ["profile-picture", "aging-documentation", "selfie"],
+                tags: [
+                  "profile-picture",
+                  "aging-documentation", 
+                  "selfie",
+                  "master-user-enrollment",
+                  "facial-recognition-primary"
+                ],
+                metadata: {
+                  isPrimary: true,
+                  userType: "master-user",
+                  enrollFace: true,
+                  capturedAt: new Date().toISOString(),
+                },
               }),
             });
             
