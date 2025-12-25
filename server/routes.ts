@@ -1807,7 +1807,54 @@ Return at most ${Math.min(limit, 10)} results. Only include memories with releva
     }
   });
 
-  app.post("/api/uploads", upload.single("file"), async (req, res) => {
+  app.post("/api/uploads", upload.single("file"), async (req, res, next) => {
+    // Check if this is a JSON upload (base64 encoded file data)
+    if (req.is("application/json") && req.body.fileData) {
+      try {
+        const { 
+          originalName, 
+          mimeType, 
+          fileType: providedFileType, 
+          fileSize, 
+          fileData, 
+          tags = [], 
+          metadata,
+          deviceId 
+        } = req.body;
+
+        if (!originalName || !mimeType || !fileData) {
+          return res.status(400).json({ error: "Missing required fields: originalName, mimeType, fileData" });
+        }
+
+        const fileType = providedFileType || getFileType(mimeType);
+
+        const uploadData = {
+          deviceId: deviceId || null,
+          fileName: `${Date.now()}-${originalName}`,
+          originalName,
+          mimeType,
+          fileType,
+          fileSize: fileSize || Buffer.from(fileData, "base64").length,
+          fileData,
+          tags: Array.isArray(tags) ? tags : [],
+          metadata: metadata || null,
+          status: "pending" as const,
+        };
+
+        const parsed = insertUploadSchema.safeParse(uploadData);
+        if (!parsed.success) {
+          return res.status(400).json({ error: "Invalid upload data", details: parsed.error.errors });
+        }
+
+        const newUpload = await storage.createUpload(parsed.data);
+        return res.status(201).json(newUpload);
+      } catch (error) {
+        console.error("Error creating JSON upload:", error);
+        return res.status(500).json({ error: "Failed to create upload" });
+      }
+    }
+
+    // Handle multipart file upload
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file provided" });
@@ -1984,6 +2031,7 @@ Return at most ${Math.min(limit, 10)} results. Only include memories with releva
         fileSize: existingUpload.fileSize,
         fileData: existingUpload.fileData, // base64 encoded
         tags: existingUpload.tags || [],
+        metadata: existingUpload.metadata || {},
         source: "mobile-upload"
       };
 

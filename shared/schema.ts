@@ -462,6 +462,7 @@ export const uploads = pgTable("uploads", {
   filePath: text("file_path"), // Local path if stored on server
   fileData: text("file_data"), // Base64 encoded data for small files
   tags: jsonb("tags").default([]).notNull(), // Array of string tags
+  metadata: jsonb("metadata"), // Additional metadata (e.g., facial recognition enrollment flags)
   status: text("status").default("pending").notNull(), // 'pending', 'processing', 'processed', 'sent', 'error'
   processingResult: jsonb("processing_result"), // Transcription, OCR, etc.
   memoryId: varchar("memory_id").references(() => memories.id), // Link to created memory
