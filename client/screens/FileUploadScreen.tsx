@@ -25,7 +25,7 @@ import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Colors, Gradients } from "@/constants/theme";
-import { queryClient, getApiUrl, apiRequest } from "@/lib/query-client";
+import { queryClient, getApiUrl, apiRequest, getAuthHeaders } from "@/lib/query-client";
 
 interface SelectedFile {
   uri: string;
@@ -118,7 +118,11 @@ export default function FileUploadScreen() {
     mutationFn: async (uploadId: string) => {
       const baseUrl = getApiUrl();
       const url = new URL(`/api/uploads/${uploadId}/process`, baseUrl);
-      const res = await fetch(url.toString(), { method: "POST", credentials: "include" });
+      const res = await fetch(url.toString(), { 
+        method: "POST", 
+        credentials: "include",
+        headers: getAuthHeaders(),
+      });
       if (!res.ok) throw new Error("Processing failed");
       return res.json();
     },
@@ -131,7 +135,11 @@ export default function FileUploadScreen() {
     mutationFn: async (uploadId: string) => {
       const baseUrl = getApiUrl();
       const url = new URL(`/api/uploads/${uploadId}/send-to-zeke`, baseUrl);
-      const res = await fetch(url.toString(), { method: "POST", credentials: "include" });
+      const res = await fetch(url.toString(), { 
+        method: "POST", 
+        credentials: "include",
+        headers: getAuthHeaders(),
+      });
       if (!res.ok) throw new Error("Send failed");
       return res.json();
     },
@@ -145,7 +153,11 @@ export default function FileUploadScreen() {
     mutationFn: async (uploadId: string) => {
       const baseUrl = getApiUrl();
       const url = new URL(`/api/uploads/${uploadId}`, baseUrl);
-      const res = await fetch(url.toString(), { method: "DELETE", credentials: "include" });
+      const res = await fetch(url.toString(), { 
+        method: "DELETE", 
+        credentials: "include",
+        headers: getAuthHeaders(),
+      });
       if (!res.ok) throw new Error("Delete failed");
     },
     onSuccess: () => {
@@ -266,6 +278,7 @@ export default function FileUploadScreen() {
         method: "POST",
         body: formData,
         credentials: "include",
+        headers: getAuthHeaders(),
       });
 
       setUploadProgress(60);
