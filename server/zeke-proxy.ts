@@ -11,6 +11,7 @@ import {
 } from "./zeke-security";
 
 const ZEKE_BACKEND_URL = process.env.EXPO_PUBLIC_ZEKE_BACKEND_URL || "https://zekeai.replit.app";
+const DEFAULT_PUSH_PLATFORM = "expo" as const;
 
 // Stale-while-revalidate cache for slow endpoints
 interface CacheEntry {
@@ -864,19 +865,22 @@ export function registerZekeProxyRoutes(app: Express): void {
       const { eq, and } = await import("drizzle-orm");
       
       // Upsert: delete existing token for this device, then insert new one
+      // Note: This is not atomic but acceptable for push tokens as they're non-critical
+      // and the race condition window is extremely small. A future improvement could
+      // use Drizzle's .onConflictDoUpdate() for true atomic upsert.
       await db.delete(pushTokens).where(eq(pushTokens.deviceId, deviceId));
       await db.insert(pushTokens).values({
         deviceId,
         token,
-        platform: platform || "expo",
+        platform: platform || DEFAULT_PUSH_PLATFORM,
       });
-      console.log(`[Push Token] Stored locally: deviceId=${deviceId}, platform=${platform || "expo"}`);
+      console.log(`[Push Token] Stored locally: deviceId=${deviceId}, platform=${platform || DEFAULT_PUSH_PLATFORM}`);
     } catch (dbError) {
       console.error("[Push Token] Failed to store locally:", dbError);
     }
     
     // Forward to ZEKE backend with explicit payload
-    const backendPayload = { token, deviceId, platform: platform || "expo" };
+    const backendPayload = { token, deviceId, platform: platform || DEFAULT_PUSH_PLATFORM };
     const result = await proxyToZeke("POST", "/api/push/register", backendPayload, headers);
     if (!result.success) {
       // Accept registration locally even if backend doesn't support it yet
