@@ -216,7 +216,6 @@ export default function HomeScreen() {
     useState<ConnectionState>("disconnected");
   const [connectedBleDevice, setConnectedBleDevice] =
     useState<BLEDevice | null>(null);
-  const [showAllActivities, setShowAllActivities] = useState(false);
 
   useEffect(() => {
     let batteryLevelSubscription: { remove: () => void } | null = null;
@@ -711,7 +710,7 @@ export default function HomeScreen() {
             </View>
           ) : (
             <>
-              {(showAllActivities ? activities : activities.slice(0, 4)).map((activity, index, arr) => (
+              {activities.slice(0, 3).map((activity, index, arr) => (
                 <View
                   key={activity.id}
                   style={[
@@ -752,24 +751,18 @@ export default function HomeScreen() {
                   </View>
                 </View>
               ))}
-              {activities.length > 4 ? (
-                <Pressable
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setShowAllActivities(!showAllActivities);
-                  }}
-                  style={styles.seeAllButton}
-                >
-                  <ThemedText type="small" style={{ color: Colors.dark.primary }}>
-                    {showAllActivities ? "Show less" : `See all ${activities.length} activities`}
-                  </ThemedText>
-                  <Feather 
-                    name={showAllActivities ? "chevron-up" : "chevron-down"} 
-                    size={16} 
-                    color={Colors.dark.primary} 
-                  />
-                </Pressable>
-              ) : null}
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  navigation.navigate("ActivityHistory");
+                }}
+                style={styles.seeAllButton}
+              >
+                <ThemedText type="small" style={{ color: Colors.dark.primary }}>
+                  View full history
+                </ThemedText>
+                <Feather name="chevron-right" size={16} color={Colors.dark.primary} />
+              </Pressable>
             </>
           )}
         </View>
