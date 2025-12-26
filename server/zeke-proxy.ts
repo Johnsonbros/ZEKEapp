@@ -910,7 +910,7 @@ export function registerZekeProxyRoutes(app: Express): void {
     }
     
     // Forward to ZEKE backend
-    const result = await proxyToZeke("DELETE", "/api/push/unregister", req.body, headers);
+    const result = await proxyToZeke("POST", "/api/push/unregister", req.body, headers);
     if (!result.success) {
       return res.json({ success: true, message: "Push token removed locally" });
     }
