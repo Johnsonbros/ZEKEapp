@@ -1,0 +1,56 @@
+{
+  "$schema": "https://eas.dev/eas.json/schema",
+  "cli": {
+    "version": ">= 16.1.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "channel": "development",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_ZEKE_BACKEND_URL": "https://zekeai.replit.app",
+        "EXPO_PUBLIC_DOMAIN": "ZEKEapp.replit.app"
+      }
+    },
+    "preview": {
+      "android": {
+        "buildType": "apk"
+      },
+      "distribution": "internal",
+      "channel": "preview",
+      "env": {
+        "EXPO_PUBLIC_ZEKE_BACKEND_URL": "https://zekeai.replit.app",
+        "EXPO_PUBLIC_DOMAIN": "ZEKEapp.replit.app"
+      }
+    },
+    "apk": {
+      "android": {
+        "buildType": "apk"
+      },
+      "distribution": "internal",
+      "channel": "preview",
+      "env": {
+        "EXPO_PUBLIC_ZEKE_BACKEND_URL": "https://zekeai.replit.app",
+        "EXPO_PUBLIC_DOMAIN": "ZEKEapp.replit.app"
+      }
+    },
+    "production": {
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "channel": "production",
+      "env": {
+        "EXPO_PUBLIC_ZEKE_BACKEND_URL": "https://zekeai.replit.app",
+        "EXPO_PUBLIC_DOMAIN": "ZEKEapp.replit.app"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}
