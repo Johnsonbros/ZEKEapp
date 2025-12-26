@@ -1,17 +1,12 @@
-import React, { useCallback, useEffect, useState, useRef } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   View,
-  ScrollView,
   StyleSheet,
-  RefreshControl,
   Pressable,
   ActivityIndicator,
   Platform,
 } from "react-native";
 import * as Battery from "expo-battery";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useHeaderHeight } from "@react-navigation/elements";
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
@@ -36,6 +31,7 @@ import { SpeakerTagList } from "@/components/SpeakerTag";
 import { OmiHealthCard } from "@/components/OmiHealthCard";
 import { NewsBriefingSection, type NewsStory } from "@/components/NewsBriefingCard";
 import { ZekeAlertStack, type ZekeAlert } from "@/components/ZekeAlertBanner";
+import { PageLayout } from "@/components/PageLayout";
 import { getSpeakerColor } from "@/lib/speaker-matcher";
 import { useTheme } from "@/hooks/useTheme";
 import { useLocation } from "@/hooks/useLocation";
@@ -185,20 +181,10 @@ function QuickActionButton({
 }
 
 export default function HomeScreen() {
-  const insets = useSafeAreaInsets();
-  const headerHeight = useHeaderHeight();
-  const tabBarHeight = useBottomTabBarHeight();
   const { theme } = useTheme();
   const navigation = useNavigation<HomeScreenNavigationProp>();
   const isSyncMode = isZekeSyncMode();
-  const scrollViewRef = useRef<ScrollView>(null);
-
-  // Reset scroll position when screen comes into focus
-  useFocusEffect(
-    useCallback(() => {
-      scrollViewRef.current?.scrollTo({ y: 0, animated: false });
-    }, [])
-  );
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const {
     location,
@@ -413,26 +399,30 @@ export default function HomeScreen() {
   const isLiveTranscribing = devices.some(
     (d) => d.isConnected && d.isRecording,
   );
-  const isRefreshing = isLoadingDevices;
 
   const onRefresh = useCallback(async () => {
+    setIsRefreshing(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await queryClient.invalidateQueries({
-      queryKey: ["zeke-recent-activities"],
-    });
-    if (isSyncMode) {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["zeke-connection-status"] }),
-        queryClient.invalidateQueries({ queryKey: ["zeke-dashboard-summary"] }),
-        queryClient.invalidateQueries({ queryKey: ["zeke-today-events"] }),
-        queryClient.invalidateQueries({ queryKey: ["zeke-pending-tasks"] }),
-        queryClient.invalidateQueries({ queryKey: ["zeke-grocery-items"] }),
-        queryClient.invalidateQueries({ queryKey: ["zeke-news-briefing"] }),
-        queryClient.invalidateQueries({ queryKey: ["zeke-notifications"] }),
-        queryClient.invalidateQueries({ queryKey: ["omi-pendant-health"] }),
-      ]);
-    } else {
-      await queryClient.invalidateQueries({ queryKey: ["/api/devices"] });
+    try {
+      await queryClient.invalidateQueries({
+        queryKey: ["zeke-recent-activities"],
+      });
+      if (isSyncMode) {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["zeke-connection-status"] }),
+          queryClient.invalidateQueries({ queryKey: ["zeke-dashboard-summary"] }),
+          queryClient.invalidateQueries({ queryKey: ["zeke-today-events"] }),
+          queryClient.invalidateQueries({ queryKey: ["zeke-pending-tasks"] }),
+          queryClient.invalidateQueries({ queryKey: ["zeke-grocery-items"] }),
+          queryClient.invalidateQueries({ queryKey: ["zeke-news-briefing"] }),
+          queryClient.invalidateQueries({ queryKey: ["zeke-notifications"] }),
+          queryClient.invalidateQueries({ queryKey: ["omi-pendant-health"] }),
+        ]);
+      } else {
+        await queryClient.invalidateQueries({ queryKey: ["/api/devices"] });
+      }
+    } finally {
+      setIsRefreshing(false);
     }
   }, [isSyncMode]);
 
@@ -445,25 +435,11 @@ export default function HomeScreen() {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.backgroundRoot }}>
-      <ScrollView
-        ref={scrollViewRef}
-        style={{ flex: 1 }}
-        contentContainerStyle={{
-          paddingTop: headerHeight - Spacing.lg,
-          paddingBottom: tabBarHeight + Spacing.lg + 40,
-          paddingHorizontal: Spacing.lg,
-        }}
-        scrollIndicatorInsets={{ bottom: insets.bottom }}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={onRefresh}
-            tintColor={Colors.dark.primary}
-          />
-        }
-      >
+    <PageLayout
+      refreshing={isRefreshing}
+      onRefresh={onRefresh}
+      extraBottomPadding={40}
+    >
         {/* ZEKE Alert Notifications Stack */}
         {isSyncMode && zekeAlerts.length > 0 ? (
           <ZekeAlertStack
@@ -709,47 +685,61 @@ export default function HomeScreen() {
               </ThemedText>
             </View>
           ) : (
-            activities.map((activity, index) => (
-              <View
-                key={activity.id}
-                style={[
-                  styles.activityItem,
-                  index === activities.length - 1 ? { marginBottom: 0 } : null,
-                ]}
-              >
+            <>
+              {activities.slice(0, 3).map((activity, index, arr) => (
                 <View
+                  key={activity.id}
                   style={[
-                    styles.activityIconContainer,
-                    { backgroundColor: `${Colors.dark.primary}20` },
+                    styles.activityItem,
+                    index === arr.length - 1 ? { marginBottom: 0 } : null,
                   ]}
                 >
-                  <Feather
-                    name={activity.icon}
-                    size={14}
-                    color={Colors.dark.primary}
-                  />
+                  <View
+                    style={[
+                      styles.activityIconContainer,
+                      { backgroundColor: `${Colors.dark.primary}20` },
+                    ]}
+                  >
+                    <Feather
+                      name={activity.icon}
+                      size={14}
+                      color={Colors.dark.primary}
+                    />
+                  </View>
+                  <View style={styles.activityContent}>
+                    <ThemedText type="small" numberOfLines={1}>
+                      {activity.action}
+                    </ThemedText>
+                    <ThemedText type="caption" secondary>
+                      {activity.timestamp}
+                    </ThemedText>
+                    {activity.speakers && activity.speakers.length > 0 ? (
+                      <View style={styles.activitySpeakers}>
+                        <SpeakerTagList
+                          speakers={activity.speakers.map((name, i) => ({
+                            label: name,
+                            color: getSpeakerColor(i),
+                          }))}
+                          size="small"
+                        />
+                      </View>
+                    ) : null}
+                  </View>
                 </View>
-                <View style={styles.activityContent}>
-                  <ThemedText type="small" numberOfLines={1}>
-                    {activity.action}
-                  </ThemedText>
-                  <ThemedText type="caption" secondary>
-                    {activity.timestamp}
-                  </ThemedText>
-                  {activity.speakers && activity.speakers.length > 0 ? (
-                    <View style={styles.activitySpeakers}>
-                      <SpeakerTagList
-                        speakers={activity.speakers.map((name, i) => ({
-                          label: name,
-                          color: getSpeakerColor(i),
-                        }))}
-                        size="small"
-                      />
-                    </View>
-                  ) : null}
-                </View>
-              </View>
-            ))
+              ))}
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  navigation.navigate("ActivityHistory");
+                }}
+                style={styles.seeAllButton}
+              >
+                <ThemedText type="small" style={{ color: Colors.dark.primary }}>
+                  View full history
+                </ThemedText>
+                <Feather name="chevron-right" size={16} color={Colors.dark.primary} />
+              </Pressable>
+            </>
           )}
         </View>
 
@@ -1112,8 +1102,7 @@ export default function HomeScreen() {
           </LinearGradient>
         </Pressable>
         </View>
-      </ScrollView>
-    </View>
+    </PageLayout>
   );
 }
 
@@ -1352,5 +1341,15 @@ const styles = StyleSheet.create({
   loadingContainer: {
     padding: Spacing.xl,
     alignItems: "center",
+  },
+  seeAllButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: Spacing.md,
+    marginTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 255, 255, 0.1)",
+    gap: Spacing.xs,
   },
 });
