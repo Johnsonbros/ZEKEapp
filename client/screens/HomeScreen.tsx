@@ -216,6 +216,7 @@ export default function HomeScreen() {
     useState<ConnectionState>("disconnected");
   const [connectedBleDevice, setConnectedBleDevice] =
     useState<BLEDevice | null>(null);
+  const [showAllActivities, setShowAllActivities] = useState(false);
 
   useEffect(() => {
     let batteryLevelSubscription: { remove: () => void } | null = null;
@@ -709,47 +710,67 @@ export default function HomeScreen() {
               </ThemedText>
             </View>
           ) : (
-            activities.map((activity, index) => (
-              <View
-                key={activity.id}
-                style={[
-                  styles.activityItem,
-                  index === activities.length - 1 ? { marginBottom: 0 } : null,
-                ]}
-              >
+            <>
+              {(showAllActivities ? activities : activities.slice(0, 4)).map((activity, index, arr) => (
                 <View
+                  key={activity.id}
                   style={[
-                    styles.activityIconContainer,
-                    { backgroundColor: `${Colors.dark.primary}20` },
+                    styles.activityItem,
+                    index === arr.length - 1 ? { marginBottom: 0 } : null,
                   ]}
                 >
-                  <Feather
-                    name={activity.icon}
-                    size={14}
-                    color={Colors.dark.primary}
+                  <View
+                    style={[
+                      styles.activityIconContainer,
+                      { backgroundColor: `${Colors.dark.primary}20` },
+                    ]}
+                  >
+                    <Feather
+                      name={activity.icon}
+                      size={14}
+                      color={Colors.dark.primary}
+                    />
+                  </View>
+                  <View style={styles.activityContent}>
+                    <ThemedText type="small" numberOfLines={1}>
+                      {activity.action}
+                    </ThemedText>
+                    <ThemedText type="caption" secondary>
+                      {activity.timestamp}
+                    </ThemedText>
+                    {activity.speakers && activity.speakers.length > 0 ? (
+                      <View style={styles.activitySpeakers}>
+                        <SpeakerTagList
+                          speakers={activity.speakers.map((name, i) => ({
+                            label: name,
+                            color: getSpeakerColor(i),
+                          }))}
+                          size="small"
+                        />
+                      </View>
+                    ) : null}
+                  </View>
+                </View>
+              ))}
+              {activities.length > 4 ? (
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowAllActivities(!showAllActivities);
+                  }}
+                  style={styles.seeAllButton}
+                >
+                  <ThemedText type="small" style={{ color: Colors.dark.primary }}>
+                    {showAllActivities ? "Show less" : `See all ${activities.length} activities`}
+                  </ThemedText>
+                  <Feather 
+                    name={showAllActivities ? "chevron-up" : "chevron-down"} 
+                    size={16} 
+                    color={Colors.dark.primary} 
                   />
-                </View>
-                <View style={styles.activityContent}>
-                  <ThemedText type="small" numberOfLines={1}>
-                    {activity.action}
-                  </ThemedText>
-                  <ThemedText type="caption" secondary>
-                    {activity.timestamp}
-                  </ThemedText>
-                  {activity.speakers && activity.speakers.length > 0 ? (
-                    <View style={styles.activitySpeakers}>
-                      <SpeakerTagList
-                        speakers={activity.speakers.map((name, i) => ({
-                          label: name,
-                          color: getSpeakerColor(i),
-                        }))}
-                        size="small"
-                      />
-                    </View>
-                  ) : null}
-                </View>
-              </View>
-            ))
+                </Pressable>
+              ) : null}
+            </>
           )}
         </View>
 
@@ -1352,5 +1373,15 @@ const styles = StyleSheet.create({
   loadingContainer: {
     padding: Spacing.xl,
     alignItems: "center",
+  },
+  seeAllButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: Spacing.md,
+    marginTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 255, 255, 0.1)",
+    gap: Spacing.xs,
   },
 });
