@@ -34,6 +34,7 @@ import { PulsingDot } from "@/components/PulsingDot";
 import { SyncStatusBar } from "@/components/SyncStatusBar";
 import { SpeakerTagList } from "@/components/SpeakerTag";
 import { OmiHealthCard } from "@/components/OmiHealthCard";
+import { LimitlessHealthCard } from "@/components/LimitlessHealthCard";
 import { NewsBriefingSection, type NewsStory } from "@/components/NewsBriefingCard";
 import { ZekeAlertStack, type ZekeAlert } from "@/components/ZekeAlertBanner";
 import { getSpeakerColor } from "@/lib/speaker-matcher";
@@ -649,9 +650,12 @@ export default function HomeScreen() {
           </View>
         </Pressable>
 
-        {/* Omi Pendant Health Status */}
-        {isSyncMode ? (
+        {/* Wearable Health Status - Show based on connected device type */}
+        {isSyncMode && connectedBleDevice?.type === "omi" ? (
           <OmiHealthCard />
+        ) : null}
+        {isSyncMode && connectedBleDevice?.type === "limitless" ? (
+          <LimitlessHealthCard />
         ) : null}
 
         {/* Morning News Briefing */}
