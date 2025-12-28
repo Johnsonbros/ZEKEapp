@@ -763,50 +763,64 @@ export function registerZekeProxyRoutes(app: Express): void {
   app.get("/api/zeke/news/briefing", async (req: Request, res: Response) => {
     const headers = extractForwardHeaders(req.headers);
     const result = await proxyToZeke("GET", "/api/news/briefing", undefined, headers);
-    console.log(`[News Briefing] Backend response: success=${result.success}, dataType=${typeof result.data}, isString=${typeof result.data === 'string'}`);
-    if (result.data && typeof result.data === 'object') {
-      console.log(`[News Briefing] Data keys: ${Object.keys(result.data).join(', ')}`);
+    
+    // Extract data from either nested or flat response
+    const rawData = result.data?.briefing || result.data;
+    
+    // Validate: must be object with stories array
+    const hasValidStories = result.success && 
+      typeof rawData === 'object' && 
+      rawData !== null &&
+      Array.isArray(rawData.stories);
+    
+    if (hasValidStories) {
+      console.log(`[News Briefing] Backend returned ${rawData.stories.length} stories`);
+      return res.json(rawData);
     }
-    if (!result.success || typeof result.data === 'string') {
-      console.log(`[News Briefing] Falling back to placeholder data. Error: ${result.error || 'data was string'}`);
-      // Return placeholder data if backend doesn't support this endpoint yet
-      return res.json({
-        generatedAt: new Date().toISOString(),
-        stories: [
-          {
-            id: "news-1",
-            headline: "AI Technology Advances in Healthcare",
-            summary: "New AI systems are helping doctors diagnose diseases earlier and more accurately than ever before.",
-            category: "Technology",
-            source: "Tech Daily",
-            sourceUrl: "https://example.com/ai-healthcare",
-            publishedAt: new Date().toISOString(),
-            urgency: "normal",
-          },
-          {
-            id: "news-2",
-            headline: "Market Update: Tech Stocks Rally",
-            summary: "Major technology companies see gains as investors remain optimistic about Q4 earnings.",
-            category: "Business",
-            source: "Financial Times",
-            sourceUrl: "https://example.com/market-update",
-            publishedAt: new Date(Date.now() - 3600000).toISOString(),
-            urgency: "normal",
-          },
-          {
-            id: "news-3",
-            headline: "Weather Alert: Storm System Approaching",
-            summary: "Meteorologists warn of severe weather conditions expected across the region this weekend.",
-            category: "World",
-            source: "Weather Service",
-            sourceUrl: "https://example.com/weather-alert",
-            publishedAt: new Date(Date.now() - 7200000).toISOString(),
-            urgency: "breaking",
-          },
-        ],
-      });
-    }
-    res.json(result.data);
+    
+    // Fallback to placeholder data if backend doesn't return valid JSON
+    console.log(`[News Briefing] Falling back to placeholder data. Reason: ${
+      !result.success ? `request failed (${result.error || 'unknown error'})` :
+      typeof result.data === 'string' ? 'response was HTML/text instead of JSON' :
+      'response missing stories array'
+    }`);
+    
+    return res.json({
+      generatedAt: new Date().toISOString(),
+      nextRefreshAt: new Date(Date.now() + 3600000).toISOString(),
+      stories: [
+        {
+          id: "news-1",
+          headline: "AI Technology Advances in Healthcare",
+          summary: "New AI systems are helping doctors diagnose diseases earlier and more accurately than ever before.",
+          category: "Technology",
+          source: "Tech Daily",
+          sourceUrl: "https://example.com/ai-healthcare",
+          publishedAt: new Date().toISOString(),
+          urgency: "normal",
+        },
+        {
+          id: "news-2",
+          headline: "Market Update: Tech Stocks Rally",
+          summary: "Major technology companies see gains as investors remain optimistic about Q4 earnings.",
+          category: "Business",
+          source: "Financial Times",
+          sourceUrl: "https://example.com/market-update",
+          publishedAt: new Date(Date.now() - 3600000).toISOString(),
+          urgency: "normal",
+        },
+        {
+          id: "news-3",
+          headline: "Weather Alert: Storm System Approaching",
+          summary: "Meteorologists warn of severe weather conditions expected across the region this weekend.",
+          category: "World",
+          source: "Weather Service",
+          sourceUrl: "https://example.com/weather-alert",
+          publishedAt: new Date(Date.now() - 7200000).toISOString(),
+          urgency: "breaking",
+        },
+      ],
+    });
   });
 
   app.post("/api/zeke/news/feedback", async (req: Request, res: Response) => {

@@ -50,6 +50,7 @@ import {
   getGroceryItems,
   getRecentActivities,
   getNewsBriefing,
+  shouldRefreshNews,
   submitNewsFeedback,
   getZekeNotifications,
   dismissNotification,
@@ -364,7 +365,15 @@ export default function HomeScreen() {
     queryFn: getNewsBriefing,
     enabled: isSyncMode,
     staleTime: 300000,
-    refetchInterval: 600000,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!data || shouldRefreshNews(data)) {
+        return 60000;
+      }
+      const nextRefresh = new Date(data.nextRefreshAt!).getTime();
+      const delay = Math.max(nextRefresh - Date.now(), 60000);
+      return Math.min(delay, 3600000);
+    },
   });
 
   const { data: notifications = [] } = useQuery<ZekeNotification[]>({
@@ -666,6 +675,8 @@ export default function HomeScreen() {
             isLoading={isLoadingNews}
             error={newsError ? "Unable to load news briefing" : null}
             onRefresh={() => refetchNews()}
+            isOffline={newsBriefing?.isOffline}
+            generatedAt={newsBriefing?.generatedAt}
           />
         ) : null}
 
