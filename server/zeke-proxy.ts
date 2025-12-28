@@ -763,7 +763,12 @@ export function registerZekeProxyRoutes(app: Express): void {
   app.get("/api/zeke/news/briefing", async (req: Request, res: Response) => {
     const headers = extractForwardHeaders(req.headers);
     const result = await proxyToZeke("GET", "/api/news/briefing", undefined, headers);
+    console.log(`[News Briefing] Backend response: success=${result.success}, dataType=${typeof result.data}, isString=${typeof result.data === 'string'}`);
+    if (result.data && typeof result.data === 'object') {
+      console.log(`[News Briefing] Data keys: ${Object.keys(result.data).join(', ')}`);
+    }
     if (!result.success || typeof result.data === 'string') {
+      console.log(`[News Briefing] Falling back to placeholder data. Error: ${result.error || 'data was string'}`);
       // Return placeholder data if backend doesn't support this endpoint yet
       return res.json({
         generatedAt: new Date().toISOString(),
