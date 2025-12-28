@@ -136,9 +136,7 @@ export default function SettingsScreen() {
   const [bleConnectionState, setBleConnectionState] = useState<ConnectionState>(
     bluetoothService.getConnectionState()
   );
-  const [bleConnectedDevice, setBleConnectedDevice] = useState<BLEDevice | null>(
-    bluetoothService.getConnectedDevice()
-  );
+  const [bleConnectedDevice, setBleConnectedDevice] = useState<BLEDevice | null>(null);
 
   useEffect(() => {
     const unsubscribe = bluetoothService.onConnectionStateChange(
