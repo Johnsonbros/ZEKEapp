@@ -26,6 +26,8 @@ import { Card } from "@/components/Card";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Colors, Gradients } from "@/constants/theme";
 import { bluetoothService, BLEDevice, ConnectionState } from "@/lib/bluetooth";
+import { audioStreamer } from "@/lib/audioStreamer";
+import { AudioStreamingStatus } from "@/components/AudioStreamingStatus";
 
 export default function BluetoothConnectionScreen() {
   const insets = useSafeAreaInsets();
@@ -39,6 +41,7 @@ export default function BluetoothConnectionScreen() {
   const [connectingDeviceId, setConnectingDeviceId] = useState<string | null>(
     null,
   );
+  const [showStreamingStatus, setShowStreamingStatus] = useState(false);
 
   const scanPulse = useSharedValue(1);
   const scanIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -73,10 +76,17 @@ export default function BluetoothConnectionScreen() {
       },
     );
 
+    const unsubscribeMetrics = audioStreamer.onMetricsUpdate(() => {
+      if (isMountedRef.current) {
+        setShowStreamingStatus(audioStreamer.isStreaming());
+      }
+    });
+
     return () => {
       isMountedRef.current = false;
       unsubscribeDiscovery();
       unsubscribeConnection();
+      unsubscribeMetrics();
       bluetoothService.stopScan();
       if (scanIntervalRef.current) {
         clearInterval(scanIntervalRef.current);
@@ -306,6 +316,12 @@ export default function BluetoothConnectionScreen() {
           </View>
         </View>
       </View>
+
+      {showStreamingStatus ? (
+        <View style={{ marginBottom: Spacing.xl }}>
+          <AudioStreamingStatus />
+        </View>
+      ) : null}
 
       <View style={styles.scanSection}>
         <Animated.View style={[styles.scanButtonWrapper, scanAnimatedStyle]}>

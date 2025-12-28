@@ -8,6 +8,7 @@ import { PulsingDot } from "@/components/PulsingDot";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Colors, Gradients } from "@/constants/theme";
 import { bluetoothService, type BLEDevice, type ConnectionState } from "@/lib/bluetooth";
+import { audioStreamer, type StreamingMetrics } from "@/lib/audioStreamer";
 
 interface LimitlessHealthCardProps {
   onPress?: () => void;
@@ -43,6 +44,8 @@ export function LimitlessHealthCard({ onPress }: LimitlessHealthCardProps) {
   const [lastSeenTimestamp, setLastSeenTimestamp] = useState<number | undefined>(
     Date.now()
   );
+  const [streamingMetrics, setStreamingMetrics] = useState<StreamingMetrics | null>(null);
+  const [isStreaming, setIsStreaming] = useState(false);
 
   useEffect(() => {
     const unsubscribe = bluetoothService.onConnectionStateChange(
@@ -55,6 +58,14 @@ export function LimitlessHealthCard({ onPress }: LimitlessHealthCardProps) {
       }
     );
     return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = audioStreamer.onMetricsUpdate((metrics) => {
+      setStreamingMetrics(metrics);
+      setIsStreaming(audioStreamer.isStreaming());
+    });
+    return unsubscribe;
   }, []);
 
   const isConnected = connectionState === "connected";
@@ -152,6 +163,25 @@ export function LimitlessHealthCard({ onPress }: LimitlessHealthCardProps) {
             </ThemedText>
           </View>
         ) : null}
+
+        {isStreaming && streamingMetrics ? (
+          <View style={[styles.streamingIndicator, { backgroundColor: theme.backgroundSecondary }]}>
+            <PulsingDot color={Colors.dark.success} size={6} />
+            <ThemedText type="caption" style={{ color: Colors.dark.success, fontWeight: "600" }}>
+              Streaming
+            </ThemedText>
+            <View style={styles.streamingDivider} />
+            <Feather name="mic" size={12} color={theme.textSecondary} />
+            <ThemedText type="caption" secondary>
+              {streamingMetrics.framesReceived}
+            </ThemedText>
+            <Feather name="arrow-right" size={10} color={theme.textSecondary} />
+            <Feather name="upload-cloud" size={12} color={theme.textSecondary} />
+            <ThemedText type="caption" secondary>
+              {streamingMetrics.framesSent}
+            </ThemedText>
+          </View>
+        ) : null}
       </View>
     </View>
   );
@@ -241,5 +271,20 @@ const styles = StyleSheet.create({
   },
   deviceInfoText: {
     marginLeft: 4,
+  },
+  streamingIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    marginTop: Spacing.sm,
+  },
+  streamingDivider: {
+    width: 1,
+    height: 12,
+    backgroundColor: Colors.dark.border,
+    marginHorizontal: Spacing.xs,
   },
 });
