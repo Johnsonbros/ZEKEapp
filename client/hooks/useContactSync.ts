@@ -4,7 +4,12 @@ import { useAuth } from "@/context/AuthContext";
 import {
   syncContacts,
   getContactSyncMetadata,
+  getContactSyncSettings,
+  setContactSyncSettings,
+  shouldAutoSync,
+  initializeContactMap,
   ContactSyncMetadata,
+  ContactSyncSettings,
   SyncContactsResult,
 } from "@/lib/contact-sync";
 
@@ -14,6 +19,8 @@ export interface UseContactSyncReturn {
   lastSyncTime: string | null;
   lastSyncCount: number;
   syncError: string | null;
+  autoSyncEnabled: boolean;
+  setAutoSyncEnabled: (enabled: boolean) => Promise<void>;
 }
 
 export function useContactSync(): UseContactSyncReturn {
@@ -25,12 +32,25 @@ export function useContactSync(): UseContactSyncReturn {
     lastSyncCount: 0,
     syncInProgress: false,
   });
+  const [settings, setSettings] = useState<ContactSyncSettings>({
+    autoSyncEnabled: true,
+    syncIntervalHours: 24,
+  });
   const [syncError, setSyncError] = useState<string | null>(null);
   const initialSyncDone = useRef(false);
+  const autoSyncCheckDone = useRef(false);
 
   useEffect(() => {
-    getContactSyncMetadata().then(setMetadata);
-  }, []);
+    Promise.all([
+      getContactSyncMetadata(),
+      getContactSyncSettings(),
+    ]).then(([meta, sett]) => {
+      setMetadata(meta);
+      setSettings(sett);
+    });
+    
+    initializeContactMap(queryClient);
+  }, [queryClient]);
 
   const syncNowInternal = useCallback(async (): Promise<SyncContactsResult> => {
     if (isSyncing) {
@@ -57,15 +77,33 @@ export function useContactSync(): UseContactSyncReturn {
   }, [queryClient, isSyncing]);
 
   useEffect(() => {
-    if (isAuthenticated && !metadata.lastSyncTime && !initialSyncDone.current) {
+    if (!isAuthenticated) return;
+    
+    if (!metadata.lastSyncTime && !initialSyncDone.current) {
       initialSyncDone.current = true;
       syncNowInternal();
+      return;
     }
-  }, [isAuthenticated, metadata.lastSyncTime, syncNowInternal]);
+    
+    if (
+      metadata.lastSyncTime &&
+      !autoSyncCheckDone.current &&
+      shouldAutoSync(metadata.lastSyncTime, settings)
+    ) {
+      autoSyncCheckDone.current = true;
+      console.log("[ContactSync] Auto-sync triggered based on interval");
+      syncNowInternal();
+    }
+  }, [isAuthenticated, metadata.lastSyncTime, settings, syncNowInternal]);
 
   const syncNow = useCallback(async (): Promise<SyncContactsResult> => {
     return syncNowInternal();
   }, [syncNowInternal]);
+
+  const setAutoSyncEnabled = useCallback(async (enabled: boolean) => {
+    await setContactSyncSettings({ autoSyncEnabled: enabled });
+    setSettings((prev) => ({ ...prev, autoSyncEnabled: enabled }));
+  }, []);
 
   return {
     syncNow,
@@ -73,5 +111,7 @@ export function useContactSync(): UseContactSyncReturn {
     lastSyncTime: metadata.lastSyncTime,
     lastSyncCount: metadata.lastSyncCount,
     syncError,
+    autoSyncEnabled: settings.autoSyncEnabled,
+    setAutoSyncEnabled,
   };
 }
