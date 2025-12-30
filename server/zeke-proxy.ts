@@ -843,21 +843,21 @@ export function registerZekeProxyRoutes(app: Express): void {
   app.post("/api/zeke/news/feedback", async (req: Request, res: Response) => {
     console.log(`[News Feedback] Received request:`, JSON.stringify(req.body));
     const headers = extractForwardHeaders(req.headers);
-    const { storyId, feedback, reason } = req.body;
-    if (!storyId || !feedback) {
-      console.log(`[News Feedback] Validation failed: missing storyId or feedback`);
-      return res.status(400).json({ error: "storyId and feedback are required" });
+    const { storyId, feedbackType, reason, topicId, source } = req.body;
+    if (!storyId || !feedbackType) {
+      console.log(`[News Feedback] Validation failed: missing storyId or feedbackType`);
+      return res.status(400).json({ error: "storyId and feedbackType are required" });
     }
-    if (feedback === "down" && (!reason || reason.trim().length === 0)) {
-      console.log(`[News Feedback] Validation failed: missing reason for thumbs down`);
-      return res.status(400).json({ error: "reason is required for negative feedback" });
+    if (!["thumbs_up", "thumbs_down"].includes(feedbackType)) {
+      console.log(`[News Feedback] Validation failed: invalid feedbackType`);
+      return res.status(400).json({ error: "feedbackType must be 'thumbs_up' or 'thumbs_down'" });
     }
-    console.log(`[News Feedback] Proxying to ZEKE backend: storyId=${storyId}, feedback=${feedback}`);
+    console.log(`[News Feedback] Proxying to ZEKE backend: storyId=${storyId}, feedbackType=${feedbackType}, topicId=${topicId || "none"}, source=${source || "mobile"}`);
     const result = await proxyToZeke("POST", "/api/news/feedback", req.body, headers);
     console.log(`[News Feedback] ZEKE proxy result:`, JSON.stringify(result));
     if (!result.success || typeof result.data === 'string') {
       // Accept feedback locally even if backend doesn't support it yet
-      console.log(`[News Feedback] Stored locally: storyId=${storyId}, feedback=${feedback}, reason=${reason || "none"}`);
+      console.log(`[News Feedback] Stored locally: storyId=${storyId}, feedbackType=${feedbackType}, reason=${reason || "none"}, topicId=${topicId || "none"}`);
       return res.json({ success: true, message: "Feedback recorded" });
     }
     console.log(`[News Feedback] Success from backend`);
