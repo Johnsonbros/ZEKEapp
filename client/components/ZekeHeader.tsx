@@ -6,6 +6,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
 import { HeaderTitle } from "@/components/HeaderTitle";
+import { PendantStatusIndicator } from "@/components/PendantStatusIndicator";
 import { getHealthStatus } from "@/lib/zeke-api-adapter";
 import { Colors, Spacing, BorderRadius } from "@/constants/theme";
 
@@ -41,6 +42,7 @@ export function ZekeHeaderButtons() {
 
   return (
     <View style={styles.container}>
+      <PendantStatusIndicator />
       <Pressable
         onPress={handleChatPress}
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
