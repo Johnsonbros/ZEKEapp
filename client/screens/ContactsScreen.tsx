@@ -25,6 +25,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { SearchBar } from "@/components/SearchBar";
 import { EmptyState } from "@/components/EmptyState";
+import { ContactFormModal } from "@/components/ContactFormModal";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, Colors, BorderRadius } from "@/constants/theme";
 import { queryClient } from "@/lib/query-client";
@@ -170,6 +171,7 @@ export default function ContactsScreen() {
   const navigation = useNavigation<ContactsNavProp>();
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [showAddModal, setShowAddModal] = useState(false);
 
   const {
     data: contacts,
@@ -283,7 +285,7 @@ export default function ContactsScreen() {
 
   const handleAddContact = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert("Add Contact", "Contact creation coming soon.");
+    setShowAddModal(true);
   };
 
   const renderItem = ({ item }: { item: (typeof flatData)[number] }) => {
@@ -401,6 +403,10 @@ export default function ContactsScreen() {
           <Feather name="user-plus" size={24} color="#FFFFFF" />
         </View>
       </Pressable>
+      <ContactFormModal
+        visible={showAddModal}
+        onClose={() => setShowAddModal(false)}
+      />
     </ThemedView>
   );
 }

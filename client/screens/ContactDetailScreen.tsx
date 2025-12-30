@@ -1,4 +1,4 @@
-import React, { useCallback } from "react";
+import React, { useCallback, useState } from "react";
 import {
   View,
   ScrollView,
@@ -25,6 +25,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
 import { EmptyState } from "@/components/EmptyState";
+import { ContactFormModal } from "@/components/ContactFormModal";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, Colors, BorderRadius } from "@/constants/theme";
 import { queryClient } from "@/lib/query-client";
@@ -265,6 +266,8 @@ export default function ContactDetailScreen() {
   const navigation = useNavigation<ContactDetailNavProp>();
   const { contactId } = route.params;
 
+  const [showEditModal, setShowEditModal] = useState(false);
+
   const {
     data: contact,
     isLoading,
@@ -359,7 +362,7 @@ export default function ContactDetailScreen() {
 
   const handleEdit = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    Alert.alert("Edit Contact", "Edit functionality coming soon.");
+    setShowEditModal(true);
   }, []);
 
   if (isLoading) {
@@ -659,6 +662,11 @@ export default function ContactDetailScreen() {
           </ThemedText>
         </Pressable>
       </ScrollView>
+      <ContactFormModal
+        visible={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        contact={contact}
+      />
     </ThemedView>
   );
 }
