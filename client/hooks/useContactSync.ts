@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -26,16 +26,11 @@ export function useContactSync(): UseContactSyncReturn {
     syncInProgress: false,
   });
   const [syncError, setSyncError] = useState<string | null>(null);
+  const initialSyncDone = useRef(false);
 
   useEffect(() => {
     getContactSyncMetadata().then(setMetadata);
   }, []);
-
-  useEffect(() => {
-    if (isAuthenticated && !metadata.lastSyncTime) {
-      syncNowInternal();
-    }
-  }, [isAuthenticated]);
 
   const syncNowInternal = useCallback(async (): Promise<SyncContactsResult> => {
     if (isSyncing) {
@@ -60,6 +55,13 @@ export function useContactSync(): UseContactSyncReturn {
       setIsSyncing(false);
     }
   }, [queryClient, isSyncing]);
+
+  useEffect(() => {
+    if (isAuthenticated && !metadata.lastSyncTime && !initialSyncDone.current) {
+      initialSyncDone.current = true;
+      syncNowInternal();
+    }
+  }, [isAuthenticated, metadata.lastSyncTime, syncNowInternal]);
 
   const syncNow = useCallback(async (): Promise<SyncContactsResult> => {
     return syncNowInternal();

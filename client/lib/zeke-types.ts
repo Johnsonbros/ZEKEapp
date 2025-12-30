@@ -106,13 +106,13 @@ export interface Contact {
   occupation?: string | null;
   organization?: string | null;
   lastInteractionAt?: string | null;
-  interactionCount: number;
-  canAccessPersonalInfo: boolean;
-  canAccessCalendar: boolean;
-  canAccessTasks: boolean;
-  canAccessGrocery: boolean;
-  canSetReminders: boolean;
-  isAutoCreated: boolean;
+  interactionCount?: number;
+  canAccessPersonalInfo?: boolean;
+  canAccessCalendar?: boolean;
+  canAccessTasks?: boolean;
+  canAccessGrocery?: boolean;
+  canSetReminders?: boolean;
+  isAutoCreated?: boolean;
   createdAt: string;
   updatedAt: string;
 }
