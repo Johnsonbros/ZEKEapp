@@ -9,6 +9,13 @@ import {
   getCommunicationLogs,
   generateRequestId,
 } from "./zeke-security";
+import {
+  normalizePhoneNumber,
+  buildPhoneContactMap,
+  resolveContactName,
+  type Contact,
+  type PhoneContactMap,
+} from "./phone-utils";
 
 const ZEKE_BACKEND_URL = process.env.EXPO_PUBLIC_ZEKE_BACKEND_URL || "https://zekeai.replit.app";
 
@@ -21,6 +28,42 @@ interface CacheEntry {
 
 const CACHE_TTL_MS = 60000; // 60 seconds
 const proxyCache: Map<string, CacheEntry> = new Map();
+
+// Contact cache for phone number resolution
+let contactCache: {
+  contacts: Contact[];
+  phoneMap: PhoneContactMap;
+  timestamp: number;
+} | null = null;
+const CONTACT_CACHE_TTL_MS = 300000; // 5 minutes
+
+async function getContactCache(headers: Record<string, string>): Promise<PhoneContactMap> {
+  const now = Date.now();
+  
+  if (contactCache && (now - contactCache.timestamp) < CONTACT_CACHE_TTL_MS) {
+    return contactCache.phoneMap;
+  }
+  
+  try {
+    const result = await proxyToZeke("GET", "/api/contacts", undefined, headers);
+    if (result.success) {
+      const contacts = result.data?.contacts || result.data || [];
+      const phoneMap = buildPhoneContactMap(contacts);
+      contactCache = { contacts, phoneMap, timestamp: now };
+      console.log(`[Contact Cache] Refreshed with ${contacts.length} contacts`);
+      return phoneMap;
+    }
+  } catch (error) {
+    console.error("[Contact Cache] Failed to refresh:", error);
+  }
+  
+  return contactCache?.phoneMap || {};
+}
+
+function invalidateContactCache(): void {
+  contactCache = null;
+  console.log("[Contact Cache] Invalidated");
+}
 
 function getCacheKey(endpoint: string, deviceToken?: string): string {
   return `${endpoint}:${deviceToken || 'anonymous'}`;
@@ -438,6 +481,7 @@ export function registerZekeProxyRoutes(app: Express): void {
     if (!result.success) {
       return res.status(result.status).json({ error: result.error || "Failed to create contact" });
     }
+    invalidateContactCache();
     res.status(201).json(result.data);
   });
 
@@ -456,6 +500,7 @@ export function registerZekeProxyRoutes(app: Express): void {
     if (!result.success) {
       return res.status(result.status).json({ error: result.error || "Failed to update contact" });
     }
+    invalidateContactCache();
     res.json(result.data);
   });
 
@@ -465,7 +510,51 @@ export function registerZekeProxyRoutes(app: Express): void {
     if (!result.success) {
       return res.status(result.status).json({ error: result.error || "Failed to delete contact" });
     }
+    invalidateContactCache();
     res.status(204).send();
+  });
+
+  // Phone number to contact name lookup
+  app.post("/api/zeke/contacts/lookup", async (req: Request, res: Response) => {
+    const headers = extractForwardHeaders(req.headers);
+    const { phoneNumbers } = req.body;
+    
+    if (!Array.isArray(phoneNumbers)) {
+      return res.status(400).json({ error: "phoneNumbers must be an array" });
+    }
+    
+    try {
+      const phoneMap = await getContactCache(headers);
+      const results: Record<string, string> = {};
+      
+      for (const phone of phoneNumbers) {
+        const normalized = normalizePhoneNumber(phone);
+        results[phone] = resolveContactName(phone, phoneMap);
+      }
+      
+      res.json({ results });
+    } catch (error) {
+      console.error("[Contact Lookup] Error:", error);
+      res.status(500).json({ error: "Failed to lookup contacts" });
+    }
+  });
+
+  // Invalidate contact cache endpoint
+  app.post("/api/zeke/contacts/refresh-cache", async (req: Request, res: Response) => {
+    const headers = extractForwardHeaders(req.headers);
+    invalidateContactCache();
+    
+    try {
+      const phoneMap = await getContactCache(headers);
+      res.json({ 
+        success: true, 
+        contactCount: Object.keys(phoneMap).length,
+        message: "Contact cache refreshed" 
+      });
+    } catch (error) {
+      console.error("[Contact Cache Refresh] Error:", error);
+      res.status(500).json({ error: "Failed to refresh contact cache" });
+    }
   });
 
   app.get("/api/zeke/chat/conversations", async (req: Request, res: Response) => {
