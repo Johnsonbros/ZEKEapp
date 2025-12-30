@@ -182,11 +182,15 @@ Natural language commands for location-based actions:
 - Add to existing list: "add them to my favorites", "add those to my hardware list"
 - Enable proximity alerts: "set alerts for my hardware list", "notify me when I'm near favorites"
 - Disable proximity alerts: "turn off alerts for coffee shops", "stop notifying me about hardware list"
+- **Create geofences**: "remind me when I leave work", "alert me when I'm near Home Depot", "set a geofence at this location", "notify me when I arrive at the office"
+- **Save places**: "save this location", "remember where I parked", "mark this spot as home", "save this place as work"
 
 **API Endpoints:**
 - `POST /api/zeke/actions/execute`: Execute a structured ZekeAction
 - `POST /api/zeke/actions/parse-intent`: Parse natural language to action and execute
 - `GET /api/zeke/place-lists/with-alerts`: Get all place lists that have proximity alerts enabled
+- `POST /api/zeke/starred-places`: Save a place to the database
+- `GET /api/zeke/starred-places`: Get all saved starred places
 
 **Client Functions:** `client/lib/zeke-api-adapter.ts`
 - `executeZekeAction(action)`: Execute a structured action
