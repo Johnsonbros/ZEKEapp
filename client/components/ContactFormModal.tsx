@@ -20,10 +20,11 @@ import { ZekeContact, createContact, updateContact } from "@/lib/zeke-api-adapte
 import { AccessLevel } from "@/lib/zeke-types";
 
 const ACCESS_LEVELS: { value: AccessLevel; label: string }[] = [
-  { value: "family", label: "Family" },
-  { value: "close_friend", label: "Close Friend" },
+  { value: "admin", label: "Admin" },
+  { value: "inner_circle", label: "Inner Circle" },
   { value: "friend", label: "Friend" },
   { value: "acquaintance", label: "Acquaintance" },
+  { value: "work", label: "Work" },
 ];
 
 interface ContactFormModalProps {

@@ -61,14 +61,16 @@ function getFullName(contact: ZekeContact): string {
 
 function getAccessLevelColor(accessLevel: ZekeContact["accessLevel"]): string {
   switch (accessLevel) {
-    case "family":
+    case "admin":
       return Colors.dark.accent;
-    case "close_friend":
+    case "inner_circle":
       return Colors.dark.primary;
     case "friend":
       return Colors.dark.secondary;
     case "acquaintance":
       return Colors.dark.warning;
+    case "work":
+      return Colors.dark.link;
     default:
       return Colors.dark.textSecondary;
   }
@@ -76,14 +78,16 @@ function getAccessLevelColor(accessLevel: ZekeContact["accessLevel"]): string {
 
 function formatAccessLevel(accessLevel: ZekeContact["accessLevel"]): string {
   switch (accessLevel) {
-    case "close_friend":
-      return "Close Friend";
-    case "family":
-      return "Family";
+    case "admin":
+      return "Admin";
+    case "inner_circle":
+      return "Inner Circle";
     case "friend":
       return "Friend";
     case "acquaintance":
       return "Acquaintance";
+    case "work":
+      return "Work";
     default:
       return "";
   }
