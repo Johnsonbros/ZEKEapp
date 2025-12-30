@@ -109,6 +109,19 @@ export default function SettingsScreen() {
     staleTime: 30000,
   });
 
+  const [autoSync, setAutoSync] = useState(true);
+  const [isConnectingCalendar, setIsConnectingCalendar] = useState(false);
+  const [profilePicture, setProfilePicture] = useState<ProfilePictureData | null>(null);
+  const [showReminderBadge, setShowReminderBadge] = useState(false);
+  const [isTakingPhoto, setIsTakingPhoto] = useState(false);
+  const [dataRetentionDays, setDataRetentionDays] = useState<number>(-1);
+
+  const [bleConnectionState, setBleConnectionState] = useState<ConnectionState>(
+    bluetoothService.getConnectionState()
+  );
+  const [bleConnectedDevice, setBleConnectedDevice] = useState<BLEDevice | null>(null);
+
+  // Compute devices after state declarations to avoid reference error
   const devices: DeviceInfo[] = zekeDevices.map((zekeDevice) => {
     const baseDevice = mapZekeDeviceToDeviceInfo(zekeDevice);
     
@@ -126,17 +139,6 @@ export default function SettingsScreen() {
       lastSync: realIsConnected ? "Now" : baseDevice.lastSync,
     };
   });
-  const [autoSync, setAutoSync] = useState(true);
-  const [isConnectingCalendar, setIsConnectingCalendar] = useState(false);
-  const [profilePicture, setProfilePicture] = useState<ProfilePictureData | null>(null);
-  const [showReminderBadge, setShowReminderBadge] = useState(false);
-  const [isTakingPhoto, setIsTakingPhoto] = useState(false);
-  const [dataRetentionDays, setDataRetentionDays] = useState<number>(-1);
-
-  const [bleConnectionState, setBleConnectionState] = useState<ConnectionState>(
-    bluetoothService.getConnectionState()
-  );
-  const [bleConnectedDevice, setBleConnectedDevice] = useState<BLEDevice | null>(null);
 
   useEffect(() => {
     const unsubscribe = bluetoothService.onConnectionStateChange(
