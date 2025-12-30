@@ -1776,13 +1776,17 @@ export async function submitNewsFeedback(
   feedback: "up" | "down",
   reason?: string,
 ): Promise<{ success: boolean }> {
+  console.log(`[News Feedback] Submitting: storyId=${storyId}, feedback=${feedback}, reason=${reason || "none"}`);
   try {
-    return await apiClient.post<{ success: boolean }>(
+    const result = await apiClient.post<{ success: boolean }>(
       "/api/zeke/news/feedback",
       { storyId, feedback, reason },
       { timeoutMs: 5000 },
     );
-  } catch {
+    console.log(`[News Feedback] Response:`, result);
+    return result;
+  } catch (error) {
+    console.error(`[News Feedback] Error submitting feedback:`, error);
     return { success: false };
   }
 }

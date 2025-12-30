@@ -841,20 +841,26 @@ export function registerZekeProxyRoutes(app: Express): void {
   });
 
   app.post("/api/zeke/news/feedback", async (req: Request, res: Response) => {
+    console.log(`[News Feedback] Received request:`, JSON.stringify(req.body));
     const headers = extractForwardHeaders(req.headers);
     const { storyId, feedback, reason } = req.body;
     if (!storyId || !feedback) {
+      console.log(`[News Feedback] Validation failed: missing storyId or feedback`);
       return res.status(400).json({ error: "storyId and feedback are required" });
     }
     if (feedback === "down" && (!reason || reason.trim().length === 0)) {
+      console.log(`[News Feedback] Validation failed: missing reason for thumbs down`);
       return res.status(400).json({ error: "reason is required for negative feedback" });
     }
+    console.log(`[News Feedback] Proxying to ZEKE backend: storyId=${storyId}, feedback=${feedback}`);
     const result = await proxyToZeke("POST", "/api/news/feedback", req.body, headers);
+    console.log(`[News Feedback] ZEKE proxy result:`, JSON.stringify(result));
     if (!result.success || typeof result.data === 'string') {
       // Accept feedback locally even if backend doesn't support it yet
-      console.log(`[News Feedback] storyId=${storyId}, feedback=${feedback}, reason=${reason || "none"}`);
+      console.log(`[News Feedback] Stored locally: storyId=${storyId}, feedback=${feedback}, reason=${reason || "none"}`);
       return res.json({ success: true, message: "Feedback recorded" });
     }
+    console.log(`[News Feedback] Success from backend`);
     res.json(result.data);
   });
 
