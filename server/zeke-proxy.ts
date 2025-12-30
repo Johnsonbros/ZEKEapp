@@ -16,6 +16,8 @@ import {
   type Contact,
   type PhoneContactMap,
 } from "./phone-utils";
+import * as placesService from "./services/places-service";
+import * as zekeActionsService from "./services/zeke-actions-service";
 
 const ZEKE_BACKEND_URL = process.env.EXPO_PUBLIC_ZEKE_BACKEND_URL || "https://zekeai.replit.app";
 
@@ -784,6 +786,182 @@ export function registerZekeProxyRoutes(app: Express): void {
       return res.status(result.status).json({ error: result.error || "Failed to delete saved place" });
     }
     res.status(204).send();
+  });
+
+  // ============================================================================
+  // Place Lists Routes (Local)
+  // ============================================================================
+
+  app.get("/api/zeke/place-lists", async (_req: Request, res: Response) => {
+    try {
+      const lists = placesService.getAllPlaceLists();
+      res.json({ lists });
+    } catch (error) {
+      console.error("[Places] Error getting place lists:", error);
+      res.status(500).json({ error: "Failed to get place lists", lists: [] });
+    }
+  });
+
+  app.get("/api/zeke/place-lists/:id", async (req: Request, res: Response) => {
+    try {
+      const list = placesService.getPlaceList(req.params.id);
+      if (!list) {
+        return res.status(404).json({ error: "Place list not found" });
+      }
+      res.json(list);
+    } catch (error) {
+      console.error("[Places] Error getting place list:", error);
+      res.status(500).json({ error: "Failed to get place list" });
+    }
+  });
+
+  app.post("/api/zeke/place-lists", async (req: Request, res: Response) => {
+    try {
+      const { name, description, icon, color, placeIds, hasProximityAlert, proximityRadiusMeters, proximityMessage } = req.body;
+      if (!name) {
+        return res.status(400).json({ error: "Name is required" });
+      }
+      const list = placesService.createPlaceList({
+        name,
+        description,
+        icon,
+        color,
+        placeIds: placeIds || [],
+        hasProximityAlert: hasProximityAlert || false,
+        proximityRadiusMeters,
+        proximityMessage,
+      });
+      res.status(201).json(list);
+    } catch (error) {
+      console.error("[Places] Error creating place list:", error);
+      res.status(500).json({ error: "Failed to create place list" });
+    }
+  });
+
+  app.patch("/api/zeke/place-lists/:id", async (req: Request, res: Response) => {
+    try {
+      const list = placesService.updatePlaceList(req.params.id, req.body);
+      if (!list) {
+        return res.status(404).json({ error: "Place list not found" });
+      }
+      res.json(list);
+    } catch (error) {
+      console.error("[Places] Error updating place list:", error);
+      res.status(500).json({ error: "Failed to update place list" });
+    }
+  });
+
+  app.delete("/api/zeke/place-lists/:id", async (req: Request, res: Response) => {
+    try {
+      const deleted = placesService.deletePlaceList(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Place list not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      console.error("[Places] Error deleting place list:", error);
+      res.status(500).json({ error: "Failed to delete place list" });
+    }
+  });
+
+  app.post("/api/zeke/place-lists/:id/places", async (req: Request, res: Response) => {
+    try {
+      const { placeId } = req.body;
+      if (!placeId) {
+        return res.status(400).json({ error: "placeId is required" });
+      }
+      const list = placesService.addPlaceToList(req.params.id, placeId);
+      if (!list) {
+        return res.status(404).json({ error: "Place list not found" });
+      }
+      res.json(list);
+    } catch (error) {
+      console.error("[Places] Error adding place to list:", error);
+      res.status(500).json({ error: "Failed to add place to list" });
+    }
+  });
+
+  app.delete("/api/zeke/place-lists/:id/places/:placeId", async (req: Request, res: Response) => {
+    try {
+      const list = placesService.removePlaceFromList(req.params.id, req.params.placeId);
+      if (!list) {
+        return res.status(404).json({ error: "Place list not found" });
+      }
+      res.json(list);
+    } catch (error) {
+      console.error("[Places] Error removing place from list:", error);
+      res.status(500).json({ error: "Failed to remove place from list" });
+    }
+  });
+
+  // ============================================================================
+  // Places Search Routes (Google Places API)
+  // ============================================================================
+  app.get("/api/zeke/places/search", async (req: Request, res: Response) => {
+    try {
+      const { query, lat, lng, radius, type } = req.query;
+      if (!query || !lat || !lng) {
+        return res.status(400).json({ error: "query, lat, and lng are required" });
+      }
+      const result = await placesService.searchNearbyPlaces(
+        query as string,
+        parseFloat(lat as string),
+        parseFloat(lng as string),
+        radius ? parseInt(radius as string) : 8000,
+        type as string | undefined
+      );
+      res.json(result);
+    } catch (error) {
+      console.error("[Places] Error searching places:", error);
+      res.status(500).json({ error: "Failed to search places", places: [] });
+    }
+  });
+
+  // ============================================================================
+  // ZEKE Actions Routes (Conversational Commands)
+  // ============================================================================
+
+  app.post("/api/zeke/actions/execute", async (req: Request, res: Response) => {
+    try {
+      const { action } = req.body;
+      if (!action || !action.type) {
+        return res.status(400).json({ error: "Action with type is required" });
+      }
+      const result = await zekeActionsService.executeAction(action);
+      res.json(result);
+    } catch (error) {
+      console.error("[ZEKE Actions] Error executing action:", error);
+      res.status(500).json({ success: false, message: "Failed to execute action" });
+    }
+  });
+
+  app.post("/api/zeke/actions/parse-intent", async (req: Request, res: Response) => {
+    try {
+      const { message, userLocation } = req.body;
+      if (!message) {
+        return res.status(400).json({ error: "Message is required" });
+      }
+      const action = zekeActionsService.parseConversationIntent(message, userLocation);
+      if (action) {
+        const result = await zekeActionsService.executeAction(action);
+        res.json({ action, result });
+      } else {
+        res.json({ action: null, result: null, message: "No actionable intent found" });
+      }
+    } catch (error) {
+      console.error("[ZEKE Actions] Error parsing intent:", error);
+      res.status(500).json({ success: false, message: "Failed to parse intent" });
+    }
+  });
+
+  app.get("/api/zeke/place-lists/with-alerts", async (_req: Request, res: Response) => {
+    try {
+      const lists = placesService.getPlaceListsWithProximityAlerts();
+      res.json({ lists });
+    } catch (error) {
+      console.error("[Places] Error getting lists with alerts:", error);
+      res.status(500).json({ error: "Failed to get lists with alerts", lists: [] });
+    }
   });
 
   // Auth proxy routes - forward to ZEKE backend for device pairing
