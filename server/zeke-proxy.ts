@@ -964,6 +964,51 @@ export function registerZekeProxyRoutes(app: Express): void {
     }
   });
 
+  // Starred places endpoint - save places from ZEKE actions
+  app.post("/api/zeke/starred-places", async (req: Request, res: Response) => {
+    try {
+      const place = req.body;
+      if (!place || !place.name || !place.latitude || !place.longitude) {
+        return res.status(400).json({ error: "Invalid place data" });
+      }
+      
+      // Save to starred_places table
+      const { db } = await import("./db");
+      const { starredPlaces } = await import("@shared/schema");
+      
+      const [saved] = await db.insert(starredPlaces).values({
+        name: place.name,
+        latitude: place.latitude.toString(),
+        longitude: place.longitude.toString(),
+        city: place.city,
+        region: place.region,
+        country: place.country,
+        formattedAddress: place.formattedAddress,
+        icon: place.icon || "map-pin",
+      }).returning();
+      
+      console.log("[Starred Places] Saved place:", saved.name);
+      res.json({ success: true, place: saved });
+    } catch (error) {
+      console.error("[Starred Places] Error saving place:", error);
+      res.status(500).json({ error: "Failed to save place" });
+    }
+  });
+
+  app.get("/api/zeke/starred-places", async (_req: Request, res: Response) => {
+    try {
+      const { db } = await import("./db");
+      const { starredPlaces } = await import("@shared/schema");
+      const { desc } = await import("drizzle-orm");
+      
+      const places = await db.select().from(starredPlaces).orderBy(desc(starredPlaces.createdAt));
+      res.json({ places });
+    } catch (error) {
+      console.error("[Starred Places] Error getting places:", error);
+      res.status(500).json({ error: "Failed to get places", places: [] });
+    }
+  });
+
   // Auth proxy routes - forward to ZEKE backend for device pairing
   app.post("/api/zeke/auth/pair", async (req: Request, res: Response) => {
     console.log("[ZEKE Proxy] Auth pair request received");

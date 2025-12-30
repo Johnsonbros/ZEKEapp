@@ -1780,14 +1780,15 @@ export async function addPlaceToList(
 export async function removePlaceFromList(
   listId: string,
   placeId: string
-): Promise<ZekePlaceList | null> {
+): Promise<boolean> {
   try {
-    return await apiClient.delete<ZekePlaceList>(
+    await apiClient.delete(
       `/api/zeke/place-lists/${listId}/places/${placeId}`,
       { timeoutMs: 10000 },
     );
+    return true;
   } catch {
-    return null;
+    return false;
   }
 }
 
@@ -1886,14 +1887,43 @@ export async function parseAndExecuteIntent(
   userLocation?: { latitude: number; longitude: number }
 ): Promise<{ action: ZekeAction | null; result: ZekeActionResult | null }> {
   try {
-    return await apiClient.post<{ action: ZekeAction | null; result: ZekeActionResult | null }>(
+    const response = await apiClient.post<{ action: ZekeAction | null; result: ZekeActionResult | null }>(
       "/api/zeke/actions/parse-intent",
       { message, userLocation },
       { timeoutMs: 15000 },
     );
+    
+    // Handle client-side actions returned by server
+    if (response.result?.data?.clientAction) {
+      await handleClientAction(response.result.data);
+    }
+    
+    return response;
   } catch (error) {
     console.error("[ZEKE Actions] Parse intent error:", error);
     return { action: null, result: null };
+  }
+}
+
+async function handleClientAction(data: { clientAction: string; geofence?: Geofence; place?: any }): Promise<void> {
+  try {
+    if (data.clientAction === "save_geofence" && data.geofence) {
+      const existingGeofences = await getGeofences();
+      const existingIndex = existingGeofences.findIndex((g: Geofence) => g.id === data.geofence!.id);
+      if (existingIndex >= 0) {
+        existingGeofences[existingIndex] = data.geofence;
+      } else {
+        existingGeofences.push(data.geofence);
+      }
+      await saveGeofences(existingGeofences);
+      console.log("[ZEKE Actions] Saved geofence:", data.geofence.name);
+    } else if (data.clientAction === "save_place" && data.place) {
+      // Save to starred places via API
+      await apiClient.post("/api/zeke/starred-places", data.place, { timeoutMs: 10000 });
+      console.log("[ZEKE Actions] Saved place:", data.place.name);
+    }
+  } catch (error) {
+    console.error("[ZEKE Actions] Failed to handle client action:", error);
   }
 }
 

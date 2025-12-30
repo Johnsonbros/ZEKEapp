@@ -52,12 +52,38 @@ export interface SetListProximityAlertAction {
   message?: string;
 }
 
+export interface CreateGeofenceAction {
+  type: "create_geofence";
+  name: string;
+  latitude: number;
+  longitude: number;
+  radius: number;
+  triggerOn: "enter" | "exit" | "both";
+  actionType: "notification" | "grocery_prompt" | "custom";
+  actionData?: any;
+  isHome?: boolean;
+}
+
+export interface SavePlaceAction {
+  type: "save_place";
+  name: string;
+  latitude: number;
+  longitude: number;
+  city?: string;
+  region?: string;
+  country?: string;
+  formattedAddress?: string;
+  icon?: string;
+}
+
 export type ZekeAction =
   | PlaceSearchAction
   | CreatePlaceListAction
   | AddPlaceToListAction
   | SearchAndAddToListAction
-  | SetListProximityAlertAction;
+  | SetListProximityAlertAction
+  | CreateGeofenceAction
+  | SavePlaceAction;
 
 function findListByName(name: string): placesService.PlaceList | null {
   const lists = placesService.getAllPlaceLists();
@@ -78,6 +104,10 @@ export async function executeAction(action: ZekeAction): Promise<ZekeActionResul
         return await handleSearchAndAddToList(action);
       case "set_list_proximity_alert":
         return handleSetListProximityAlert(action);
+      case "create_geofence":
+        return handleCreateGeofence(action);
+      case "save_place":
+        return handleSavePlace(action);
       default:
         return { success: false, message: "Unknown action type" };
     }
@@ -280,6 +310,62 @@ function handleSetListProximityAlert(action: SetListProximityAlertAction): ZekeA
   };
 }
 
+function handleCreateGeofence(action: CreateGeofenceAction): ZekeActionResult {
+  const geofenceId = `geo_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  
+  const geofence = {
+    id: geofenceId,
+    name: action.name,
+    latitude: action.latitude,
+    longitude: action.longitude,
+    radius: action.radius,
+    triggerOn: action.triggerOn,
+    actionType: action.actionType,
+    actionData: action.actionData,
+    isHome: action.isHome || false,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+  };
+
+  const triggerLabel = action.triggerOn === "enter" ? "arrive at" : 
+                       action.triggerOn === "exit" ? "leave" : "enter or leave";
+
+  return {
+    success: true,
+    message: `Created geofence "${action.name}". I'll notify you when you ${triggerLabel} this location.`,
+    data: { 
+      geofence,
+      clientAction: "save_geofence",
+    },
+  };
+}
+
+function handleSavePlace(action: SavePlaceAction): ZekeActionResult {
+  const placeId = `place_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  
+  const place = {
+    id: placeId,
+    name: action.name,
+    latitude: action.latitude,
+    longitude: action.longitude,
+    city: action.city,
+    region: action.region,
+    country: action.country,
+    formattedAddress: action.formattedAddress,
+    icon: action.icon || "map-pin",
+    createdAt: new Date().toISOString(),
+  };
+
+  return {
+    success: true,
+    message: `Saved "${action.name}" to your places.`,
+    data: { 
+      place,
+      clientAction: "save_place",
+    },
+  };
+}
+
 export function parseConversationIntent(
   message: string,
   userLocation?: { latitude: number; longitude: number }
@@ -404,6 +490,71 @@ export function parseConversationIntent(
         type: "set_list_proximity_alert",
         listName: match[1].trim(),
         enabled: false,
+      };
+    }
+  }
+
+  // Pattern 7: Create geofence
+  // Examples: "remind me when I leave here", "set a geofence at this location", "alert me when I leave work"
+  const createGeofencePatterns = [
+    /(?:remind|alert|notify)\s+me\s+when\s+i\s+(?:leave|exit|depart|go away from)\s+(?:here|this (?:place|location|spot)|home|work)/i,
+    /(?:remind|alert|notify)\s+me\s+when\s+i\s+(?:arrive|enter|get to|reach)\s+(?:here|this (?:place|location|spot)|home|work)/i,
+    /(?:set|create|add)\s+(?:a\s+)?geofence\s+(?:at|for|called|named)?\s*["\']?([^"\']*)["\']?/i,
+    /(?:set|create|add)\s+(?:a\s+)?(?:location\s+)?(?:reminder|alert)\s+(?:for\s+)?(?:when\s+i\s+)?(?:leave|exit|arrive|enter)\s+(?:here|this (?:place|location))/i,
+  ];
+
+  for (const pattern of createGeofencePatterns) {
+    const match = lowerMessage.match(pattern);
+    if (match && userLocation) {
+      const isExit = /leave|exit|depart|go away/.test(lowerMessage);
+      const isEnter = /arrive|enter|get to|reach/.test(lowerMessage);
+      const triggerOn = isExit && isEnter ? "both" : isExit ? "exit" : isEnter ? "enter" : "both";
+      
+      let name = match[1]?.trim() || "";
+      if (!name || name.length < 2) {
+        if (/home/.test(lowerMessage)) name = "Home";
+        else if (/work/.test(lowerMessage)) name = "Work";
+        else name = "My Location";
+      }
+
+      return {
+        type: "create_geofence",
+        name,
+        latitude: userLocation.latitude,
+        longitude: userLocation.longitude,
+        radius: 100,
+        triggerOn,
+        actionType: "notification" as const,
+        isHome: /home/.test(lowerMessage),
+      };
+    }
+  }
+
+  // Pattern 8: Save current location
+  // Examples: "save this location", "remember where I parked", "mark this spot as home"
+  const savePlacePatterns = [
+    /(?:save|remember|mark|store)\s+(?:this\s+)?(?:location|place|spot|position)(?:\s+as\s+["\']?([^"\']+)["\']?)?/i,
+    /(?:save|remember|mark|store)\s+(?:where\s+i\s+)?(?:am|parked|stopped)(?:\s+as\s+["\']?([^"\']+)["\']?)?/i,
+    /(?:mark|save)\s+(?:this\s+(?:place|location|spot)\s+)?as\s+["\']?([^"\']+)["\']?/i,
+    /(?:this\s+is\s+)?(?:my\s+)?(?:new\s+)?(?:home|work|office)/i,
+  ];
+
+  for (const pattern of savePlacePatterns) {
+    const match = lowerMessage.match(pattern);
+    if (match && userLocation) {
+      let name = match[1]?.trim() || "";
+      if (!name || name.length < 2) {
+        if (/home/.test(lowerMessage)) name = "Home";
+        else if (/work|office/.test(lowerMessage)) name = "Work";
+        else if (/park/.test(lowerMessage)) name = "Parked Car";
+        else name = "Saved Location";
+      }
+
+      return {
+        type: "save_place",
+        name,
+        latitude: userLocation.latitude,
+        longitude: userLocation.longitude,
       };
     }
   }
