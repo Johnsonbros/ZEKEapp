@@ -794,49 +794,19 @@ export function registerZekeProxyRoutes(app: Express): void {
       return res.json(rawData);
     }
     
-    // Fallback to placeholder data if backend doesn't return valid JSON
+    // Return error response - no placeholder data, let client use cached data or show error state
     const reason = !result.success 
       ? `request failed (status ${result.status}: ${result.error || 'unknown error'})` 
       : typeof result.data === 'string' 
-        ? `response was HTML/text instead of JSON. First 200 chars: ${result.data.substring(0, 200)}` 
-        : `response missing stories array. Keys: ${Object.keys(result.data || {}).join(', ')}`;
-    console.log(`[News Briefing] Falling back to placeholder data. Reason: ${reason}`);
+        ? `response was HTML/text instead of JSON` 
+        : `response missing stories array`;
+    console.log(`[News Briefing] Backend unavailable. Reason: ${reason}`);
     
-    return res.json({
-      generatedAt: new Date().toISOString(),
-      nextRefreshAt: new Date(Date.now() + 3600000).toISOString(),
-      stories: [
-        {
-          id: "news-1",
-          headline: "AI Technology Advances in Healthcare",
-          summary: "New AI systems are helping doctors diagnose diseases earlier and more accurately than ever before.",
-          category: "Technology",
-          source: "Tech Daily",
-          sourceUrl: "https://example.com/ai-healthcare",
-          publishedAt: new Date().toISOString(),
-          urgency: "normal",
-        },
-        {
-          id: "news-2",
-          headline: "Market Update: Tech Stocks Rally",
-          summary: "Major technology companies see gains as investors remain optimistic about Q4 earnings.",
-          category: "Business",
-          source: "Financial Times",
-          sourceUrl: "https://example.com/market-update",
-          publishedAt: new Date(Date.now() - 3600000).toISOString(),
-          urgency: "normal",
-        },
-        {
-          id: "news-3",
-          headline: "Weather Alert: Storm System Approaching",
-          summary: "Meteorologists warn of severe weather conditions expected across the region this weekend.",
-          category: "World",
-          source: "Weather Service",
-          sourceUrl: "https://example.com/weather-alert",
-          publishedAt: new Date(Date.now() - 7200000).toISOString(),
-          urgency: "breaking",
-        },
-      ],
+    return res.status(result.status || 503).json({
+      error: "News briefing unavailable",
+      message: "Unable to fetch news from backend. Please try again later.",
+      reason: reason,
+      retryAfter: 60,
     });
   });
 
