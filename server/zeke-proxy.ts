@@ -625,8 +625,15 @@ export function registerZekeProxyRoutes(app: Express): void {
   app.get("/api/zeke/dashboard", async (req: Request, res: Response) => {
     const headers = extractForwardHeaders(req.headers);
     const result = await proxyToZeke("GET", "/api/dashboard", undefined, headers);
-    if (!result.success) {
-      return res.status(result.status).json({ error: result.error || "Failed to fetch dashboard" });
+    if (!result.success || typeof result.data === 'string') {
+      console.log("[Dashboard] Backend unavailable, returning fallback summary");
+      return res.json({
+        eventsCount: 0,
+        pendingTasksCount: 0,
+        groceryItemsCount: 0,
+        memoriesCount: 0,
+        userName: undefined
+      });
     }
     res.json(result.data);
   });
@@ -1157,8 +1164,8 @@ export function registerZekeProxyRoutes(app: Express): void {
     if (unreadOnly) queryString += `unreadOnly=${encodeURIComponent(unreadOnly as string)}`;
     const result = await proxyToZeke("GET", `/api/notifications${queryString ? '?' + queryString : ''}`, undefined, headers);
     if (!result.success || typeof result.data === 'string') {
-      // Return empty array if backend doesn't support this endpoint yet
-      return res.json([]);
+      console.log("[Notifications] Backend unavailable, returning empty notifications");
+      return res.json({ notifications: [] });
     }
     res.json(result.data);
   });
