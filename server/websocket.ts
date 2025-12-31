@@ -103,6 +103,42 @@ interface AudioSession {
 
 const sessions = new Map<WebSocket, AudioSession>();
 
+// Track pendant status metrics
+let lastAudioReceivedAt: Date | null = null;
+let totalAudioPackets = 0;
+
+export interface PendantStatus {
+  connected: boolean;
+  streaming: boolean;
+  healthy: boolean;
+  lastAudioReceivedAt: string | null;
+  totalAudioPackets: number;
+  timeSinceLastAudioMs: number | null;
+}
+
+export function getPendantStatus(): PendantStatus {
+  const hasActiveSession = sessions.size > 0;
+  const now = Date.now();
+  const timeSinceLastAudio = lastAudioReceivedAt 
+    ? now - lastAudioReceivedAt.getTime() 
+    : null;
+  
+  // Consider streaming if we received audio in the last 10 seconds
+  const isStreaming = hasActiveSession && timeSinceLastAudio !== null && timeSinceLastAudio < 10000;
+  
+  // Healthy if connected and received audio recently (within 30 seconds)
+  const isHealthy = hasActiveSession && timeSinceLastAudio !== null && timeSinceLastAudio < 30000;
+
+  return {
+    connected: hasActiveSession,
+    streaming: isStreaming,
+    healthy: isHealthy,
+    lastAudioReceivedAt: lastAudioReceivedAt?.toISOString() ?? null,
+    totalAudioPackets,
+    timeSinceLastAudioMs: timeSinceLastAudio,
+  };
+}
+
 function sendMessage(ws: WebSocket, message: ServerMessage): void {
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify(message));
@@ -349,6 +385,8 @@ function handleAudioChunk(ws: WebSocket, base64Data: string): void {
   try {
     const audioBuffer = Buffer.from(base64Data, "base64");
     session.audioChunks.push(audioBuffer);
+    lastAudioReceivedAt = new Date();
+    totalAudioPackets++;
     console.log(`[Audio] Received chunk: ${audioBuffer.length} bytes from device ${session.deviceId} (total chunks: ${session.audioChunks.length})`);
   } catch (error) {
     sendMessage(ws, {
@@ -427,6 +465,8 @@ async function handleBinaryOpusFrame(ws: WebSocket, opusData: Buffer): Promise<v
         const byteLength = frame.pcmData.length * Int16Array.BYTES_PER_ELEMENT;
         const pcmBuffer = Buffer.from(frame.pcmData.buffer, frame.pcmData.byteOffset, byteLength);
         session.audioChunks.push(pcmBuffer);
+        lastAudioReceivedAt = new Date();
+        totalAudioPackets++;
         console.log(`[Audio] Decoded Opus frame (WASM): ${opusData.length} bytes → ${pcmBuffer.length} PCM bytes from device ${session.deviceId}`);
       }
     } catch (error) {
@@ -458,6 +498,8 @@ async function handleBinaryOpusFrame(ws: WebSocket, opusData: Buffer): Promise<v
   } else {
     // Store raw frame directly (PCM or unknown codec)
     session.audioChunks.push(opusData);
+    lastAudioReceivedAt = new Date();
+    totalAudioPackets++;
     console.log(`[Audio] Received binary frame: ${opusData.length} bytes from device ${session.deviceId} (total chunks: ${session.audioChunks.length})`);
   }
 }

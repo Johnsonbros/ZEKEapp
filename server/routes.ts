@@ -33,6 +33,7 @@ import { registerLocationRoutes } from "./location";
 import { registerZekeProxyRoutes, proxyToZeke, extractForwardHeaders } from "./zeke-proxy";
 import { requestPairingCode, verifyPairingCode, getPairingStatus } from "./sms-pairing";
 import { validateDeviceToken } from "./device-auth";
+import { getPendantStatus } from "./websocket";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
@@ -223,6 +224,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting device:", error);
       res.status(500).json({ error: "Failed to delete device" });
+    }
+  });
+
+  // Pendant status route
+  app.get("/api/pendant/status", (_req, res) => {
+    try {
+      const status = getPendantStatus();
+      res.json(status);
+    } catch (error) {
+      console.error("Error getting pendant status:", error);
+      res.status(500).json({ error: "Failed to get pendant status" });
     }
   });
 
