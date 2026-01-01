@@ -460,7 +460,7 @@ export default function HomeScreen() {
         ref={scrollViewRef}
         style={{ flex: 1 }}
         contentContainerStyle={{
-          paddingTop: headerHeight - Spacing.lg,
+          paddingTop: Platform.OS === "android" ? Spacing.lg : headerHeight - Spacing.lg,
           paddingBottom: tabBarHeight + Spacing.lg + 40,
           paddingHorizontal: Spacing.lg,
         }}

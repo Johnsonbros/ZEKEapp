@@ -8,6 +8,7 @@ import {
   Modal,
   Alert,
   SectionList,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
@@ -349,7 +350,7 @@ export default function TasksScreen() {
           styles.container,
           {
             backgroundColor: theme.backgroundRoot,
-            paddingTop: headerHeight + Spacing.xl,
+            paddingTop: Platform.OS === "android" ? Spacing.xl : headerHeight + Spacing.xl,
             paddingBottom: tabBarHeight + Spacing.xl,
           },
         ]}
@@ -369,7 +370,7 @@ export default function TasksScreen() {
         style={[
           styles.headerControls,
           {
-            marginTop: headerHeight + Spacing.md,
+            marginTop: Platform.OS === "android" ? Spacing.md : headerHeight + Spacing.md,
           },
         ]}
       >

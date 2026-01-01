@@ -456,7 +456,7 @@ export default function SettingsScreen() {
       ref={scrollViewRef}
       style={{ flex: 1, backgroundColor: theme.backgroundRoot }}
       contentContainerStyle={{
-        paddingTop: headerHeight + Spacing.md,
+        paddingTop: Platform.OS === "android" ? Spacing.md : headerHeight + Spacing.md,
         paddingBottom: tabBarHeight + Spacing.lg + 20,
         paddingHorizontal: Spacing.lg,
       }}

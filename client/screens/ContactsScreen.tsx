@@ -396,7 +396,7 @@ export default function ContactsScreen() {
       <FlatList
         style={{ flex: 1 }}
         contentContainerStyle={{
-          paddingTop: headerHeight + Spacing.xl,
+          paddingTop: Platform.OS === "android" ? Spacing.xl : headerHeight + Spacing.xl,
           paddingBottom: tabBarHeight + Spacing.xl + 80,
           flexGrow: 1,
         }}
