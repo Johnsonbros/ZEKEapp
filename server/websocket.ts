@@ -3,6 +3,7 @@ import type { Server } from "node:http";
 import type { IncomingMessage } from "node:http";
 import OpenAI, { toFile } from "openai";
 import { z } from "zod";
+import { validateDeviceToken, validateMasterSecret } from "./device-auth";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -535,8 +536,44 @@ function cleanupSession(ws: WebSocket): void {
   }
 }
 
+/**
+ * Validates WebSocket authentication token from query parameters
+ * Supports both device tokens and master secret
+ */
+function validateWebSocketAuth(req: IncomingMessage): boolean {
+  const url = new URL(req.url || '', `http://${req.headers.host}`);
+  const token = url.searchParams.get('token');
+  const secret = url.searchParams.get('secret');
+
+  // If ZEKE_SHARED_SECRET is not configured, allow in development mode
+  const ZEKE_SECRET = process.env.ZEKE_SHARED_SECRET;
+  if (!ZEKE_SECRET) {
+    console.warn('[ZEKE Sync] Authentication not configured - allowing connection (development mode)');
+    return true;
+  }
+
+  // Validate device token
+  if (token) {
+    const device = validateDeviceToken(token);
+    if (device) {
+      console.log(`[ZEKE Sync] Authenticated device: ${device.deviceName} (${device.deviceId})`);
+      return true;
+    }
+  }
+
+  // Validate master secret
+  if (secret) {
+    if (validateMasterSecret(secret)) {
+      console.log('[ZEKE Sync] Authenticated with master secret');
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function setupZekeSyncWebSocket(server: Server): WebSocketServer {
-  const wss = new WebSocketServer({ 
+  const wss = new WebSocketServer({
     server,
     path: "/ws/zeke",
   });
@@ -545,6 +582,18 @@ function setupZekeSyncWebSocket(server: Server): WebSocketServer {
 
   wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
     console.log("[ZEKE Sync] Client connected from:", req.socket.remoteAddress);
+
+    // Authenticate the WebSocket connection
+    if (!validateWebSocketAuth(req)) {
+      console.warn('[ZEKE Sync] Unauthorized connection attempt from:', req.socket.remoteAddress);
+      ws.send(JSON.stringify({
+        type: 'error',
+        message: 'Authentication required. Provide a valid token or secret as a query parameter.',
+      }));
+      ws.close(1008, 'Authentication required');
+      return;
+    }
+
     zekeSyncClients.add(ws);
 
     ws.send(JSON.stringify({
@@ -553,9 +602,6 @@ function setupZekeSyncWebSocket(server: Server): WebSocketServer {
       data: { message: 'Connected to ZEKE sync' },
       timestamp: new Date().toISOString(),
     }));
-
-    // TODO: Implement token-based authentication for production use
-    // Currently only validating message structure, not authenticating clients
     ws.on("message", (data: Buffer | string) => {
       try {
         const messageStr = typeof data === "string" ? data : data.toString();
