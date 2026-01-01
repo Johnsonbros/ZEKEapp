@@ -6,6 +6,7 @@ import SettingsScreen from "@/screens/SettingsScreen";
 import NotificationSettingsScreen from "@/screens/NotificationSettingsScreen";
 import BluetoothConnectionScreen from "@/screens/BluetoothConnectionScreen";
 import LocationScreen from "@/screens/LocationScreen";
+import MapScreen from "@/screens/MapScreen";
 import DeviceFeaturesScreen from "@/screens/DeviceFeaturesScreen";
 import ActivityHistoryScreen from "@/screens/ActivityHistoryScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
@@ -19,6 +20,7 @@ export type HomeStackParamList = {
   NotificationSettings: undefined;
   BluetoothConnection: undefined;
   Location: undefined;
+  Map: undefined;
   DeviceFeatures: undefined;
   ActivityHistory: undefined;
 };
@@ -75,6 +77,13 @@ export default function HomeStackNavigator() {
         component={LocationScreen}
         options={{
           headerTitle: createZekeSubHeader("Location"),
+        }}
+      />
+      <Stack.Screen
+        name="Map"
+        component={MapScreen}
+        options={{
+          headerTitle: createZekeSubHeader("Map"),
         }}
       />
       <Stack.Screen
