@@ -67,8 +67,40 @@ function invalidateContactCache(): void {
   console.log("[Contact Cache] Invalidated");
 }
 
-function getCacheKey(endpoint: string, deviceToken?: string): string {
-  return `${endpoint}:${deviceToken || 'anonymous'}`;
+function normalizeQuery(query: Request["query"]): string {
+  if (!query || Object.keys(query).length === 0) {
+    return "";
+  }
+
+  return Object.keys(query)
+    .sort()
+    .map((key) => {
+      const value = query[key];
+
+      if (Array.isArray(value)) {
+        return `${key}=${value.map(String).sort().join(",")}`;
+      }
+
+      if (typeof value === "object" && value !== null) {
+        return `${key}=${JSON.stringify(value)}`;
+      }
+
+      return `${key}=${String(value)}`;
+    })
+    .join("&");
+}
+
+function getCacheKey(
+  endpoint: string,
+  deviceToken?: string,
+  method: string = "GET",
+  query: Request["query"] = {},
+): string {
+  const normalizedMethod = method.toUpperCase();
+  const normalizedQuery = normalizeQuery(query);
+  const querySegment = normalizedQuery ? `?${normalizedQuery}` : "";
+
+  return `${normalizedMethod}:${endpoint}${querySegment}:${deviceToken || "anonymous"}`;
 }
 
 function isCacheValid(entry: CacheEntry | undefined): boolean {
@@ -78,7 +110,7 @@ function isCacheValid(entry: CacheEntry | undefined): boolean {
 
 function invalidateCache(endpointPrefix: string): void {
   for (const key of proxyCache.keys()) {
-    if (key.startsWith(endpointPrefix)) {
+    if (key.includes(endpointPrefix)) {
       proxyCache.delete(key);
     }
   }
@@ -306,7 +338,7 @@ export function registerZekeProxyRoutes(app: Express): void {
   app.get("/api/zeke/grocery", async (req: Request, res: Response) => {
     const headers = extractForwardHeaders(req.headers);
     const deviceToken = headers["x-zeke-device-token"] || "";
-    const cacheKey = getCacheKey("/api/grocery", deviceToken);
+    const cacheKey = getCacheKey("/api/grocery", deviceToken, req.method, req.query);
     const cached = proxyCache.get(cacheKey);
     
     // Return cached data immediately if available (stale-while-revalidate)
