@@ -104,6 +104,8 @@ interface ProxyResult {
   latencyMs?: number;
 }
 
+const isVerboseProxyLogging = process.env.NODE_ENV !== "production";
+
 export function extractForwardHeaders(reqHeaders: IncomingHttpHeaders): Record<string, string> {
   const headers: Record<string, string> = {};
   
@@ -157,10 +159,12 @@ export async function proxyToZeke(
     if (body && method !== "GET" && method !== "HEAD") {
       fetchOptions.body = bodyStr;
     }
-    
-    console.log(`[ZEKE Proxy] ${method} ${url.href} [${requestId}]`);
-    console.log(`[ZEKE Proxy] Headers:`, JSON.stringify(fetchOptions.headers, null, 2));
-    
+
+    if (isVerboseProxyLogging) {
+      console.log(`[ZEKE Proxy] ${method} ${url.href} [${requestId}]`);
+      console.log(`[ZEKE Proxy] Headers:`, JSON.stringify(fetchOptions.headers, null, 2));
+    }
+
     const response = await fetch(url.href, fetchOptions);
     const contentType = response.headers.get("content-type");
     const latencyMs = Date.now() - startTime;
@@ -171,12 +175,18 @@ export async function proxyToZeke(
     } else {
       data = await response.text();
     }
-    
-    console.log(`[ZEKE Proxy] Response: ${response.status} [${requestId}] ${latencyMs}ms`);
-    if (!response.ok) {
-      console.log(`[ZEKE Proxy] Error response body:`, JSON.stringify(data, null, 2));
+
+    if (isVerboseProxyLogging) {
+      console.log(`[ZEKE Proxy] Response: ${response.status} [${requestId}] ${latencyMs}ms`);
+      if (!response.ok) {
+        console.log(`[ZEKE Proxy] Error response body:`, JSON.stringify(data, null, 2));
+      }
+    } else if (!response.ok) {
+      console.error(
+        `[ZEKE Proxy] ${method} ${url.href} failed with status ${response.status} [${requestId}] ${latencyMs}ms`
+      );
     }
-    
+
     logCommunication({
       requestId,
       timestamp: new Date().toISOString(),
@@ -198,8 +208,13 @@ export async function proxyToZeke(
     };
   } catch (error) {
     const latencyMs = Date.now() - startTime;
-    console.error(`[ZEKE Proxy] Error [${requestId}]:`, error);
-    
+    if (isVerboseProxyLogging) {
+      console.error(`[ZEKE Proxy] Error [${requestId}]:`, error);
+    } else {
+      const errorMessage = error instanceof Error ? error.message : "Connection failed";
+      console.error(`[ZEKE Proxy] ${method} ${url.href} failed [${requestId}] ${latencyMs}ms: ${errorMessage}`);
+    }
+
     logCommunication({
       requestId,
       timestamp: new Date().toISOString(),
