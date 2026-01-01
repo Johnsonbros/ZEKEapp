@@ -15,7 +15,7 @@ const log = console.log;
 
 declare module "http" {
   interface IncomingMessage {
-    rawBody: unknown;
+    rawBody?: Buffer;
   }
 }
 
@@ -59,20 +59,24 @@ function setupCors(app: express.Application) {
 }
 
 function setupBodyParsing(app: express.Application) {
-  app.use(express.raw({ 
+  const captureRawBody = (req: Request, _res: Response, buf: Buffer) => {
+    if (buf && buf.length > 0) {
+      req.rawBody = Buffer.from(buf);
+    }
+  };
+
+  app.use(express.raw({
     type: ['application/octet-stream', 'audio/*'],
     limit: '50mb'
   }));
-  
+
   app.use(
     express.json({
-      verify: (req, _res, buf) => {
-        req.rawBody = buf;
-      },
+      verify: captureRawBody,
     }),
   );
 
-  app.use(express.urlencoded({ extended: false }));
+  app.use(express.urlencoded({ extended: false, verify: captureRawBody }));
 }
 
 function setupRequestLogging(app: express.Application) {
