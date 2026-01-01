@@ -28,6 +28,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { EmptyState } from "@/components/EmptyState";
 import { VoiceInputButton } from "@/components/VoiceInputButton";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
+import { SkeletonListItem } from "@/components/Skeleton";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, Colors, BorderRadius } from "@/constants/theme";
 import { queryClient, isZekeSyncMode } from "@/lib/query-client";
@@ -212,6 +213,7 @@ export default function TasksScreen() {
     data: tasks = [],
     refetch,
     isRefetching,
+    isLoading,
   } = useQuery<ZekeTask[]>({
     queryKey: ["tasks"],
     queryFn: getAllTasks,
@@ -437,7 +439,21 @@ export default function TasksScreen() {
         </View>
       </View>
 
-      {groupedTasks.length === 0 ? (
+      {isLoading ? (
+        <View
+          style={[
+            styles.loadingContainer,
+            { paddingBottom: tabBarHeight + Spacing.xl },
+          ]}
+        >
+          <SkeletonListItem />
+          <SkeletonListItem />
+          <SkeletonListItem />
+          <SkeletonListItem />
+          <SkeletonListItem />
+          <SkeletonListItem />
+        </View>
+      ) : groupedTasks.length === 0 ? (
         <View
           style={[
             styles.emptyContainer,
@@ -657,6 +673,12 @@ const styles = StyleSheet.create({
   addButtonText: {
     color: "#fff",
     fontWeight: "600",
+  },
+  loadingContainer: {
+    flex: 1,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+    gap: Spacing.sm,
   },
   emptyContainer: {
     flex: 1,
