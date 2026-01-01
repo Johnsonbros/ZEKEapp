@@ -36,12 +36,10 @@ import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Colors } from "@/constants/theme";
 import {
   AnchorPosition,
-  calculateIconPositions,
-  calculateScaledIconPositions,
+  calculateCenteredIconPositions,
   getMenuSize,
   getClampedMenuSize,
-  getTriggerPositionStyle,
-  getMenuPositionStyle,
+  getCenteredMenuPositionStyle,
   getIconAnchorStyle,
   getSnapPoints,
   findClosestSnapPoint,
@@ -54,6 +52,13 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const ORDER_STORAGE_KEY = "@zeke_launcher_order";
 const ANCHOR_STORAGE_KEY = "@zeke_launcher_anchor";
 const SKIN_STORAGE_KEY = "@zeke_launcher_skin";
+const ALLOWED_ANCHORS: AnchorPosition[] = [
+  "bottom-left",
+  "bottom-center",
+  "bottom-right",
+  "mid-left",
+  "mid-right",
+];
 
 export interface LauncherItem {
   id: string;
@@ -95,30 +100,56 @@ function TriggerButton({
 }: TriggerButtonProps) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
-  const translateX = useSharedValue(0);
-  const translateY = useSharedValue(0);
+  const handleX = useSharedValue(0);
+  const handleY = useSharedValue(0);
+  const dragStartX = useSharedValue(0);
+  const dragStartY = useSharedValue(0);
   const dragScale = useSharedValue(1);
+  const hasPositioned = useRef(false);
 
-  const positionStyle = getTriggerPositionStyle(
-    anchor,
-    skin.trigger.size,
-    insets,
-    skin.layout.padding,
-    SCREEN_WIDTH
+  const updateHandlePosition = useCallback(
+    (targetAnchor: AnchorPosition, animated: boolean = true) => {
+      const snapPoints = getSnapPoints(
+        SCREEN_WIDTH,
+        SCREEN_HEIGHT,
+        skin.trigger.size,
+        insets,
+        skin.layout.padding,
+      );
+      const target = snapPoints.find((point) => point.anchor === targetAnchor) ?? snapPoints[0];
+
+      const config = { duration: 200, easing: Easing.out(Easing.cubic) } as const;
+      if (animated) {
+        handleX.value = withTiming(target.x, config);
+        handleY.value = withTiming(target.y, config);
+      } else {
+        handleX.value = target.x;
+        handleY.value = target.y;
+      }
+    },
+    [handleX, handleY, insets, skin],
   );
+
+  useEffect(() => {
+    updateHandlePosition(anchor, hasPositioned.current);
+    hasPositioned.current = true;
+  }, [anchor, updateHandlePosition]);
 
   const triggerAnimatedStyle = useAnimatedStyle(() => {
     const scale = interpolate(pulseAnim.value, [0, 1], [1, 1.05]) * dragScale.value;
     const rotate = isOpen ? 45 : 0;
     return {
       transform: [
-        { translateX: translateX.value },
-        { translateY: translateY.value },
         { scale },
         { rotate: `${rotate}deg` },
       ],
     };
   });
+
+  const containerAnimatedStyle = useAnimatedStyle(() => ({
+    left: handleX.value - skin.trigger.size / 2,
+    top: handleY.value - skin.trigger.size / 2,
+  }));
 
   const glowAnimatedStyle = useAnimatedStyle(() => {
     const opacity = interpolate(glowAnim.value, [0, 1], [0.3, 0.8]);
@@ -126,8 +157,6 @@ function TriggerButton({
     return {
       opacity,
       transform: [
-        { translateX: translateX.value },
-        { translateY: translateY.value },
         { scale },
       ],
     };
@@ -151,29 +180,68 @@ function TriggerButton({
   const panGesture = Gesture.Pan()
     .enabled(isDraggable && !isOpen)
     .activateAfterLongPress(600)
-    .onUpdate((event) => {
-      translateX.value = event.translationX;
-      translateY.value = event.translationY;
+    .onStart(() => {
+      dragStartX.value = handleX.value;
+      dragStartY.value = handleY.value;
     })
-    .onEnd((event) => {
+    .onUpdate((event) => {
       const snapPoints = getSnapPoints(
         SCREEN_WIDTH,
         SCREEN_HEIGHT,
         skin.trigger.size,
         insets,
-        skin.layout.padding
+        skin.layout.padding,
       );
-      
-      const currentPos = getTriggerPositionStyle(anchor, skin.trigger.size, insets, skin.layout.padding, SCREEN_WIDTH);
-      const triggerX = (currentPos.right !== undefined ? SCREEN_WIDTH - currentPos.right - skin.trigger.size / 2 : currentPos.left! + skin.trigger.size / 2) + event.translationX;
-      const triggerY = (currentPos.bottom !== undefined ? SCREEN_HEIGHT - currentPos.bottom - skin.trigger.size / 2 : currentPos.top! + skin.trigger.size / 2) + event.translationY;
-      
-      const closest = findClosestSnapPoint(triggerX, triggerY, snapPoints);
-      
-      translateX.value = withSpring(0);
-      translateY.value = withSpring(0);
+
+      const halfSize = skin.trigger.size / 2;
+      const midline = SCREEN_WIDTH / 2;
+      const minX = insets.left + skin.layout.padding + halfSize;
+      const maxX = SCREEN_WIDTH - insets.right - skin.layout.padding - halfSize;
+      const maxY = SCREEN_HEIGHT - insets.bottom - skin.layout.padding - halfSize;
+      const midY = Math.max(
+        insets.top + skin.layout.padding + halfSize,
+        Math.min(maxY, SCREEN_HEIGHT / 2),
+      );
+
+      let desiredX = dragStartX.value + event.translationX;
+      let desiredY = dragStartY.value + event.translationY;
+
+      const candidate = findClosestSnapPoint(desiredX, desiredY, snapPoints);
+
+      if (candidate.anchor === "mid-left" || candidate.anchor === "bottom-left") {
+        desiredX = Math.min(desiredX, midline - skin.layout.padding);
+      } else if (candidate.anchor === "mid-right" || candidate.anchor === "bottom-right") {
+        desiredX = Math.max(desiredX, midline + skin.layout.padding);
+      } else {
+        desiredX = midline;
+      }
+
+      desiredX = Math.min(Math.max(desiredX, minX), maxX);
+      desiredY = Math.min(Math.max(desiredY, midY), maxY);
+
+      const distance = Math.hypot(desiredX - candidate.x, desiredY - candidate.y);
+      const magneticRadius = skin.trigger.size * 0.9;
+
+      if (distance <= magneticRadius) {
+        desiredX = candidate.x;
+        desiredY = candidate.y;
+      }
+
+      handleX.value = desiredX;
+      handleY.value = desiredY;
+    })
+    .onEnd(() => {
+      const snapPoints = getSnapPoints(
+        SCREEN_WIDTH,
+        SCREEN_HEIGHT,
+        skin.trigger.size,
+        insets,
+        skin.layout.padding,
+      );
+      const closest = findClosestSnapPoint(handleX.value, handleY.value, snapPoints);
+
       dragScale.value = withSpring(1);
-      
+      updateHandlePosition(closest.anchor);
       runOnJS(onDragEnd)(closest.anchor);
       runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Medium);
     });
@@ -190,10 +258,11 @@ function TriggerButton({
   );
 
   return (
-    <View
+    <Animated.View
       style={[
         styles.triggerContainer,
-        positionStyle,
+        { width: skin.trigger.size, height: skin.trigger.size },
+        containerAnimatedStyle,
       ]}
     >
       <Animated.View
@@ -257,7 +326,7 @@ function TriggerButton({
           </LinearGradient>
         </AnimatedPressable>
       </GestureDetector>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -600,7 +669,7 @@ export function ZekeLauncher({ items, skinId = "default" }: ZekeLauncherProps) {
         setOrderedItems(items);
       }
       
-      if (savedAnchor) {
+      if (savedAnchor && ALLOWED_ANCHORS.includes(savedAnchor as AnchorPosition)) {
         setAnchor(savedAnchor as AnchorPosition);
       }
       
@@ -708,14 +777,14 @@ export function ZekeLauncher({ items, skinId = "default" }: ZekeLauncherProps) {
 
   const positions = useMemo(() => {
     const displayItems = previewOrder.length > 0 ? previewOrder : orderedItems;
-    return calculateScaledIconPositions(displayItems.length, anchor, menuScale, {
+    return calculateCenteredIconPositions(displayItems.length, menuScale, {
       iconSize: skin.icon.size,
       iconContainerSize: skin.icon.containerSize,
       baseRadius: skin.layout.baseRadius,
       ringSpacing: skin.layout.ringSpacing,
       minIconSpacing: 12,
     });
-  }, [orderedItems, previewOrder, anchor, skin, menuScale]);
+  }, [orderedItems, previewOrder, skin, menuScale]);
 
   const findClosestPosition = useCallback((x: number, y: number): number => {
     let closest = 0;
@@ -793,13 +862,12 @@ export function ZekeLauncher({ items, skinId = "default" }: ZekeLauncherProps) {
 
   const displayItems = previewOrder.length > 0 ? previewOrder : orderedItems;
 
-  const menuPositionStyle = getMenuPositionStyle(
-    anchor,
+  const menuPositionStyle = getCenteredMenuPositionStyle(
     clampedMenuSize,
-    skin.trigger.size,
+    SCREEN_WIDTH,
+    SCREEN_HEIGHT,
     insets,
     skin.layout.padding,
-    SCREEN_WIDTH
   );
 
   const iconAnchorStyle = getIconAnchorStyle(
