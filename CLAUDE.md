@@ -30,6 +30,7 @@ ZEKE AI Companion is a **mobile-first AI assistant application** built with Expo
 ### Technology Stack
 
 **Frontend (Client):**
+
 - React Native 0.81.5 + React 19.1.0
 - Expo SDK 54.0.30
 - React Navigation v7 (native-stack, bottom-tabs)
@@ -37,6 +38,7 @@ ZEKE AI Companion is a **mobile-first AI assistant application** built with Expo
 - TypeScript (strict mode)
 
 **Backend (Server):**
+
 - Express.js 4.21.2
 - PostgreSQL + Drizzle ORM
 - WebSocket (real-time sync)
@@ -45,15 +47,16 @@ ZEKE AI Companion is a **mobile-first AI assistant application** built with Expo
 - Google APIs (Calendar, Places)
 
 **Target Platform:**
+
 - **Primary:** Android (Google Pixel 8)
 - **Secondary:** iOS, Web
 
 ### Related Repositories
 
-| Repository | Description | Relationship |
-|------------|-------------|--------------|
-| **ZekeAssistant** (this repo) | Mobile companion app | Client application |
-| **Zeke** (main backend) | Primary ZEKE backend | External API via proxy |
+| Repository                    | Description          | Relationship           |
+| ----------------------------- | -------------------- | ---------------------- |
+| **ZekeAssistant** (this repo) | Mobile companion app | Client application     |
+| **Zeke** (main backend)       | Primary ZEKE backend | External API via proxy |
 
 **Important:** This repo includes a **proxy server** (`server/zeke-proxy.ts`) that forwards requests to the main ZEKE backend with HMAC signing. See [ARCHITECTURE.md](./ARCHITECTURE.md) for details.
 
@@ -131,9 +134,10 @@ TypeScript is configured with these path aliases (`tsconfig.json`):
 ```
 
 **Usage:**
+
 ```typescript
-import { Button } from '@/components/Button';
-import { users } from '@shared/schema';
+import { Button } from "@/components/Button";
+import { users } from "@shared/schema";
 ```
 
 ---
@@ -174,12 +178,14 @@ EXPO_PACKAGER_PROXY_URL=https://your-replit-domain.repl.co
 ### Running the Application
 
 **Development (All Services):**
+
 ```bash
 npm run all:dev
 # Runs: Expo dev server (8081) + Express server (5000)
 ```
 
 **Individual Services:**
+
 ```bash
 # Expo only
 npm run expo:dev
@@ -192,6 +198,7 @@ npm run db:push
 ```
 
 **Production Build:**
+
 ```bash
 # Build server
 npm run server:build
@@ -250,17 +257,20 @@ ZEKE uses **SMS-based device pairing** instead of traditional username/password:
 ```
 
 **Key Files:**
+
 - `client/context/AuthContext.tsx` - Client authentication state
 - `server/sms-pairing.ts` - SMS code generation/validation
 - `server/device-auth.ts` - Device token validation
 - `server/auth-middleware.ts` - Request authentication middleware
 
 **Token Storage:**
+
 - **Native (iOS/Android):** `expo-secure-store`
 - **Web:** `localStorage`
 - **Keys:** `DEVICE_TOKEN_KEY`, `DEVICE_ID_KEY`, `LAST_VERIFIED_KEY`
 
 **Offline Support:**
+
 - Device tokens cached for 7 days
 - Offline mode allows limited functionality
 - Re-verification required after expiration
@@ -276,6 +286,7 @@ Mobile App → Local Proxy (port 5000) → ZEKE Backend (zekeai.replit.app)
 ```
 
 **Proxy Routes Pattern:**
+
 ```typescript
 // Client calls:
 fetch('/api/zeke/tasks', { ... })
@@ -287,11 +298,13 @@ https://zekeai.replit.app/api/tasks
 ```
 
 **Key Files:**
+
 - `server/zeke-proxy.ts` - Proxy route definitions
 - `server/zeke-security.ts` - HMAC signing/verification
 - `client/lib/zeke-api-adapter.ts` - Client-side API adapter
 
 **When to modify:**
+
 - Adding new ZEKE backend endpoints → Update `zeke-proxy.ts`
 - Changing security headers → Update `zeke-security.ts`
 - New client API calls → Use existing proxy routes or add new ones
@@ -299,33 +312,36 @@ https://zekeai.replit.app/api/tasks
 ### 3. Data Fetching (React Query)
 
 **Pattern:**
+
 ```typescript
 // Always use React Query for API calls
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { apiClient } from '@/lib/api-client';
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api-client";
 
 // Query example
 const { data, isLoading, error } = useQuery({
-  queryKey: ['tasks', userId],
-  queryFn: () => apiClient.get('/api/tasks'),
+  queryKey: ["tasks", userId],
+  queryFn: () => apiClient.get("/api/tasks"),
 });
 
 // Mutation example
 const mutation = useMutation({
-  mutationFn: (task) => apiClient.post('/api/tasks', task),
+  mutationFn: (task) => apiClient.post("/api/tasks", task),
   onSuccess: () => {
-    queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    queryClient.invalidateQueries({ queryKey: ["tasks"] });
   },
 });
 ```
 
 **Configuration:**
+
 - Query client setup: `client/lib/query-client.ts`
 - Automatic token injection in headers
 - 5-minute stale time default
 - Retry logic with exponential backoff
 
 **Cache Invalidation Strategy:**
+
 - Mutations invalidate related queries
 - WebSocket updates trigger cache updates
 - Manual sync available via `useSync()` hook
@@ -333,18 +349,21 @@ const mutation = useMutation({
 ### 4. Real-Time Sync (WebSocket + SSE)
 
 **WebSocket Server:**
+
 ```typescript
 // server/websocket.ts
 // Handles: memory updates, device status, location updates
 ```
 
 **Client Connection:**
+
 ```typescript
 // client/hooks/useZekeSync.ts
 const { isConnected, lastSync } = useZekeSync();
 ```
 
 **Sync Types:**
+
 - **Real-time:** WebSocket messages for instant updates
 - **Polling:** React Query refetch intervals for critical data
 - **Manual:** User-triggered sync via pull-to-refresh
@@ -352,6 +371,7 @@ const { isConnected, lastSync } = useZekeSync();
 ### 5. Offline-First Architecture
 
 **Queue System:**
+
 ```typescript
 // client/lib/upload-queue.ts
 // Queues audio uploads, location updates, etc.
@@ -359,14 +379,16 @@ const { isConnected, lastSync } = useZekeSync();
 ```
 
 **Connectivity Monitoring:**
+
 ```typescript
 // client/lib/connectivity.ts
-import NetInfo from '@react-native-community/netinfo';
+import NetInfo from "@react-native-community/netinfo";
 
 // Auto-sync when connection restored
 ```
 
 **Local Storage:**
+
 - Use `AsyncStorage` for non-sensitive data
 - Use `SecureStore` for tokens/secrets
 - Implement `useLocalLists()` pattern for offline mutations
@@ -398,16 +420,18 @@ function TaskItem(props) {
 ```
 
 **2. Type Imports:**
+
 ```typescript
 // ✅ GOOD - Use type imports
-import type { Task } from '@shared/schema';
-import { users, tasks } from '@shared/schema';
+import type { Task } from "@shared/schema";
+import { users, tasks } from "@shared/schema";
 
 // ❌ BAD - Mixed imports
-import { Task, users } from '@shared/schema';
+import { Task, users } from "@shared/schema";
 ```
 
 **3. Avoid `any`:**
+
 ```typescript
 // ✅ GOOD - Use unknown or specific types
 function handleData(data: unknown) {
@@ -425,6 +449,7 @@ function handleData(data: any) {
 ### React/React Native Conventions
 
 **1. Component Structure:**
+
 ```typescript
 // ✅ GOOD - Consistent component pattern
 import React from 'react';
@@ -459,6 +484,7 @@ const styles = StyleSheet.create({
 ```
 
 **2. Hook Usage:**
+
 ```typescript
 // ✅ GOOD - Custom hooks for shared logic
 function useTaskManagement() {
@@ -473,6 +499,7 @@ function useTaskManagement() {
 ```
 
 **3. Avoid Inline Styles:**
+
 ```typescript
 // ✅ GOOD - Use StyleSheet or theme
 const styles = StyleSheet.create({
@@ -488,6 +515,7 @@ const styles = StyleSheet.create({
 **CRITICAL:** Always follow the design system defined in `design_guidelines.md`:
 
 **Colors:**
+
 ```typescript
 import { theme } from '@/constants/theme';
 
@@ -499,6 +527,7 @@ import { theme } from '@/constants/theme';
 ```
 
 **Spacing:**
+
 ```typescript
 // ✅ GOOD - Use spacing tokens
 <View style={{ padding: theme.spacing.lg }}> // 16dp
@@ -508,10 +537,11 @@ import { theme } from '@/constants/theme';
 ```
 
 **Components:**
+
 ```typescript
 // ✅ GOOD - Use existing components
-import { Card } from '@/components/Card';
-import { Button } from '@/components/Button';
+import { Card } from "@/components/Card";
+import { Button } from "@/components/Button";
 
 // ❌ BAD - Reinvent custom card/button
 ```
@@ -519,16 +549,17 @@ import { Button } from '@/components/Button';
 ### Server-Side Conventions
 
 **1. Route Structure:**
+
 ```typescript
 // ✅ GOOD - Explicit route registration
 export function registerRoutes(app: Express) {
-  app.get('/api/tasks', authenticateDevice, async (req, res) => {
+  app.get("/api/tasks", authenticateDevice, async (req, res) => {
     try {
       const tasks = await db.select().from(tasksTable);
       res.json(tasks);
     } catch (error) {
-      console.error('Error fetching tasks:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      console.error("Error fetching tasks:", error);
+      res.status(500).json({ error: "Internal server error" });
     }
   });
 }
@@ -537,17 +568,18 @@ export function registerRoutes(app: Express) {
 ```
 
 **2. Error Handling:**
+
 ```typescript
 // ✅ GOOD - Comprehensive error handling
 try {
   const result = await externalAPI.call();
   res.json(result);
 } catch (error) {
-  console.error('API call failed:', error);
+  console.error("API call failed:", error);
   if (error instanceof ValidationError) {
     res.status(400).json({ error: error.message });
   } else {
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: "Internal server error" });
   }
 }
 
@@ -557,36 +589,39 @@ res.json(result);
 ```
 
 **3. Database Queries (Drizzle ORM):**
+
 ```typescript
-import { db } from './db';
-import { tasks } from '@shared/schema';
-import { eq } from 'drizzle-orm';
+import { db } from "./db";
+import { tasks } from "@shared/schema";
+import { eq } from "drizzle-orm";
 
 // ✅ GOOD - Use Drizzle query builder
-const userTasks = await db
-  .select()
-  .from(tasks)
-  .where(eq(tasks.userId, userId));
+const userTasks = await db.select().from(tasks).where(eq(tasks.userId, userId));
 
 // ❌ BAD - Raw SQL (use only when necessary)
-const userTasks = await db.execute(`SELECT * FROM tasks WHERE user_id = $1`, [userId]);
+const userTasks = await db.execute(`SELECT * FROM tasks WHERE user_id = $1`, [
+  userId,
+]);
 ```
 
 ### Naming Conventions
 
 **Files:**
+
 - Components: `PascalCase.tsx` (e.g., `TaskItem.tsx`)
 - Utilities: `kebab-case.ts` (e.g., `api-client.ts`)
 - Screens: `PascalCaseScreen.tsx` (e.g., `TasksScreen.tsx`)
 - Hooks: `useCamelCase.ts` (e.g., `useTaskManagement.ts`)
 
 **Variables:**
+
 - Components: `PascalCase` (e.g., `TaskItem`)
 - Functions: `camelCase` (e.g., `fetchTasks`)
 - Constants: `UPPER_SNAKE_CASE` (e.g., `API_BASE_URL`)
 - React hooks: `useCamelCase` (e.g., `useAuth`)
 
 **Directories:**
+
 - Lowercase with hyphens: `components/`, `hooks/`, `lib/`
 
 ---
@@ -596,6 +631,7 @@ const userTasks = await db.execute(`SELECT * FROM tasks WHERE user_id = $1`, [us
 ### Adding a New Screen
 
 **1. Create the screen component:**
+
 ```bash
 # Create file: client/screens/NewFeatureScreen.tsx
 ```
@@ -630,6 +666,7 @@ const styles = StyleSheet.create({
 ```
 
 **2. Add to navigation:**
+
 ```typescript
 // client/navigation/HomeStackNavigator.tsx
 import { NewFeatureScreen } from '@/screens/NewFeatureScreen';
@@ -649,6 +686,7 @@ export function HomeStackNavigator() {
 ```
 
 **3. Add TypeScript types:**
+
 ```typescript
 // client/navigation/types.ts
 export type HomeStackParamList = {
@@ -660,12 +698,13 @@ export type HomeStackParamList = {
 ### Adding a New API Endpoint
 
 **1. Define schema (if needed):**
+
 ```typescript
 // shared/schema.ts
-export const newFeature = pgTable('new_feature', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  createdAt: timestamp('created_at').defaultNow(),
+export const newFeature = pgTable("new_feature", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 export type NewFeature = typeof newFeature.$inferSelect;
@@ -673,50 +712,55 @@ export type NewFeatureInsert = typeof newFeature.$inferInsert;
 ```
 
 **2. Create server route:**
+
 ```typescript
 // server/routes.ts
-app.get('/api/new-feature', authenticateDevice, async (req, res) => {
+app.get("/api/new-feature", authenticateDevice, async (req, res) => {
   try {
     const items = await db.select().from(newFeature);
     res.json(items);
   } catch (error) {
-    console.error('Error fetching new feature:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error("Error fetching new feature:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
-app.post('/api/new-feature', authenticateDevice, async (req, res) => {
+app.post("/api/new-feature", authenticateDevice, async (req, res) => {
   try {
     const { name } = req.body;
-    const [item] = await db.insert(newFeature).values({ id: crypto.randomUUID(), name }).returning();
+    const [item] = await db
+      .insert(newFeature)
+      .values({ id: crypto.randomUUID(), name })
+      .returning();
     res.json(item);
   } catch (error) {
-    console.error('Error creating new feature:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error("Error creating new feature:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 ```
 
 **3. Create client API hook:**
+
 ```typescript
 // client/hooks/useNewFeature.ts
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '@/lib/api-client';
-import type { NewFeature, NewFeatureInsert } from '@shared/schema';
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api-client";
+import type { NewFeature, NewFeatureInsert } from "@shared/schema";
 
 export function useNewFeature() {
   const queryClient = useQueryClient();
 
   const { data: items, isLoading } = useQuery({
-    queryKey: ['newFeature'],
-    queryFn: () => apiClient.get<NewFeature[]>('/api/new-feature'),
+    queryKey: ["newFeature"],
+    queryFn: () => apiClient.get<NewFeature[]>("/api/new-feature"),
   });
 
   const createItem = useMutation({
     mutationFn: (data: NewFeatureInsert) =>
-      apiClient.post<NewFeature>('/api/new-feature', data),
+      apiClient.post<NewFeature>("/api/new-feature", data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['newFeature'] });
+      queryClient.invalidateQueries({ queryKey: ["newFeature"] });
     },
   });
 
@@ -725,6 +769,7 @@ export function useNewFeature() {
 ```
 
 **4. Use in component:**
+
 ```typescript
 import { useNewFeature } from '@/hooks/useNewFeature';
 
@@ -749,25 +794,29 @@ export function NewFeatureScreen() {
 ### Adding Database Migrations
 
 **1. Update schema:**
+
 ```typescript
 // shared/schema.ts
-export const newTable = pgTable('new_table', {
-  id: text('id').primaryKey(),
+export const newTable = pgTable("new_table", {
+  id: text("id").primaryKey(),
   // ... columns
 });
 ```
 
 **2. Push to database:**
+
 ```bash
 npm run db:push
 ```
 
 **Drizzle Kit will:**
+
 - Detect schema changes
 - Generate SQL migration
 - Apply to database
 
 **Manual migration (if needed):**
+
 ```bash
 npx drizzle-kit generate:pg
 npx drizzle-kit push:pg
@@ -776,45 +825,49 @@ npx drizzle-kit push:pg
 ### Adding ZEKE Backend Proxy Route
 
 **1. Add proxy route:**
+
 ```typescript
 // server/zeke-proxy.ts
 export function registerZekeProxyRoutes(app: Express) {
   // Existing routes...
 
   // New proxy route
-  app.all('/api/zeke/new-endpoint', async (req, res) => {
+  app.all("/api/zeke/new-endpoint", async (req, res) => {
     try {
-      await forwardToZeke(req, res, '/api/new-endpoint');
+      await forwardToZeke(req, res, "/api/new-endpoint");
     } catch (error) {
-      console.error('Proxy error:', error);
-      res.status(500).json({ error: 'Proxy error' });
+      console.error("Proxy error:", error);
+      res.status(500).json({ error: "Proxy error" });
     }
   });
 }
 ```
 
 **2. Update client API call:**
+
 ```typescript
 // Client calls:
-apiClient.get('/api/zeke/new-endpoint')
+apiClient.get("/api/zeke/new-endpoint");
 // Automatically forwarded to ZEKE backend
 ```
 
 ### Handling Platform-Specific Code
 
 **Option 1: Platform-specific files:**
+
 ```typescript
 // MapScreen.tsx (iOS/Android native)
 // MapScreen.web.tsx (Web)
 ```
 
 **Option 2: Platform checks:**
-```typescript
-import { Platform } from 'react-native';
 
-if (Platform.OS === 'android') {
+```typescript
+import { Platform } from "react-native";
+
+if (Platform.OS === "android") {
   // Android-specific code
-} else if (Platform.OS === 'ios') {
+} else if (Platform.OS === "ios") {
   // iOS-specific code
 } else {
   // Web-specific code
@@ -822,6 +875,7 @@ if (Platform.OS === 'android') {
 ```
 
 **Option 3: Platform.select:**
+
 ```typescript
 const styles = StyleSheet.create({
   container: {
@@ -840,74 +894,194 @@ const styles = StyleSheet.create({
 
 ### Current State
 
-**⚠️ Testing Setup Needed:**
-- No test files currently exist
-- No Jest/Vitest configuration detected
+**✅ Testing Infrastructure Implemented:**
 
-### Recommended Testing Strategy
+- Jest 30.2.0 configured with ts-jest 29.4.6
+- React Testing Library for component tests
+- Supertest for API route testing
+- Coverage tracking enabled
+- **49 tests** currently passing (phone-utils.ts at 100% coverage)
+
+**Configuration Files:**
+
+- `jest.config.js` - Main Jest configuration with React Native preset
+- `jest.setup.js` - Test environment setup and global mocks
+- `TESTING.md` - Comprehensive testing guide
+
+**Test Scripts:**
+
+```bash
+npm test              # Run all tests
+npm run test:watch    # Watch mode
+npm run test:coverage # Coverage report
+npm run test:client   # Client tests only
+npm run test:server   # Server tests only
+npm run test:security # Security/auth tests only
+npm run test:ci       # CI/CD optimized
+```
+
+### Testing Strategy
+
+**Priority Tiers (See TESTING.md for details):**
+
+1. **Tier 1 - Security & Authentication (CRITICAL)**
+   - `server/auth-middleware.ts` - Rate limiting, lockout
+   - `server/device-auth.ts` - Token validation
+   - `server/zeke-security.ts` - HMAC signing
+   - `client/context/AuthContext.tsx` - Auth state
+
+2. **Tier 2 - API Routes & Integration**
+   - `server/routes.ts` - Core endpoints
+   - `server/zeke-proxy.ts` - Proxy routing
+   - `server/websocket.ts` - Real-time sync
+
+3. **Tier 3 - Business Logic**
+   - Server services (8 files)
+   - Client hooks (12 files)
+   - Schema validation
+
+4. **Tier 4 - UI Components**
+   - 36 reusable components
+   - 30+ screen components
+
+### Writing Tests
 
 **1. Unit Tests (Utilities & Hooks):**
+
 ```typescript
 // Example: client/lib/__tests__/api-client.test.ts
-import { describe, it, expect } from '@jest/globals';
-import { apiClient } from '../api-client';
+import { describe, it, expect } from "@jest/globals";
+import { apiClient } from "../api-client";
 
-describe('apiClient', () => {
-  it('should handle successful requests', async () => {
-    const response = await apiClient.get('/api/test');
+describe("apiClient", () => {
+  it("should handle successful requests", async () => {
+    const response = await apiClient.get("/api/test");
     expect(response).toBeDefined();
   });
 
-  it('should throw ApiError on failure', async () => {
-    await expect(apiClient.get('/api/invalid')).rejects.toThrow('ApiError');
+  it("should throw ApiError on failure", async () => {
+    await expect(apiClient.get("/api/invalid")).rejects.toThrow("ApiError");
+  });
+
+  it("should handle null/undefined gracefully", async () => {
+    expect(() => apiClient.get(null as any)).toThrow();
   });
 });
 ```
 
 **2. Component Tests (React Testing Library):**
+
 ```typescript
 // Example: client/components/__tests__/Button.test.tsx
 import { render, fireEvent } from '@testing-library/react-native';
 import { Button } from '../Button';
 
 describe('Button', () => {
+  it('should render with text', () => {
+    const { getByText } = render(<Button>Click Me</Button>);
+    expect(getByText('Click Me')).toBeDefined();
+  });
+
   it('should call onPress when pressed', () => {
     const onPress = jest.fn();
     const { getByText } = render(<Button onPress={onPress}>Click Me</Button>);
 
     fireEvent.press(getByText('Click Me'));
-    expect(onPress).toHaveBeenCalled();
+    expect(onPress).toHaveBeenCalledTimes(1);
+  });
+
+  it('should not call onPress when disabled', () => {
+    const onPress = jest.fn();
+    const { getByText } = render(
+      <Button onPress={onPress} disabled>Click Me</Button>
+    );
+
+    fireEvent.press(getByText('Click Me'));
+    expect(onPress).not.toHaveBeenCalled();
   });
 });
 ```
 
 **3. Integration Tests (API Routes):**
+
 ```typescript
 // Example: server/__tests__/routes.test.ts
-import request from 'supertest';
-import { app } from '../index';
+import request from "supertest";
+import { app } from "../index";
 
-describe('GET /api/tasks', () => {
-  it('should return tasks for authenticated user', async () => {
+describe("GET /api/tasks", () => {
+  it("should return 401 without auth token", async () => {
+    const response = await request(app).get("/api/tasks");
+    expect(response.status).toBe(401);
+  });
+
+  it("should return tasks for authenticated user", async () => {
     const response = await request(app)
-      .get('/api/tasks')
-      .set('x-zeke-device-token', 'valid-token');
+      .get("/api/tasks")
+      .set("x-zeke-device-token", "valid-token");
 
     expect(response.status).toBe(200);
     expect(Array.isArray(response.body)).toBe(true);
   });
+
+  it("should handle database errors gracefully", async () => {
+    // Mock database failure scenario
+    const response = await request(app)
+      .get("/api/tasks")
+      .set("x-zeke-device-token", "valid-token");
+
+    expect(response.status).toBeLessThan(600);
+    if (response.status === 500) {
+      expect(response.body.error).toBeDefined();
+    }
+  });
 });
 ```
 
-### Manual Testing Checklist
+### Test Best Practices
+
+**1. Edge Cases to Always Test:**
+
+- ✅ Happy path (valid inputs)
+- ✅ Null/undefined inputs
+- ✅ Empty strings/arrays/objects
+- ✅ Invalid formats
+- ✅ Error conditions
+- ✅ Boundary values
+
+**2. Mocking Dependencies:**
+
+```typescript
+// Mock external modules
+jest.mock("@/lib/api-client");
+
+const mockApiClient = jest.mocked(apiClient);
+mockApiClient.get.mockResolvedValue({ data: "test" });
+
+// Verify mock calls
+expect(mockApiClient.get).toHaveBeenCalledWith("/api/endpoint");
+```
+
+**3. Coverage Goals:**
+
+- Security/Auth code: **80%+**
+- Business logic: **70%+**
+- UI components: **50%+**
+- Overall project: **60%+** (target)
+
+**Current Coverage:** <1% (baseline established with phone-utils.ts at 100%)
+
+### Pre-Commit Checklist
 
 **Before committing changes:**
 
-1. **Type checking:** `npm run check:types`
-2. **Linting:** `npm run lint`
-3. **Formatting:** `npm run check:format`
-4. **Build verification:** `npm run server:build`
-5. **Runtime testing:**
+1. **Run tests:** `npm test` (ensure all tests pass)
+2. **Type checking:** `npm run check:types`
+3. **Linting:** `npm run lint`
+4. **Formatting:** `npm run check:format`
+5. **Build verification:** `npm run server:build`
+6. **Coverage check:** `npm run test:coverage` (maintain or increase coverage)
+7. **Runtime testing:**
    - Test on Android device/emulator
    - Test API endpoints with Postman/curl
    - Verify database migrations
@@ -920,11 +1094,13 @@ describe('GET /api/tasks', () => {
 ### Development Workflow
 
 **Branch Strategy:**
+
 - Main branch: `main` (or default branch)
 - Feature branches: `claude/feature-name-{sessionId}`
 - **Always develop on the designated `claude/*` branch**
 
 **Git Commands:**
+
 ```bash
 # Check current branch
 git status
@@ -941,6 +1117,7 @@ git push -u origin claude/add-new-feature-abc123
 ```
 
 **⚠️ CRITICAL:** When pushing:
+
 - Always use `git push -u origin <branch-name>`
 - Branch MUST start with `claude/` and match session ID
 - Retry up to 4 times with exponential backoff (2s, 4s, 8s, 16s) on network errors
@@ -948,6 +1125,7 @@ git push -u origin claude/add-new-feature-abc123
 ### Production Build
 
 **Server:**
+
 ```bash
 # Build server code
 npm run server:build
@@ -958,6 +1136,7 @@ NODE_ENV=production npm run server:prod
 ```
 
 **Client (Expo):**
+
 ```bash
 # Build for Android
 npm run android
@@ -972,10 +1151,12 @@ npm run expo:static:build
 ### Environment-Specific Configuration
 
 **Development:**
+
 - Uses `EXPO_PUBLIC_DOMAIN` for local server
 - WebSocket on `ws://localhost:5000`
 
 **Production:**
+
 - Points to deployed ZEKE backend
 - Uses secure WebSocket (`wss://`)
 - Environment variables from hosting platform (Replit, etc.)
@@ -987,9 +1168,10 @@ npm run expo:static:build
 ### Common Issues
 
 **1. "Device token invalid" error:**
+
 ```typescript
 // Solution: Clear authentication and re-pair
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from "@/context/AuthContext";
 
 const { unpairDevice } = useAuth();
 unpairDevice(); // Clear stored token
@@ -997,6 +1179,7 @@ unpairDevice(); // Clear stored token
 ```
 
 **2. "Network request failed" on Expo:**
+
 ```typescript
 // Check: API_URL in query-client.ts
 // Ensure: EXPO_PUBLIC_DOMAIN is set correctly
@@ -1004,6 +1187,7 @@ unpairDevice(); // Clear stored token
 ```
 
 **3. Database connection errors:**
+
 ```bash
 # Verify DATABASE_URL is set
 echo $DATABASE_URL
@@ -1016,6 +1200,7 @@ pg_isready
 ```
 
 **4. TypeScript errors after schema changes:**
+
 ```bash
 # Regenerate types
 npm run check:types
@@ -1025,6 +1210,7 @@ npm run check:types
 ```
 
 **5. Expo bundler issues:**
+
 ```bash
 # Clear cache
 npx expo start --clear
@@ -1037,17 +1223,20 @@ npm install
 ### Debugging Tools
 
 **Client-Side:**
+
 - React Native Debugger
 - Expo Dev Tools (shake device → Debug Remote JS)
 - Flipper (network inspector, database viewer)
 - Console logs: `console.log()`, `console.warn()`, `console.error()`
 
 **Server-Side:**
+
 - Express logging middleware (already configured)
 - PostgreSQL logs
 - Node.js debugger: `node --inspect`
 
 **Network Debugging:**
+
 ```bash
 # Test API endpoints
 curl http://localhost:5000/api/health
@@ -1063,15 +1252,16 @@ wscat -c ws://localhost:5000
 
 ```typescript
 // ✅ GOOD - Structured logging
-console.log('[TasksScreen] Fetching tasks for user:', userId);
-console.error('[API] Task creation failed:', error);
+console.log("[TasksScreen] Fetching tasks for user:", userId);
+console.error("[API] Task creation failed:", error);
 
 // ❌ BAD - Vague logs
-console.log('error');
+console.log("error");
 console.log(data);
 ```
 
 **For production:**
+
 - Use logging service (e.g., Sentry, LogRocket)
 - Redact sensitive data (tokens, passwords)
 - Log levels: DEBUG, INFO, WARN, ERROR
@@ -1083,22 +1273,26 @@ console.log(data);
 ### When Making Changes
 
 **1. Always Read Before Modifying:**
+
 - ✅ Read the file completely before suggesting changes
 - ✅ Understand surrounding context and dependencies
 - ❌ Never propose changes to code you haven't read
 
 **2. Check Existing Patterns:**
+
 - ✅ Search for similar implementations in the codebase
 - ✅ Follow established patterns (e.g., how other screens handle auth)
 - ❌ Don't introduce new patterns without justification
 
 **3. Maintain Design System Consistency:**
+
 - ✅ Use components from `client/components/`
 - ✅ Use theme tokens from `client/constants/theme.ts`
 - ✅ Follow spacing/typography from `design_guidelines.md`
 - ❌ Don't create custom buttons/cards when existing ones work
 
 **4. Test Changes Mentally:**
+
 - ✅ Trace the execution path
 - ✅ Consider edge cases (null values, empty arrays, network errors)
 - ✅ Verify TypeScript types are correct
@@ -1107,21 +1301,25 @@ console.log(data);
 ### Security Considerations
 
 **1. Authentication:**
+
 - Always use `authenticateDevice` middleware on protected routes
 - Never expose device tokens in logs or responses
 - Validate all input parameters
 
 **2. Database Queries:**
+
 - Use Drizzle ORM parameterized queries (prevents SQL injection)
 - Validate user permissions before data access
 - Sanitize user inputs
 
 **3. External APIs:**
+
 - Never commit API keys to code
 - Use environment variables for secrets
 - Handle API errors gracefully
 
 **4. File Uploads:**
+
 - Validate file types and sizes
 - Use multer with size limits
 - Store files securely (not in public directories)
@@ -1129,16 +1327,19 @@ console.log(data);
 ### Performance Optimization
 
 **1. React Query:**
+
 - Set appropriate `staleTime` for each query
 - Use query keys correctly for cache invalidation
 - Implement optimistic updates for better UX
 
 **2. React Native:**
+
 - Use `FlatList` for long lists (not `ScrollView` with `.map()`)
 - Memoize expensive computations with `useMemo`
 - Avoid inline functions in render (use `useCallback`)
 
 **3. Database:**
+
 - Add indexes for frequently queried columns
 - Use `select()` with specific columns (not `SELECT *`)
 - Implement pagination for large datasets
@@ -1146,12 +1347,14 @@ console.log(data);
 ### Documentation
 
 **When to Update Documentation:**
+
 - Adding new features → Update CLAUDE.md
 - Changing architecture → Update ARCHITECTURE.md
 - Modifying UI patterns → Update design_guidelines.md
 - Database schema changes → Update schema.ts comments
 
 **Code Comments:**
+
 ```typescript
 // ✅ GOOD - Explain WHY, not WHAT
 // Retry logic needed because Twilio API occasionally returns 503
@@ -1165,14 +1368,17 @@ const task = await createTask();
 ### Communication with Users
 
 **Be Clear and Concise:**
+
 - ✅ "I've added authentication middleware to the `/api/tasks` route in `server/routes.ts:145`"
 - ❌ "I made some changes to handle security"
 
 **Provide Context:**
+
 - ✅ "This change follows the existing pattern from `TasksScreen.tsx` for consistency"
 - ❌ "This is how I implemented it"
 
 **Use File References:**
+
 - ✅ "Updated `client/screens/TasksScreen.tsx:67` to add error handling"
 - ❌ "Fixed the error in the tasks screen"
 
@@ -1182,18 +1388,18 @@ const task = await createTask();
 
 ### Essential Files
 
-| File | Purpose |
-|------|---------|
-| `client/App.tsx` | App entry point |
-| `client/context/AuthContext.tsx` | Authentication state |
-| `client/lib/api-client.ts` | HTTP client |
-| `client/lib/query-client.ts` | React Query setup |
-| `client/constants/theme.ts` | Design tokens |
-| `server/index.ts` | Server entry point |
-| `server/routes.ts` | Main API routes |
-| `server/auth-middleware.ts` | Authentication middleware |
-| `server/zeke-proxy.ts` | ZEKE backend proxy |
-| `shared/schema.ts` | Database schema |
+| File                             | Purpose                   |
+| -------------------------------- | ------------------------- |
+| `client/App.tsx`                 | App entry point           |
+| `client/context/AuthContext.tsx` | Authentication state      |
+| `client/lib/api-client.ts`       | HTTP client               |
+| `client/lib/query-client.ts`     | React Query setup         |
+| `client/constants/theme.ts`      | Design tokens             |
+| `server/index.ts`                | Server entry point        |
+| `server/routes.ts`               | Main API routes           |
+| `server/auth-middleware.ts`      | Authentication middleware |
+| `server/zeke-proxy.ts`           | ZEKE backend proxy        |
+| `shared/schema.ts`               | Database schema           |
 
 ### Common Commands
 
@@ -1202,6 +1408,13 @@ const task = await createTask();
 npm run all:dev              # Run everything
 npm run expo:dev             # Client only
 npm run server:dev           # Server only
+
+# Testing
+npm test                     # Run all tests
+npm run test:watch           # Watch mode
+npm run test:coverage        # Coverage report
+npm run test:client          # Client tests only
+npm run test:server          # Server tests only
 
 # Code Quality
 npm run check:types          # Type checking
@@ -1219,12 +1432,12 @@ npm run expo:static:build    # Build Expo app
 ### Key Hooks
 
 ```typescript
-useAuth()                    // Authentication state
-useSync()                    // Connectivity & sync
-useZekeSync()                // ZEKE backend sync
-useTheme()                   // Theme tokens
-useQuery()                   // Data fetching
-useMutation()                // Data mutations
+useAuth(); // Authentication state
+useSync(); // Connectivity & sync
+useZekeSync(); // ZEKE backend sync
+useTheme(); // Theme tokens
+useQuery(); // Data fetching
+useMutation(); // Data mutations
 ```
 
 ### Environment Variables Checklist
@@ -1241,22 +1454,30 @@ useMutation()                // Data mutations
 
 ## Additional Resources
 
+**Project Documentation:**
+
 - **[ARCHITECTURE.md](./ARCHITECTURE.md)** - System architecture & ZEKE integration
+- **[TESTING.md](./TESTING.md)** - Comprehensive testing guide & coverage reports
 - **[design_guidelines.md](./design_guidelines.md)** - UI/UX design system
 - **[SYNC_GUIDE.md](./SYNC_GUIDE.md)** - Sync architecture
 - **[MIGRATION_GUIDE.md](./MIGRATION_GUIDE.md)** - Migration documentation
+
+**External Documentation:**
+
 - **[Expo Documentation](https://docs.expo.dev/)** - Expo framework
 - **[React Navigation](https://reactnavigation.org/)** - Navigation library
 - **[TanStack Query](https://tanstack.com/query/)** - Data fetching
 - **[Drizzle ORM](https://orm.drizzle.team/)** - Database ORM
+- **[Jest Documentation](https://jestjs.io/)** - Testing framework
 
 ---
 
 ## Changelog
 
-| Date | Change | Author |
-|------|--------|--------|
-| 2026-01-01 | Initial CLAUDE.md creation | Claude (AI Assistant) |
+| Date       | Change                                                         | Author                |
+| ---------- | -------------------------------------------------------------- | --------------------- |
+| 2026-01-01 | Initial CLAUDE.md creation                                     | Claude (AI Assistant) |
+| 2026-01-01 | Updated Testing Guidelines section with current infrastructure | Claude (AI Assistant) |
 
 ---
 
