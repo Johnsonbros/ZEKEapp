@@ -27,11 +27,20 @@ This document describes the testing strategy, infrastructure, and current test c
 
 ### Directory Structure
 
+**Existing test suites**
+
+```
+client/__tests__/
+└── lib/              # Utility function tests
+    └── phone-utils.test.ts
+```
+
+**Planned test suites (not yet created)**
+
 ```
 client/__tests__/
 ├── components/       # Component tests
 ├── hooks/            # Custom hook tests
-├── lib/              # Utility function tests
 ├── context/          # Context provider tests
 └── screens/          # Screen component tests
 
@@ -93,23 +102,11 @@ npm test -- --verbose
 
 ### ✅ Completed Tests
 
-#### Client - Utilities (client/lib/)
+#### Client - Utilities (client/__tests__/lib)
 
-**phone-utils.ts** - 49 tests, 100% coverage
-- `normalizePhoneNumber()` - Phone number normalization (10/11-digit, international)
-- `phonesMatch()` - Phone number comparison across formats
-- `findContactByPhone()` - Contact lookup by phone
-- `getContactDisplayName()` - Contact name formatting
-- `formatPhoneForDisplay()` - User-friendly phone display
-- `buildPhoneContactMap()` - Contact indexing by phone
-- `resolveContactName()` - Name resolution with fallbacks
+- `phone-utils.test.ts` exercising phone number normalization, comparison, contact lookup, and display helpers.
 
-**Coverage:** All edge cases including:
-- Null/undefined handling
-- Empty strings
-- International numbers
-- Formatted vs unformatted numbers
-- Invalid inputs
+*No other client, server, or shared test suites exist yet; see the planned sections below for upcoming coverage areas.*
 
 ---
 
