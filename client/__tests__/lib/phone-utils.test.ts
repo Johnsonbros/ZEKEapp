@@ -403,6 +403,35 @@ describe('buildPhoneContactMap', () => {
     expect(Object.keys(map)).toHaveLength(1);
     expect(map['+15551234567'].firstName).toBe('Jane'); // Last one wins
   });
+
+  it('should resolve collisions from different formats using last-write-wins', () => {
+    const contacts: Contact[] = [
+      {
+        id: '1',
+        firstName: 'Old',
+        lastName: 'Format',
+        phoneNumber: '+1 (555) 123-4567',
+        accessLevel: 'friend',
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z',
+      } as Contact,
+      {
+        id: '2',
+        firstName: 'New',
+        lastName: 'Format',
+        phoneNumber: '555.123.4567',
+        accessLevel: 'friend',
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z',
+      } as Contact,
+    ];
+
+    const map = buildPhoneContactMap(contacts);
+
+    expect(Object.keys(map)).toHaveLength(1);
+    expect(map['+15551234567'].firstName).toBe('New');
+    expect(map['+15551234567'].lastName).toBe('Format');
+  });
 });
 
 describe('resolveContactName', () => {
