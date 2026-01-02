@@ -1,13 +1,13 @@
-import React, { useState, useCallback, useMemo, useRef } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import {
   View,
   ScrollView,
   StyleSheet,
-  Dimensions,
   Platform,
   Modal,
   Pressable,
   FlatList,
+  useWindowDimensions,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
@@ -17,9 +17,10 @@ import Animated, {
   useSharedValue,
   withSpring,
   withTiming,
+  runOnJS,
   interpolate,
   Extrapolation,
-  runOnJS,
+  clamp,
 } from "react-native-reanimated";
 import {
   Gesture,
@@ -33,16 +34,22 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-
 type ViewMode = "grid" | "carousel";
+type ShadePosition = "collapsed" | "half" | "full";
 
-interface ZekeServicesHubProps {
+const SPRING_CONFIG = {
+  damping: 22,
+  stiffness: 180,
+  mass: 0.8,
+};
+
+interface ServicesShadeProps {
   apps: AppCardData[];
   zekeCurrentAction?: string;
   zekeIsActive?: boolean;
   onZekeStatusPress?: () => void;
   onViewModeChange?: (mode: ViewMode) => void;
+  onShadePositionChange?: (position: ShadePosition) => void;
 }
 
 interface QuickAction {
@@ -52,35 +59,57 @@ interface QuickAction {
   onPress: () => void;
 }
 
-const SPRING_CONFIG = {
-  damping: 20,
-  stiffness: 160,
-  mass: 0.8,
-};
-
-export function ZekeServicesHub({
+export function ServicesShade({
   apps,
   zekeCurrentAction = "Standing by",
   zekeIsActive = false,
   onZekeStatusPress,
   onViewModeChange,
-}: ZekeServicesHubProps) {
+  onShadePositionChange,
+}: ServicesShadeProps) {
   const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const [shadePosition, setShadePosition] = useState<ShadePosition>("half");
+  const [isScrollEnabled, setIsScrollEnabled] = useState(true);
   const [showQuickActions, setShowQuickActions] = useState(false);
   const [selectedApp, setSelectedApp] = useState<AppCardData | null>(null);
 
-  const translateX = useSharedValue(0);
+  const getShadePositions = useCallback(() => ({
+    collapsed: screenHeight * 0.12,
+    half: screenHeight * 0.5,
+    full: screenHeight * 0.85,
+  }), [screenHeight]);
+
+  const positions = getShadePositions();
+  const shadeHeight = useSharedValue(positions.half);
   const backdropOpacity = useSharedValue(0);
-  const carouselIndex = useSharedValue(0);
+  const startHeight = useSharedValue(positions.half);
+
+  useEffect(() => {
+    const newPositions = getShadePositions();
+    shadeHeight.value = withSpring(newPositions[shadePosition], SPRING_CONFIG);
+  }, [screenHeight, shadePosition, getShadePositions, shadeHeight]);
+
+  const updateShadePosition = useCallback((position: ShadePosition) => {
+    setShadePosition(position);
+    setIsScrollEnabled(position !== "collapsed");
+    onShadePositionChange?.(position);
+  }, [onShadePositionChange]);
+
+  const snapToPosition = useCallback((targetPosition: ShadePosition) => {
+    const currentPositions = getShadePositions();
+    const targetHeight = currentPositions[targetPosition];
+    shadeHeight.value = withSpring(targetHeight, SPRING_CONFIG);
+    runOnJS(updateShadePosition)(targetPosition);
+  }, [shadeHeight, updateShadePosition, getShadePositions]);
 
   const handleViewModeSwitch = useCallback((newMode: ViewMode) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setViewMode(newMode);
-    if (onViewModeChange) {
-      onViewModeChange(newMode);
-    }
+    onViewModeChange?.(newMode);
   }, [onViewModeChange]);
 
   const handleAppLongPress = useCallback((app: AppCardData) => {
@@ -107,7 +136,6 @@ export function ZekeServicesHub({
         label: `Ask ZEKE about ${selectedApp.title}`,
         onPress: () => {
           closeQuickActions();
-          // TODO: Implement ask ZEKE functionality
         },
       },
       {
@@ -116,7 +144,6 @@ export function ZekeServicesHub({
         label: "View ZEKE's recent actions",
         onPress: () => {
           closeQuickActions();
-          // TODO: Implement view activity functionality
         },
       },
       {
@@ -132,26 +159,75 @@ export function ZekeServicesHub({
   }, [selectedApp, closeQuickActions]);
 
   const panGesture = Gesture.Pan()
-    .enabled(viewMode === "grid")
+    .onStart(() => {
+      startHeight.value = shadeHeight.value;
+    })
     .onUpdate((event) => {
-      translateX.value = event.translationX;
+      const currentPositions = getShadePositions();
+      const newHeight = startHeight.value - event.translationY;
+      shadeHeight.value = clamp(
+        newHeight,
+        currentPositions.collapsed,
+        currentPositions.full
+      );
     })
     .onEnd((event) => {
-      if (event.translationX > 100 && event.velocityX > 300) {
-        // Swipe right - switch to carousel
-        translateX.value = withSpring(0, SPRING_CONFIG);
-        runOnJS(handleViewModeSwitch)("carousel");
-      } else if (event.translationX < -100 && event.velocityX < -300) {
-        // Swipe left - keep grid
-        translateX.value = withSpring(0, SPRING_CONFIG);
+      const currentPositions = getShadePositions();
+      const velocity = -event.velocityY;
+      const currentHeight = shadeHeight.value;
+      
+      const positionList = [
+        { key: "collapsed" as ShadePosition, value: currentPositions.collapsed },
+        { key: "half" as ShadePosition, value: currentPositions.half },
+        { key: "full" as ShadePosition, value: currentPositions.full },
+      ];
+      
+      let targetPosition: ShadePosition = "half";
+      
+      if (Math.abs(velocity) > 500) {
+        if (velocity > 0) {
+          if (currentHeight < currentPositions.half) {
+            targetPosition = "half";
+          } else {
+            targetPosition = "full";
+          }
+        } else {
+          if (currentHeight > currentPositions.half) {
+            targetPosition = "half";
+          } else {
+            targetPosition = "collapsed";
+          }
+        }
       } else {
-        translateX.value = withSpring(0, SPRING_CONFIG);
+        let minDist = Infinity;
+        for (const pos of positionList) {
+          const dist = Math.abs(currentHeight - pos.value);
+          if (dist < minDist) {
+            minDist = dist;
+            targetPosition = pos.key;
+          }
+        }
       }
+      
+      runOnJS(snapToPosition)(targetPosition);
+      runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
     });
 
-  const containerAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: translateX.value * 0.3 }],
+  const shadeAnimatedStyle = useAnimatedStyle(() => ({
+    height: shadeHeight.value,
   }));
+
+  const handleIndicatorOpacity = useAnimatedStyle(() => {
+    const currentPositions = getShadePositions();
+    return {
+      opacity: interpolate(
+        shadeHeight.value,
+        [currentPositions.collapsed, currentPositions.half],
+        [1, 0.6],
+        Extrapolation.CLAMP
+      ),
+    };
+  });
 
   const backdropAnimatedStyle = useAnimatedStyle(() => ({
     opacity: backdropOpacity.value,
@@ -160,78 +236,89 @@ export function ZekeServicesHub({
   const numColumns = 2;
   const cardSpacing = Spacing.md;
   const horizontalPadding = Spacing.lg;
-  const cardWidth = (SCREEN_WIDTH - horizontalPadding * 2 - cardSpacing * (numColumns - 1)) / numColumns;
+  const cardWidth = (screenWidth - horizontalPadding * 2 - cardSpacing * (numColumns - 1)) / numColumns;
+
+  const renderHeader = () => (
+    <View style={styles.header}>
+      <Pressable
+        onPress={() => handleViewModeSwitch("grid")}
+        style={[
+          styles.viewModeButton,
+          viewMode === "grid" && styles.viewModeButtonActive,
+        ]}
+        accessible
+        accessibilityRole="button"
+        accessibilityLabel="Grid view"
+      >
+        <Feather 
+          name="grid" 
+          size={20} 
+          color={viewMode === "grid" ? "#6366F1" : theme.textSecondary} 
+        />
+      </Pressable>
+
+      <View style={styles.headerCenter}>
+        <ThemedText type="h3" style={[styles.headerTitle, { color: theme.text }]}>
+          Services
+        </ThemedText>
+        <ThemedText type="caption" style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
+          {apps.length} available
+        </ThemedText>
+      </View>
+
+      <Pressable
+        onPress={() => handleViewModeSwitch("carousel")}
+        style={[
+          styles.viewModeButton,
+          viewMode === "carousel" && styles.viewModeButtonActive,
+        ]}
+        accessible
+        accessibilityRole="button"
+        accessibilityLabel="Stack view"
+      >
+        <Feather 
+          name="layers" 
+          size={20} 
+          color={viewMode === "carousel" ? "#6366F1" : theme.textSecondary} 
+        />
+      </Pressable>
+    </View>
+  );
 
   return (
     <View style={styles.container}>
-      {viewMode === "grid" ? (
-        <GestureDetector gesture={panGesture}>
-          <Animated.View style={[styles.gridContainer, containerAnimatedStyle]}>
+      <GestureDetector gesture={panGesture}>
+        <Animated.View 
+          style={[
+            styles.shadeContainer, 
+            { backgroundColor: theme.backgroundDefault },
+            shadeAnimatedStyle
+          ]}
+        >
+          <Animated.View style={[styles.handleContainer, handleIndicatorOpacity]}>
+            <View style={[styles.handle, { backgroundColor: theme.border }]} />
+          </Animated.View>
+
+          {renderHeader()}
+
+          {viewMode === "grid" ? (
             <ScrollView
               style={styles.scrollView}
               contentContainerStyle={[
                 styles.gridScrollContent,
                 {
-                  paddingTop: insets.top + Spacing.xl,
-                  paddingBottom: insets.bottom + 120,
+                  paddingBottom: insets.bottom + 80,
                   paddingHorizontal: horizontalPadding,
                 },
               ]}
               showsVerticalScrollIndicator={false}
+              scrollEnabled={isScrollEnabled}
             >
-              <View style={styles.header}>
-                <Pressable
-                  onPress={() => handleViewModeSwitch("grid")}
-                  style={[
-                    styles.viewModeButton,
-                    viewMode === "grid" && styles.viewModeButtonActive,
-                  ]}
-                  accessible
-                  accessibilityRole="button"
-                  accessibilityLabel="Grid view"
-                >
-                  <Feather 
-                    name="grid" 
-                    size={20} 
-                    color={viewMode === "grid" ? "#6366F1" : theme.textSecondary} 
-                  />
-                </Pressable>
-
-                <View style={styles.headerCenter}>
-                  <ThemedText type="h2" style={[styles.headerTitle, { color: theme.text }]}>
-                    ZEKE Apps
-                  </ThemedText>
-                  <ThemedText type="small" style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
-                    {apps.length} services available
-                  </ThemedText>
-                </View>
-
-                <Pressable
-                  onPress={() => handleViewModeSwitch("carousel")}
-                  style={[
-                    styles.viewModeButton,
-                    viewMode === "carousel" && styles.viewModeButtonActive,
-                  ]}
-                  accessible
-                  accessibilityRole="button"
-                  accessibilityLabel="Stack view"
-                >
-                  <Feather 
-                    name="layers" 
-                    size={20} 
-                    color={viewMode === "carousel" ? "#6366F1" : theme.textSecondary} 
-                  />
-                </Pressable>
-              </View>
-
               <View style={styles.grid}>
                 {apps.map((app) => (
                   <View
                     key={app.id}
-                    style={[
-                      styles.gridItem,
-                      { width: cardWidth },
-                    ]}
+                    style={[styles.gridItem, { width: cardWidth }]}
                   >
                     <AppCard
                       {...app}
@@ -245,102 +332,55 @@ export function ZekeServicesHub({
 
               <View style={styles.gridFooter}>
                 <ThemedText type="caption" style={[styles.footerText, { color: theme.textSecondary }]}>
-                  Long-press any app for quick actions
+                  Swipe to browse - Long-press for actions
                 </ThemedText>
               </View>
             </ScrollView>
-          </Animated.View>
-        </GestureDetector>
-      ) : (
-        <View style={styles.carouselContainer}>
-          <View style={styles.carouselHeader}>
-            <Pressable
-              onPress={() => handleViewModeSwitch("grid")}
-              style={[
-                styles.viewModeButton,
-                viewMode === "grid" && styles.viewModeButtonActive,
-              ]}
-              accessible
-              accessibilityRole="button"
-              accessibilityLabel="Grid view"
-            >
-              <Feather 
-                name="grid" 
-                size={20} 
-                color={viewMode === "grid" ? "#6366F1" : theme.textSecondary} 
-              />
-            </Pressable>
-
-            <View style={styles.headerCenter}>
-              <ThemedText type="h3" style={[styles.headerTitle, { color: theme.text }]}>
-                Services
-              </ThemedText>
-              <ThemedText type="small" style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
-                {apps.length} available
-              </ThemedText>
-            </View>
-
-            <Pressable
-              onPress={() => handleViewModeSwitch("carousel")}
-              style={[
-                styles.viewModeButton,
-                viewMode === "carousel" && styles.viewModeButtonActive,
-              ]}
-              accessible
-              accessibilityRole="button"
-              accessibilityLabel="Stack view"
-            >
-              <Feather 
-                name="layers" 
-                size={20} 
-                color={viewMode === "carousel" ? "#6366F1" : theme.textSecondary} 
-              />
-            </Pressable>
-          </View>
-
-          <FlatList
-            data={apps}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            snapToInterval={SCREEN_WIDTH * 0.85}
-            decelerationRate="fast"
-            contentContainerStyle={[
-              styles.carouselContent,
-              {
-                paddingTop: Spacing.xl,
-                paddingBottom: insets.bottom + 120,
-              },
-            ]}
-            renderItem={({ item, index }) => (
-              <View
-                style={[
-                  styles.carouselItem,
-                  {
-                    width: SCREEN_WIDTH * 0.85,
-                    marginLeft: index === 0 ? SCREEN_WIDTH * 0.075 : Spacing.md,
-                    marginRight: index === apps.length - 1 ? SCREEN_WIDTH * 0.075 : 0,
-                  },
+          ) : (
+            <View style={styles.carouselContainer}>
+              <FlatList
+                data={apps}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                snapToInterval={screenWidth * 0.85}
+                decelerationRate="fast"
+                contentContainerStyle={[
+                  styles.carouselContent,
+                  { paddingBottom: insets.bottom + 80 },
                 ]}
-              >
-                <AppCard
-                  {...item}
-                  mode="carousel"
-                  size="large"
-                  onLongPress={() => handleAppLongPress(item)}
-                />
-              </View>
-            )}
-            keyExtractor={(item) => item.id}
-          />
+                scrollEnabled={isScrollEnabled}
+                renderItem={({ item, index }) => (
+                  <View
+                    style={[
+                      styles.carouselItem,
+                      {
+                        width: screenWidth * 0.85,
+                        marginLeft: index === 0 ? screenWidth * 0.075 : Spacing.md,
+                        marginRight: index === apps.length - 1 ? screenWidth * 0.075 : 0,
+                      },
+                    ]}
+                  >
+                    <AppCard
+                      {...item}
+                      mode="carousel"
+                      size="large"
+                      onLongPress={() => handleAppLongPress(item)}
+                    />
+                  </View>
+                )}
+                keyExtractor={(item) => item.id}
+              />
 
-          <View style={[styles.carouselFooter, { paddingBottom: insets.bottom + 100 }]}>
-            <ThemedText type="caption" style={[styles.footerText, { color: theme.textSecondary }]}>
-              Swipe to browse • Long-press for actions
-            </ThemedText>
-          </View>
-        </View>
-      )}
+              <View style={styles.carouselFooter}>
+                <ThemedText type="caption" style={[styles.footerText, { color: theme.textSecondary }]}>
+                  Swipe to browse - Long-press for actions
+                </ThemedText>
+              </View>
+            </View>
+          )}
+        </Animated.View>
+      </GestureDetector>
 
       <ZekeStatusBar
         currentAction={zekeCurrentAction}
@@ -355,12 +395,7 @@ export function ZekeServicesHub({
         onRequestClose={closeQuickActions}
       >
         <View style={styles.modalContainer}>
-          <Animated.View
-            style={[
-              styles.modalBackdrop,
-              backdropAnimatedStyle,
-            ]}
-          >
+          <Animated.View style={[styles.modalBackdrop, backdropAnimatedStyle]}>
             {Platform.OS === "ios" ? (
               <BlurView
                 intensity={isDark ? 40 : 30}
@@ -373,7 +408,7 @@ export function ZekeServicesHub({
             <Pressable style={StyleSheet.absoluteFill} onPress={closeQuickActions} />
           </Animated.View>
 
-          <View style={[styles.quickActionsContainer, { bottom: insets.bottom + 140 }]}>
+          <View style={[styles.quickActionsContainer, { bottom: insets.bottom + 100 }]}>
             <View style={[styles.quickActionsHeader, { backgroundColor: theme.backgroundDefault }]}>
               <Feather name={selectedApp?.icon || "box"} size={20} color="#6366F1" />
               <ThemedText type="body" style={[styles.quickActionsTitle, { color: theme.text }]}>
@@ -409,22 +444,44 @@ export function ZekeServicesHub({
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 100,
   },
-  gridContainer: {
-    flex: 1,
+  shadeContainer: {
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+    overflow: "hidden",
+    ...Platform.select({
+      web: {
+        boxShadow: "0px -4px 20px rgba(0, 0, 0, 0.3)",
+      },
+      default: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 10,
+        elevation: 20,
+      },
+    }),
   },
-  scrollView: {
-    flex: 1,
+  handleContainer: {
+    alignItems: "center",
+    paddingVertical: Spacing.sm,
   },
-  gridScrollContent: {
-    flexGrow: 1,
+  handle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
   },
   headerCenter: {
     alignItems: "center",
@@ -446,6 +503,12 @@ const styles = StyleSheet.create({
   viewModeButtonActive: {
     backgroundColor: "rgba(99, 102, 241, 0.15)",
   },
+  scrollView: {
+    flex: 1,
+  },
+  gridScrollContent: {
+    flexGrow: 1,
+  },
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -457,6 +520,7 @@ const styles = StyleSheet.create({
   gridFooter: {
     marginTop: Spacing.xl,
     alignItems: "center",
+    paddingBottom: Spacing.xl,
   },
   footerText: {
     textAlign: "center",
@@ -464,26 +528,15 @@ const styles = StyleSheet.create({
   carouselContainer: {
     flex: 1,
   },
-  carouselHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.xl,
-    paddingBottom: Spacing.md,
-  },
   carouselContent: {
     paddingVertical: Spacing.lg,
   },
   carouselItem: {
-    height: 240,
+    height: 200,
   },
   carouselFooter: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
     alignItems: "center",
+    paddingBottom: Spacing.lg,
   },
   modalContainer: {
     flex: 1,

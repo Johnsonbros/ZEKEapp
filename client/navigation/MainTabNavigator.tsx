@@ -10,7 +10,7 @@ import CommunicationStackNavigator from "@/navigation/CommunicationStackNavigato
 import CalendarStackNavigator from "@/navigation/CalendarStackNavigator";
 import GeoStackNavigator from "@/navigation/GeoStackNavigator";
 import TasksStackNavigator from "@/navigation/TasksStackNavigator";
-import { ZekeServicesHub } from "@/components/ZekeServicesHub";
+import { ServicesShade } from "@/components/ServicesShade";
 import { AppCardData } from "@/components/AppCard";
 import { Gradients } from "@/constants/theme";
 import type { HomeStackParamList } from "@/navigation/HomeStackNavigator";
@@ -182,7 +182,7 @@ function ZekeServicesHubWrapper({ navigation }: ZekeServicesHubWrapperProps) {
   };
 
   return (
-    <ZekeServicesHub
+    <ServicesShade
       apps={apps}
       zekeCurrentAction={currentAction}
       zekeIsActive={zekeIsActive}
