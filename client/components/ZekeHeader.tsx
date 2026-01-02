@@ -20,7 +20,7 @@ export function ZekeHeaderTitle() {
   });
 
   // Also poll pendant status for activity
-  const { data: pendantStatus } = useQuery({
+  const { data: pendantStatus } = useQuery<any>({
     queryKey: ["/api/pendant/status"],
     refetchInterval: 3000,
     retry: 1,
