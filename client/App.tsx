@@ -23,6 +23,7 @@ import { PairingScreen } from "@/screens/PairingScreen";
 import { ConnectivityService } from "@/lib/connectivity";
 import { SyncTrigger } from "@/lib/sync-trigger";
 import { ToastProvider } from "@/components/Toast";
+import { useRealtimeUpdates } from "@/hooks/useRealtimeUpdates";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -64,6 +65,8 @@ function AppContent() {
   const navigationRef = useRef<NavigationContainerRef<any>>(null);
   const notificationResponseListener =
     useRef<Notifications.Subscription | null>(null);
+
+  useRealtimeUpdates();
 
   useEffect(() => {
     if (Platform.OS === "web") return;
