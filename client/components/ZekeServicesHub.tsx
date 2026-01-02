@@ -41,6 +41,8 @@ interface ZekeServicesHubProps {
   apps: AppCardData[];
   zekeCurrentAction?: string;
   zekeIsActive?: boolean;
+  isVisible: boolean;
+  onClose: () => void;
   onZekeStatusPress?: () => void;
   onViewModeChange?: (mode: ViewMode) => void;
 }
@@ -62,6 +64,8 @@ export function ZekeServicesHub({
   apps,
   zekeCurrentAction = "Standing by",
   zekeIsActive = false,
+  isVisible,
+  onClose,
   onZekeStatusPress,
   onViewModeChange,
 }: ZekeServicesHubProps) {
@@ -74,6 +78,19 @@ export function ZekeServicesHub({
   const translateX = useSharedValue(0);
   const backdropOpacity = useSharedValue(0);
   const carouselIndex = useSharedValue(0);
+  const hubOpacity = useSharedValue(0);
+  const hubScale = useSharedValue(0.95);
+
+  useEffect(() => {
+    if (isVisible) {
+      hubOpacity.value = withTiming(1, { duration: 250 });
+      hubScale.value = withSpring(1, SPRING_CONFIG);
+    } else {
+      hubOpacity.value = withTiming(0, { duration: 200 });
+      hubScale.value = withTiming(0.95, { duration: 200 });
+      setViewMode("grid"); // Reset to grid when closed
+    }
+  }, [isVisible, hubOpacity, hubScale]);
 
   const handleViewModeSwitch = useCallback((newMode: ViewMode) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -162,8 +179,33 @@ export function ZekeServicesHub({
   const horizontalPadding = Spacing.lg;
   const cardWidth = (SCREEN_WIDTH - horizontalPadding * 2 - cardSpacing * (numColumns - 1)) / numColumns;
 
+  const hubAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: hubOpacity.value,
+    transform: [{ scale: hubScale.value }],
+  }));
+
+  if (!isVisible) return null;
+
   return (
-    <View style={styles.container}>
+    <Modal
+      visible={isVisible}
+      transparent
+      animationType="none"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      <Animated.View style={[styles.modalContainer, hubAnimatedStyle]}>
+        {Platform.OS === "ios" ? (
+          <BlurView
+            intensity={isDark ? 80 : 60}
+            tint={isDark ? "dark" : "light"}
+            style={StyleSheet.absoluteFill}
+          />
+        ) : (
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.backgroundRoot }]} />
+        )}
+
+        <View style={[styles.container, { backgroundColor: "transparent" }]}>
       {viewMode === "grid" ? (
         <GestureDetector gesture={panGesture}>
           <Animated.View style={[styles.gridContainer, containerAnimatedStyle]}>
@@ -194,15 +236,27 @@ export function ZekeServicesHub({
                   </View>
                 </View>
 
-                <Pressable
-                  onPress={() => handleViewModeSwitch("carousel")}
-                  style={styles.viewModeButton}
-                  accessible
-                  accessibilityRole="button"
-                  accessibilityLabel="Switch to carousel view"
-                >
-                  <Feather name="layers" size={20} color={theme.textSecondary} />
-                </Pressable>
+                <View style={styles.headerActions}>
+                  <Pressable
+                    onPress={() => handleViewModeSwitch("carousel")}
+                    style={styles.viewModeButton}
+                    accessible
+                    accessibilityRole="button"
+                    accessibilityLabel="Switch to carousel view"
+                  >
+                    <Feather name="layers" size={20} color={theme.textSecondary} />
+                  </Pressable>
+
+                  <Pressable
+                    onPress={onClose}
+                    style={styles.closeButton}
+                    accessible
+                    accessibilityRole="button"
+                    accessibilityLabel="Close ZEKE Apps"
+                  >
+                    <Feather name="x" size={24} color={theme.text} />
+                  </Pressable>
+                </View>
               </View>
 
               <View style={styles.grid}>
@@ -299,72 +353,77 @@ export function ZekeServicesHub({
         </View>
       )}
 
-      <ZekeStatusBar
-        currentAction={zekeCurrentAction}
-        isActive={zekeIsActive}
-        onPress={onZekeStatusPress}
-      />
+        <ZekeStatusBar
+          currentAction={zekeCurrentAction}
+          isActive={zekeIsActive}
+          onPress={onZekeStatusPress}
+        />
 
-      <Modal
-        visible={showQuickActions}
-        transparent
-        animationType="none"
-        onRequestClose={closeQuickActions}
-      >
-        <View style={styles.modalContainer}>
-          <Animated.View
-            style={[
-              styles.modalBackdrop,
-              backdropAnimatedStyle,
-            ]}
-          >
-            {Platform.OS === "ios" ? (
-              <BlurView
-                intensity={isDark ? 40 : 30}
-                tint={isDark ? "dark" : "light"}
-                style={StyleSheet.absoluteFill}
-              />
-            ) : (
-              <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0, 0, 0, 0.7)" }]} />
-            )}
-            <Pressable style={StyleSheet.absoluteFill} onPress={closeQuickActions} />
-          </Animated.View>
+        <Modal
+          visible={showQuickActions}
+          transparent
+          animationType="none"
+          onRequestClose={closeQuickActions}
+        >
+          <View style={styles.quickActionsModalContainer}>
+            <Animated.View
+              style={[
+                styles.modalBackdrop,
+                backdropAnimatedStyle,
+              ]}
+            >
+              {Platform.OS === "ios" ? (
+                <BlurView
+                  intensity={isDark ? 40 : 30}
+                  tint={isDark ? "dark" : "light"}
+                  style={StyleSheet.absoluteFill}
+                />
+              ) : (
+                <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0, 0, 0, 0.7)" }]} />
+              )}
+              <Pressable style={StyleSheet.absoluteFill} onPress={closeQuickActions} />
+            </Animated.View>
 
-          <View style={[styles.quickActionsContainer, { bottom: insets.bottom + 140 }]}>
-            <View style={[styles.quickActionsHeader, { backgroundColor: theme.backgroundDefault }]}>
-              <Feather name={selectedApp?.icon || "box"} size={20} color="#6366F1" />
-              <ThemedText type="body" style={[styles.quickActionsTitle, { color: theme.text }]}>
-                {selectedApp?.title}
-              </ThemedText>
-            </View>
-
-            {quickActions.map((action) => (
-              <Pressable
-                key={action.id}
-                onPress={action.onPress}
-                style={({ pressed }) => [
-                  styles.quickActionItem,
-                  { backgroundColor: theme.backgroundDefault },
-                  pressed && styles.quickActionItemPressed,
-                ]}
-              >
-                <View style={styles.quickActionIcon}>
-                  <Feather name={action.icon} size={18} color="#6366F1" />
-                </View>
-                <ThemedText type="small" style={[styles.quickActionLabel, { color: theme.text }]}>
-                  {action.label}
+            <View style={[styles.quickActionsContainer, { bottom: insets.bottom + 140 }]}>
+              <View style={[styles.quickActionsHeader, { backgroundColor: theme.backgroundDefault }]}>
+                <Feather name={selectedApp?.icon || "box"} size={20} color="#6366F1" />
+                <ThemedText type="body" style={[styles.quickActionsTitle, { color: theme.text }]}>
+                  {selectedApp?.title}
                 </ThemedText>
-                <Feather name="chevron-right" size={16} color={theme.textSecondary} />
-              </Pressable>
-            ))}
+              </View>
+
+              {quickActions.map((action) => (
+                <Pressable
+                  key={action.id}
+                  onPress={action.onPress}
+                  style={({ pressed }) => [
+                    styles.quickActionItem,
+                    { backgroundColor: theme.backgroundDefault },
+                    pressed && styles.quickActionItemPressed,
+                  ]}
+                >
+                  <View style={styles.quickActionIcon}>
+                    <Feather name={action.icon} size={18} color="#6366F1" />
+                  </View>
+                  <ThemedText type="small" style={[styles.quickActionLabel, { color: theme.text }]}>
+                    {action.label}
+                  </ThemedText>
+                  <Feather name="chevron-right" size={16} color={theme.textSecondary} />
+                </Pressable>
+              ))}
+            </View>
           </View>
+        </Modal>
         </View>
-      </Modal>
-    </View>
+      </Animated.View>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  modalContainer: {
+    flex: 1,
+  },
   container: {
     flex: 1,
   },
@@ -402,11 +461,24 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     marginTop: 2,
   },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
   viewModeButton: {
     width: 40,
     height: 40,
     borderRadius: BorderRadius.md,
     backgroundColor: "rgba(255, 255, 255, 0.05)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  closeButton: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.md,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -464,7 +536,7 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: "center",
   },
-  modalContainer: {
+  quickActionsModalContainer: {
     flex: 1,
     justifyContent: "flex-end",
   },
