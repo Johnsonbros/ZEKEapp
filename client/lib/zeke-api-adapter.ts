@@ -7,6 +7,10 @@ import type {
   CustomListItem,
   CustomListWithItems,
   Contact,
+  Device,
+  Memory,
+  ChatSession,
+  ChatMessage,
 } from "./zeke-types";
 
 export type {
@@ -29,45 +33,30 @@ export {
   customListItemPriorities,
 } from "./zeke-types";
 
-export interface ZekeConversation {
-  id: string;
-  title?: string;
-  createdAt: string;
-  updatedAt: string;
-}
+export type ZekeConversation = ChatSession & {
+  createdAt: string | Date;
+  updatedAt: string | Date;
+};
 
-export interface ZekeMessage {
-  id: string;
+export type ZekeMessage = ChatMessage & {
   conversationId: string;
-  role: "user" | "assistant";
-  content: string;
-  createdAt: string;
-}
+  createdAt: string | Date;
+};
 
-export interface ZekeMemory {
-  id: string;
-  title: string;
-  summary?: string;
-  transcript: string;
-  speakers?: any;
-  actionItems?: string[];
-  duration: number;
-  isStarred: boolean;
-  createdAt: string;
-  updatedAt: string;
-  deviceId?: string;
-}
+export type ZekeMemory =
+  | (Omit<Memory, "createdAt" | "updatedAt"> & {
+      createdAt: string | Date;
+      updatedAt: string | Date;
+    })
+  | Memory;
 
-export interface ZekeDevice {
-  id: string;
-  name: string;
-  type: string;
-  macAddress?: string;
-  batteryLevel?: number;
-  isConnected: boolean;
-  lastSyncAt?: string;
-  createdAt: string;
-}
+export type ZekeDevice =
+  | (Omit<Device, "createdAt" | "lastSyncAt" | "lastHeartbeat"> & {
+      createdAt?: string | Date;
+      lastSyncAt?: string | Date | null;
+      lastHeartbeat?: string | Date | null;
+    })
+  | Device;
 
 export interface ZekeEvent {
   id: string;
@@ -171,10 +160,14 @@ export async function getConversationMessages(
 
   try {
     // Retry, timeout, and 404 fallback now handled centrally by ZekeApiClient
-    return await apiClient.get<ZekeMessage[]>(
+    const messages = await apiClient.get<ChatMessage[]>(
       `/api/conversations/${conversationId}/messages`,
       { emptyArrayOn404: true },
     );
+    return messages.map((message) => ({
+      ...message,
+      conversationId: message.sessionId || conversationId,
+    }));
   } catch (error) {
     console.error("[ZEKE Chat] Failed to fetch messages:", error);
     return [];
@@ -194,14 +187,25 @@ export async function sendMessage(
   }
 
   // Retry, timeout, and auth now handled centrally by ZekeApiClient
-  return await apiClient.post<{
-    userMessage: ZekeMessage;
-    assistantMessage: ZekeMessage;
+  const response = await apiClient.post<{
+    userMessage: ChatMessage;
+    assistantMessage: ChatMessage;
   }>(
     `/api/conversations/${conversationId}/messages`,
     { content },
     { timeoutMs: 30000 },
   );
+
+  return {
+    userMessage: {
+      ...response.userMessage,
+      conversationId,
+    },
+    assistantMessage: {
+      ...response.assistantMessage,
+      conversationId,
+    },
+  };
 }
 
 export async function chatWithZeke(
