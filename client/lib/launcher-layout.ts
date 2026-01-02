@@ -43,11 +43,13 @@ export function calculateDiamondPositions(
   config: LayoutConfig = DEFAULT_LAYOUT_CONFIG
 ): RingPosition[] {
   const positions: RingPosition[] = [];
+  const iconFootprint = config.iconContainerSize + config.minIconSpacing;
   
   if (itemCount === 0) return positions;
   
   if (itemCount <= 4) {
-    const radius = config.baseRadius;
+    const minRadius = (iconFootprint * itemCount) / (2 * Math.PI);
+    const radius = Math.max(config.baseRadius * 0.85, minRadius + 10);
     for (let i = 0; i < itemCount; i++) {
       const angle = -Math.PI / 2 + (i * 2 * Math.PI) / Math.max(itemCount, 1);
       positions.push({
@@ -64,8 +66,12 @@ export function calculateDiamondPositions(
   if (itemCount <= 8) {
     const innerCount = Math.min(4, itemCount);
     const outerCount = itemCount - innerCount;
-    const innerRadius = config.baseRadius * 0.6;
-    const outerRadius = config.baseRadius;
+    
+    const innerMinRadius = (iconFootprint * innerCount) / (2 * Math.PI);
+    const outerMinRadius = (iconFootprint * outerCount) / (2 * Math.PI);
+    
+    const innerRadius = Math.max(config.baseRadius * 0.55, innerMinRadius + 8);
+    const outerRadius = Math.max(config.baseRadius, outerMinRadius + 8, innerRadius + iconFootprint);
     
     for (let i = 0; i < innerCount; i++) {
       const angle = -Math.PI / 2 + (i * 2 * Math.PI) / innerCount;
@@ -96,9 +102,13 @@ export function calculateDiamondPositions(
   const middleCount = Math.min(6, itemCount - innerCount);
   const outerCount = itemCount - innerCount - middleCount;
   
-  const innerRadius = config.baseRadius * 0.45;
-  const middleRadius = config.baseRadius * 0.75;
-  const outerRadius = config.baseRadius;
+  const innerMinRadius = (iconFootprint * innerCount) / (2 * Math.PI);
+  const middleMinRadius = (iconFootprint * middleCount) / (2 * Math.PI);
+  const outerMinRadius = outerCount > 0 ? (iconFootprint * outerCount) / (2 * Math.PI) : 0;
+  
+  const innerRadius = Math.max(config.baseRadius * 0.4, innerMinRadius + 8);
+  const middleRadius = Math.max(config.baseRadius * 0.7, middleMinRadius + 8, innerRadius + iconFootprint);
+  const outerRadius = Math.max(config.baseRadius, outerMinRadius + 8, middleRadius + iconFootprint);
   
   for (let i = 0; i < innerCount; i++) {
     const angle = -Math.PI / 2 + (i * 2 * Math.PI) / innerCount;
@@ -175,11 +185,11 @@ export interface LayoutConfig {
 }
 
 export const DEFAULT_LAYOUT_CONFIG: LayoutConfig = {
-  iconSize: 64,
-  iconContainerSize: 80,
-  baseRadius: 110,
-  ringSpacing: 95,
-  minIconSpacing: 20,
+  iconSize: 78,
+  iconContainerSize: 98,
+  baseRadius: 130,
+  ringSpacing: 110,
+  minIconSpacing: 24,
 };
 
 export function calculateSpiralPositions(

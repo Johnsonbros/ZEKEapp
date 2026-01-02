@@ -346,6 +346,28 @@ function LauncherIcon({
   const scaleAnim = useSharedValue(1);
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
+  
+  const animatedBaseX = useSharedValue(position.x);
+  const animatedBaseY = useSharedValue(position.y);
+  const dragStartX = useSharedValue(position.x);
+  const dragStartY = useSharedValue(position.y);
+  const hoverScale = useSharedValue(1);
+
+  useEffect(() => {
+    if (!isBeingDragged) {
+      const bubbleConfig = { damping: 16, stiffness: 140, mass: 0.5 };
+      animatedBaseX.value = withSpring(position.x, bubbleConfig);
+      animatedBaseY.value = withSpring(position.y, bubbleConfig);
+    }
+  }, [position.x, position.y, isBeingDragged, animatedBaseX, animatedBaseY]);
+
+  useEffect(() => {
+    if (isDragging && !isBeingDragged) {
+      hoverScale.value = withSpring(0.94, { damping: 18, stiffness: 200 });
+    } else if (!isBeingDragged) {
+      hoverScale.value = withSpring(1, { damping: 16, stiffness: 160 });
+    }
+  }, [isDragging, isBeingDragged, hoverScale]);
 
   useEffect(() => {
     if (isEditMode && !isBeingDragged) {
@@ -365,15 +387,15 @@ function LauncherIcon({
     }
   }, [isEditMode, isBeingDragged, wiggleAnim]);
 
-  const baseX = position.x;
-  const baseY = position.y;
-
   const iconAnimatedStyle = useAnimatedStyle(() => {
     const staggerDelay = index * 0.06;
     const adjustedProgress = Math.max(
       0,
       Math.min(1, (animationProgress.value - staggerDelay) / (1 - staggerDelay)),
     );
+
+    const baseX = animatedBaseX.value;
+    const baseY = animatedBaseY.value;
 
     const liquidOvershoot = 1.12;
     const liquidBounce = 0.96;
@@ -414,13 +436,13 @@ function LauncherIcon({
     );
 
     const wiggle = isEditMode ? wiggleAnim.value : 0;
-    const dragScale = isBeingDragged ? 1.15 : (isDragging ? 0.95 : 1);
+    const dragScale = isBeingDragged ? scaleAnim.value : (isDragging ? hoverScale.value : 1);
 
     const finalX = isBeingDragged 
-      ? baseX + translateX.value 
+      ? dragStartX.value + translateX.value 
       : currentX;
     const finalY = isBeingDragged 
-      ? baseY + translateY.value 
+      ? dragStartY.value + translateY.value 
       : currentY;
 
     return {
@@ -428,7 +450,7 @@ function LauncherIcon({
       transform: [
         { translateX: finalX },
         { translateY: finalY },
-        { scale: scale * scaleAnim.value * dragScale },
+        { scale: scale * dragScale },
         { rotate: `${wiggle + liquidRotate}deg` },
       ],
       zIndex: isBeingDragged ? 100 : 1,
@@ -459,23 +481,28 @@ function LauncherIcon({
       }
     });
 
+  const bubbleSpringConfig = { damping: 18, stiffness: 180, mass: 0.6 };
+  const snapBackSpringConfig = { damping: 16, stiffness: 160, mass: 0.5 };
+
   const panGesture = Gesture.Pan()
     .enabled(isEditMode)
     .onStart(() => {
+      dragStartX.value = animatedBaseX.value;
+      dragStartY.value = animatedBaseY.value;
       runOnJS(onDragStart)(index);
-      scaleAnim.value = withSpring(1.15, { damping: 15, stiffness: 200 });
+      scaleAnim.value = withSpring(1.18, bubbleSpringConfig);
     })
     .onUpdate((event) => {
       translateX.value = event.translationX;
       translateY.value = event.translationY;
-      const currentDragX = baseX + event.translationX;
-      const currentDragY = baseY + event.translationY;
+      const currentDragX = dragStartX.value + event.translationX;
+      const currentDragY = dragStartY.value + event.translationY;
       runOnJS(onDragUpdate)(index, currentDragX, currentDragY);
     })
     .onEnd(() => {
-      scaleAnim.value = withSpring(1, { damping: 15, stiffness: 200 });
-      translateX.value = withSpring(0);
-      translateY.value = withSpring(0);
+      scaleAnim.value = withSpring(1, snapBackSpringConfig);
+      translateX.value = withSpring(0, snapBackSpringConfig);
+      translateY.value = withSpring(0, snapBackSpringConfig);
       runOnJS(onDragEnd)(index);
     });
 
