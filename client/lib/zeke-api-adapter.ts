@@ -8,6 +8,7 @@ import type {
   CustomListWithItems,
   Contact,
 } from "./zeke-types";
+import { getDashboardSummaryWithGenerated } from "./zeke-backend-client";
 
 export type {
   Task,
@@ -561,10 +562,8 @@ export async function getRecentMemories(limit: number = 5): Promise<ZekeMemory[]
 
 export async function getDashboardSummary(): Promise<DashboardSummary> {
   try {
-    // Route through local proxy to avoid CORS/network issues on mobile
-    return await apiClient.get<DashboardSummary>("/api/zeke/dashboard", {
-      timeoutMs: 5000,
-    });
+    // Prefer generated OpenAPI client to stay in sync with backend schema
+    return await getDashboardSummaryWithGenerated();
   } catch {}
 
   const [events, tasks, grocery] = await Promise.all([
