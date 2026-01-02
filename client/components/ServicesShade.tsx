@@ -37,10 +37,15 @@ type ViewMode = "grid" | "carousel";
 type ShadePosition = "collapsed" | "half" | "full";
 
 const SPRING_CONFIG = {
-  damping: 22,
-  stiffness: 180,
+  damping: 26,
+  stiffness: 160,
   mass: 0.8,
+  overshootClamping: true,
 };
+
+const CAROUSEL_CARD_HEIGHT = 240;
+const HEADER_HEIGHT = 60;
+const HANDLE_HEIGHT = 24;
 
 interface ServicesShadeProps {
   apps: AppCardData[];
@@ -70,11 +75,26 @@ export function ServicesShade({
   const [showQuickActions, setShowQuickActions] = useState(false);
   const [selectedApp, setSelectedApp] = useState<AppCardData | null>(null);
 
-  const getShadePositions = useCallback(() => ({
-    collapsed: screenHeight * 0.12,
-    half: screenHeight * 0.5,
-    full: screenHeight * 0.85,
-  }), [screenHeight]);
+  const getShadePositions = useCallback(() => {
+    const bottomSafeArea = insets.bottom;
+    const topSafeArea = insets.top;
+    
+    const collapsedHeight = HANDLE_HEIGHT + Spacing.lg + bottomSafeArea;
+    
+    const carouselOptimalHeight = CAROUSEL_CARD_HEIGHT + HEADER_HEIGHT + HANDLE_HEIGHT + Spacing.xl * 2 + bottomSafeArea;
+    
+    const halfHeight = viewMode === "carousel" 
+      ? carouselOptimalHeight
+      : screenHeight * 0.5;
+    
+    const fullHeight = screenHeight - topSafeArea - Spacing.lg;
+    
+    return {
+      collapsed: collapsedHeight,
+      half: halfHeight,
+      full: fullHeight,
+    };
+  }, [screenHeight, insets.bottom, insets.top, viewMode]);
 
   const positions = getShadePositions();
   const shadeHeight = useSharedValue(positions.half);
@@ -85,6 +105,13 @@ export function ServicesShade({
     const newPositions = getShadePositions();
     shadeHeight.value = withSpring(newPositions[shadePosition], SPRING_CONFIG);
   }, [screenHeight, shadePosition, getShadePositions, shadeHeight]);
+
+  useEffect(() => {
+    const newPositions = getShadePositions();
+    if (shadePosition === "half") {
+      shadeHeight.value = withSpring(newPositions.half, SPRING_CONFIG);
+    }
+  }, [viewMode, getShadePositions, shadeHeight, shadePosition]);
 
   const updateShadePosition = useCallback((position: ShadePosition) => {
     setShadePosition(position);
