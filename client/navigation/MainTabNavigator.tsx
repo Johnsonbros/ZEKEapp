@@ -10,7 +10,7 @@ import CommunicationStackNavigator from "@/navigation/CommunicationStackNavigato
 import CalendarStackNavigator from "@/navigation/CalendarStackNavigator";
 import GeoStackNavigator from "@/navigation/GeoStackNavigator";
 import TasksStackNavigator from "@/navigation/TasksStackNavigator";
-import { ZekeLauncher, LauncherItem } from "@/components/ZekeLauncher";
+import { ZekeCube, CubeAction } from "@/components/ZekeCube";
 import { Gradients } from "@/constants/theme";
 import type { HomeStackParamList } from "@/navigation/HomeStackNavigator";
 
@@ -24,13 +24,12 @@ export type MainTabParamList = {
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
-interface ZekeLauncherWrapperProps {
+interface ZekeCubeWrapperProps {
   navigation: any;
 }
 
-function ZekeLauncherWrapper({ navigation }: ZekeLauncherWrapperProps) {
-
-  const launcherItems: LauncherItem[] = [
+function ZekeCubeWrapper({ navigation }: ZekeCubeWrapperProps) {
+  const cubeActions: CubeAction[] = [
     {
       id: "home",
       icon: "home",
@@ -113,7 +112,11 @@ function ZekeLauncherWrapper({ navigation }: ZekeLauncherWrapperProps) {
     },
   ];
 
-  return <ZekeLauncher items={launcherItems} />;
+  const handleZekePress = () => {
+    navigation.navigate("HomeTab", { screen: "Chat" });
+  };
+
+  return <ZekeCube actions={cubeActions} onZekePress={handleZekePress} />;
 }
 
 export default function MainTabNavigator() {
@@ -121,7 +124,7 @@ export default function MainTabNavigator() {
     <View style={styles.container}>
       <Tab.Navigator
         initialRouteName="HomeTab"
-        tabBar={({ navigation }) => <ZekeLauncherWrapper navigation={navigation} />}
+        tabBar={({ navigation }) => <ZekeCubeWrapper navigation={navigation} />}
         screenOptions={{
           headerShown: false,
         }}
