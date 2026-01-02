@@ -36,15 +36,13 @@ import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Colors } from "@/constants/theme";
 import {
   AnchorPosition,
-  calculateCenteredIconPositions,
-  getMenuSize,
+  calculateDiamondPositions,
   getClampedMenuSize,
   getCenteredMenuPositionStyle,
   getIconAnchorStyle,
   getSnapPoints,
   findClosestSnapPoint,
   RingPosition,
-  calculateRingDistribution,
 } from "@/lib/launcher-layout";
 import { LauncherSkin, DEFAULT_SKIN, getSkin } from "@/lib/launcher-skins";
 
@@ -56,8 +54,6 @@ const ALLOWED_ANCHORS: AnchorPosition[] = [
   "bottom-left",
   "bottom-center",
   "bottom-right",
-  "mid-left",
-  "mid-right",
 ];
 
 export interface LauncherItem {
@@ -194,41 +190,23 @@ function TriggerButton({
       );
 
       const halfSize = skin.trigger.size / 2;
-      const midline = SCREEN_WIDTH / 2;
       const minX = insets.left + skin.layout.padding + halfSize;
       const maxX = SCREEN_WIDTH - insets.right - skin.layout.padding - halfSize;
-      const maxY = SCREEN_HEIGHT - insets.bottom - skin.layout.padding - halfSize;
-      const midY = Math.max(
-        insets.top + skin.layout.padding + halfSize,
-        Math.min(maxY, SCREEN_HEIGHT / 2),
-      );
+      const bottomY = SCREEN_HEIGHT - insets.bottom - skin.layout.padding - halfSize;
 
       let desiredX = dragStartX.value + event.translationX;
-      let desiredY = dragStartY.value + event.translationY;
-
-      const candidate = findClosestSnapPoint(desiredX, desiredY, snapPoints);
-
-      if (candidate.anchor === "mid-left" || candidate.anchor === "bottom-left") {
-        desiredX = Math.min(desiredX, midline - skin.layout.padding);
-      } else if (candidate.anchor === "mid-right" || candidate.anchor === "bottom-right") {
-        desiredX = Math.max(desiredX, midline + skin.layout.padding);
-      } else {
-        desiredX = midline;
-      }
-
       desiredX = Math.min(Math.max(desiredX, minX), maxX);
-      desiredY = Math.min(Math.max(desiredY, midY), maxY);
 
-      const distance = Math.hypot(desiredX - candidate.x, desiredY - candidate.y);
-      const magneticRadius = skin.trigger.size * 0.9;
+      const candidate = findClosestSnapPoint(desiredX, bottomY, snapPoints);
+      const distance = Math.abs(desiredX - candidate.x);
+      const magneticRadius = skin.trigger.size * 1.2;
 
       if (distance <= magneticRadius) {
         desiredX = candidate.x;
-        desiredY = candidate.y;
       }
 
       handleX.value = desiredX;
-      handleY.value = desiredY;
+      handleY.value = bottomY;
     })
     .onEnd(() => {
       const snapPoints = getSnapPoints(
@@ -777,13 +755,22 @@ export function ZekeLauncher({ items, skinId = "default" }: ZekeLauncherProps) {
 
   const positions = useMemo(() => {
     const displayItems = previewOrder.length > 0 ? previewOrder : orderedItems;
-    return calculateCenteredIconPositions(displayItems.length, menuScale, {
+    const config = {
       iconSize: skin.icon.size,
       iconContainerSize: skin.icon.containerSize,
       baseRadius: skin.layout.baseRadius,
       ringSpacing: skin.layout.ringSpacing,
       minIconSpacing: 12,
-    });
+    };
+    const rawPositions = calculateDiamondPositions(displayItems.length, config);
+    if (menuScale >= 1) {
+      return rawPositions;
+    }
+    return rawPositions.map(pos => ({
+      ...pos,
+      x: pos.x * menuScale,
+      y: pos.y * menuScale,
+    }));
   }, [orderedItems, previewOrder, skin, menuScale]);
 
   const findClosestPosition = useCallback((x: number, y: number): number => {

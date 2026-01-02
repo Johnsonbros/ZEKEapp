@@ -1,9 +1,7 @@
 export type AnchorPosition =
   | "bottom-right"
   | "bottom-left"
-  | "bottom-center"
-  | "mid-left"
-  | "mid-right";
+  | "bottom-center";
 
 export interface SnapPoint {
   anchor: AnchorPosition;
@@ -20,14 +18,6 @@ export function getSnapPoints(
 ): SnapPoint[] {
   const halfTrigger = triggerSize / 2;
   const bottomY = screenHeight - insets.bottom - padding - halfTrigger;
-  const centerY = insets.top + Math.max(
-    (screenHeight - insets.top - insets.bottom) / 2,
-    halfTrigger + padding
-  );
-  const clampedCenterY = Math.min(
-    screenHeight - insets.bottom - padding - halfTrigger,
-    Math.max(insets.top + padding + halfTrigger, centerY)
-  );
 
   return [
     {
@@ -45,17 +35,108 @@ export function getSnapPoints(
       x: screenWidth / 2,
       y: bottomY,
     },
-    {
-      anchor: "mid-left",
-      x: padding + halfTrigger,
-      y: clampedCenterY,
-    },
-    {
-      anchor: "mid-right",
-      x: screenWidth - padding - halfTrigger,
-      y: clampedCenterY,
-    },
   ];
+}
+
+export function calculateDiamondPositions(
+  itemCount: number,
+  config: LayoutConfig = DEFAULT_LAYOUT_CONFIG
+): RingPosition[] {
+  const positions: RingPosition[] = [];
+  
+  if (itemCount === 0) return positions;
+  
+  if (itemCount <= 4) {
+    const radius = config.baseRadius;
+    for (let i = 0; i < itemCount; i++) {
+      const angle = -Math.PI / 2 + (i * 2 * Math.PI) / Math.max(itemCount, 1);
+      positions.push({
+        x: Math.cos(angle) * radius,
+        y: Math.sin(angle) * radius,
+        angle,
+        ring: 0,
+        indexInRing: i,
+      });
+    }
+    return positions;
+  }
+  
+  if (itemCount <= 8) {
+    const innerCount = Math.min(4, itemCount);
+    const outerCount = itemCount - innerCount;
+    const innerRadius = config.baseRadius * 0.6;
+    const outerRadius = config.baseRadius;
+    
+    for (let i = 0; i < innerCount; i++) {
+      const angle = -Math.PI / 2 + (i * 2 * Math.PI) / innerCount;
+      positions.push({
+        x: Math.cos(angle) * innerRadius,
+        y: Math.sin(angle) * innerRadius,
+        angle,
+        ring: 0,
+        indexInRing: i,
+      });
+    }
+    
+    for (let i = 0; i < outerCount; i++) {
+      const offsetAngle = Math.PI / outerCount;
+      const angle = -Math.PI / 2 + offsetAngle + (i * 2 * Math.PI) / outerCount;
+      positions.push({
+        x: Math.cos(angle) * outerRadius,
+        y: Math.sin(angle) * outerRadius,
+        angle,
+        ring: 1,
+        indexInRing: i,
+      });
+    }
+    return positions;
+  }
+  
+  const innerCount = 4;
+  const middleCount = Math.min(6, itemCount - innerCount);
+  const outerCount = itemCount - innerCount - middleCount;
+  
+  const innerRadius = config.baseRadius * 0.45;
+  const middleRadius = config.baseRadius * 0.75;
+  const outerRadius = config.baseRadius;
+  
+  for (let i = 0; i < innerCount; i++) {
+    const angle = -Math.PI / 2 + (i * 2 * Math.PI) / innerCount;
+    positions.push({
+      x: Math.cos(angle) * innerRadius,
+      y: Math.sin(angle) * innerRadius,
+      angle,
+      ring: 0,
+      indexInRing: i,
+    });
+  }
+  
+  for (let i = 0; i < middleCount; i++) {
+    const offsetAngle = Math.PI / middleCount;
+    const angle = -Math.PI / 2 + offsetAngle + (i * 2 * Math.PI) / middleCount;
+    positions.push({
+      x: Math.cos(angle) * middleRadius,
+      y: Math.sin(angle) * middleRadius,
+      angle,
+      ring: 1,
+      indexInRing: i,
+    });
+  }
+  
+  if (outerCount > 0) {
+    for (let i = 0; i < outerCount; i++) {
+      const angle = -Math.PI / 2 + (i * 2 * Math.PI) / outerCount;
+      positions.push({
+        x: Math.cos(angle) * outerRadius,
+        y: Math.sin(angle) * outerRadius,
+        angle,
+        ring: 2,
+        indexInRing: i,
+      });
+    }
+  }
+  
+  return positions;
 }
 
 export function findClosestSnapPoint(
@@ -147,16 +228,6 @@ export function calculateSpiralPositions(
           x = -Math.abs(Math.cos(finalAngle) * radius);
           y = -Math.abs(Math.sin(finalAngle) * radius);
           break;
-        case "mid-left":
-          finalAngle = Math.PI + localAngle;
-          x = Math.abs(Math.cos(finalAngle) * radius);
-          y = Math.sin(finalAngle) * radius;
-          break;
-        case "mid-right":
-          finalAngle = Math.PI + localAngle;
-          x = -Math.abs(Math.cos(finalAngle) * radius);
-          y = Math.sin(finalAngle) * radius;
-          break;
         default:
           finalAngle = Math.PI / 2 + localAngle;
           x = -Math.abs(Math.cos(finalAngle) * radius);
@@ -221,16 +292,6 @@ export function calculateIconPositions(
           angle = (Math.PI / 2) * t;
           x = Math.abs(Math.cos(angle) * ringRadius);
           y = -Math.abs(Math.sin(angle) * ringRadius);
-          break;
-        case "mid-left":
-          angle = Math.PI + (Math.PI / 2) * t;
-          x = Math.abs(Math.cos(angle) * ringRadius);
-          y = Math.sin(angle) * ringRadius;
-          break;
-        case "mid-right":
-          angle = Math.PI + (Math.PI / 2) * t;
-          x = -Math.abs(Math.cos(angle) * ringRadius);
-          y = Math.sin(angle) * ringRadius;
           break;
         default:
           angle = Math.PI - (Math.PI / 2) * t;
@@ -354,8 +415,7 @@ export function getTriggerPositionStyle(
   triggerSize: number,
   insets: { top: number; bottom: number; left: number; right: number },
   padding: number = 16,
-  screenWidth?: number,
-  screenHeight?: number
+  screenWidth?: number
 ): { top?: number; bottom?: number; left?: number; right?: number } {
   const bottomPos = insets.bottom + padding;
 
@@ -369,10 +429,6 @@ export function getTriggerPositionStyle(
         return { bottom: bottomPos, left: (screenWidth - triggerSize) / 2 };
       }
       return { bottom: bottomPos, right: padding };
-    case "mid-left":
-      return { left: padding, top: (screenHeight ?? 0) / 2 - triggerSize / 2 };
-    case "mid-right":
-      return { right: padding, top: (screenHeight ?? 0) / 2 - triggerSize / 2 };
     default:
       return { bottom: bottomPos, right: padding };
   }
@@ -384,8 +440,7 @@ export function getMenuPositionStyle(
   triggerSize: number,
   insets: { top: number; bottom: number; left: number; right: number },
   padding: number = 16,
-  screenWidth?: number,
-  screenHeight?: number
+  screenWidth?: number
 ): { top?: number; bottom?: number; left?: number; right?: number } {
   const triggerHalf = triggerSize / 2;
   const bottomPos = insets.bottom + padding + triggerHalf;
@@ -411,16 +466,6 @@ export function getMenuPositionStyle(
       return {
         bottom: bottomPos,
         right: padding + triggerHalf,
-      };
-    case "mid-left":
-      return {
-        left: padding + triggerHalf,
-        top: (screenHeight ?? 0) / 2,
-      };
-    case "mid-right":
-      return {
-        right: padding + triggerHalf,
-        top: (screenHeight ?? 0) / 2,
       };
     default:
       return {
