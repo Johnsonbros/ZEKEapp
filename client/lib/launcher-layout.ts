@@ -1,7 +1,12 @@
 export type AnchorPosition =
   | "bottom-right"
   | "bottom-left"
-  | "bottom-center";
+  | "bottom-center"
+  | "top-right"
+  | "top-left"
+  | "top-center"
+  | "middle-right"
+  | "middle-left";
 
 export interface SnapPoint {
   anchor: AnchorPosition;
@@ -18,22 +23,57 @@ export function getSnapPoints(
 ): SnapPoint[] {
   const halfTrigger = triggerSize / 2;
   const bottomY = screenHeight - insets.bottom - padding - halfTrigger;
+  const topY = insets.top + padding + halfTrigger;
+
+  const leftX = insets.left + padding + halfTrigger;
+  const rightX = screenWidth - insets.right - padding - halfTrigger;
+
+  const middleX = Math.min(Math.max(screenWidth / 2, leftX), rightX);
+  const middleY = Math.min(
+    Math.max(screenHeight / 2, topY),
+    screenHeight - insets.bottom - padding - halfTrigger,
+  );
 
   return [
     {
       anchor: "bottom-right",
-      x: screenWidth - padding - halfTrigger,
+      x: rightX,
       y: bottomY,
     },
     {
       anchor: "bottom-left",
-      x: padding + halfTrigger,
+      x: leftX,
       y: bottomY,
     },
     {
       anchor: "bottom-center",
-      x: screenWidth / 2,
+      x: middleX,
       y: bottomY,
+    },
+    {
+      anchor: "top-right",
+      x: rightX,
+      y: topY,
+    },
+    {
+      anchor: "top-left",
+      x: leftX,
+      y: topY,
+    },
+    {
+      anchor: "top-center",
+      x: middleX,
+      y: topY,
+    },
+    {
+      anchor: "middle-right",
+      x: rightX,
+      y: middleY,
+    },
+    {
+      anchor: "middle-left",
+      x: leftX,
+      y: middleY,
     },
   ];
 }
@@ -44,9 +84,10 @@ export function calculateDiamondPositions(
 ): RingPosition[] {
   const positions: RingPosition[] = [];
   const iconFootprint = config.iconContainerSize + config.minIconSpacing;
-  
+  const ringSpacing = Math.max(config.ringSpacing, iconFootprint + config.minIconSpacing);
+
   if (itemCount === 0) return positions;
-  
+
   if (itemCount <= 4) {
     const minRadius = (iconFootprint * itemCount) / (2 * Math.PI);
     const radius = Math.max(config.baseRadius * 0.85, minRadius + 10);
@@ -69,9 +110,13 @@ export function calculateDiamondPositions(
     
     const innerMinRadius = (iconFootprint * innerCount) / (2 * Math.PI);
     const outerMinRadius = (iconFootprint * outerCount) / (2 * Math.PI);
-    
-    const innerRadius = Math.max(config.baseRadius * 0.55, innerMinRadius + 8);
-    const outerRadius = Math.max(config.baseRadius, outerMinRadius + 8, innerRadius + iconFootprint);
+
+    const innerRadius = Math.max(config.baseRadius * 0.6, innerMinRadius + config.minIconSpacing);
+    const outerRadius = Math.max(
+      config.baseRadius + config.minIconSpacing,
+      outerMinRadius + config.minIconSpacing,
+      innerRadius + ringSpacing,
+    );
     
     for (let i = 0; i < innerCount; i++) {
       const angle = -Math.PI / 2 + (i * 2 * Math.PI) / innerCount;
@@ -101,15 +146,27 @@ export function calculateDiamondPositions(
   const innerCount = 4;
   const middleCount = Math.min(6, itemCount - innerCount);
   const outerCount = itemCount - innerCount - middleCount;
-  
+
   const innerMinRadius = (iconFootprint * innerCount) / (2 * Math.PI);
   const middleMinRadius = (iconFootprint * middleCount) / (2 * Math.PI);
   const outerMinRadius = outerCount > 0 ? (iconFootprint * outerCount) / (2 * Math.PI) : 0;
-  
-  const innerRadius = Math.max(config.baseRadius * 0.4, innerMinRadius + 8);
-  const middleRadius = Math.max(config.baseRadius * 0.7, middleMinRadius + 8, innerRadius + iconFootprint);
-  const outerRadius = Math.max(config.baseRadius, outerMinRadius + 8, middleRadius + iconFootprint);
-  
+
+  const spacingBoost = config.ringSpacing * 0.15;
+  const innerRadius = Math.max(
+    config.baseRadius * 0.45 + spacingBoost,
+    innerMinRadius + config.minIconSpacing,
+  );
+  const middleRadius = Math.max(
+    config.baseRadius * 0.75 + spacingBoost,
+    middleMinRadius + config.minIconSpacing,
+    innerRadius + ringSpacing,
+  );
+  const outerRadius = Math.max(
+    config.baseRadius + spacingBoost,
+    outerMinRadius + config.minIconSpacing,
+    middleRadius + (ringSpacing + spacingBoost * 0.5),
+  );
+
   for (let i = 0; i < innerCount; i++) {
     const angle = -Math.PI / 2 + (i * 2 * Math.PI) / innerCount;
     positions.push({
@@ -132,10 +189,11 @@ export function calculateDiamondPositions(
       indexInRing: i,
     });
   }
-  
+
   if (outerCount > 0) {
+    const staggerOffset = Math.PI / Math.max(outerCount * 2, 6);
     for (let i = 0; i < outerCount; i++) {
-      const angle = -Math.PI / 2 + (i * 2 * Math.PI) / outerCount;
+      const angle = -Math.PI / 2 + staggerOffset + (i * 2 * Math.PI) / outerCount;
       positions.push({
         x: Math.cos(angle) * outerRadius,
         y: Math.sin(angle) * outerRadius,
