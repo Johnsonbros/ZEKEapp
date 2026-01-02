@@ -1,18 +1,11 @@
 /** @type {import('jest').Config} */
 module.exports = {
-  // Use ts-jest for TypeScript files
+  // Jest configuration for React Native/Expo project
   preset: 'react-native',
 
-  // Transform TypeScript files
+  // Transform JavaScript/TypeScript files using Babel (aligned with Expo)
   transform: {
-    '^.+\\.tsx?$': ['ts-jest', {
-      tsconfig: {
-        jsx: 'react',
-        esModuleInterop: true,
-        allowSyntheticDefaultImports: true,
-      },
-      diagnostics: false,
-    }],
+    '^.+\\.[tj]sx?$': 'babel-jest',
   },
 
   // Module name mapping for path aliases
