@@ -54,7 +54,15 @@ const ALLOWED_ANCHORS: AnchorPosition[] = [
   "bottom-left",
   "bottom-center",
   "bottom-right",
+  "top-left",
+  "top-center",
+  "top-right",
+  "middle-left",
+  "middle-right",
 ];
+
+const DRAG_ACTIVATION_DURATION = 350;
+const DRAG_HINT_DURATION = 2400;
 
 export interface LauncherItem {
   id: string;
@@ -96,12 +104,24 @@ function TriggerButton({
 }: TriggerButtonProps) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const [showDragHint, setShowDragHint] = useState(true);
   const handleX = useSharedValue(0);
   const handleY = useSharedValue(0);
   const dragStartX = useSharedValue(0);
   const dragStartY = useSharedValue(0);
   const dragScale = useSharedValue(1);
   const hasPositioned = useRef(false);
+
+  useEffect(() => {
+    if (!isDraggable) {
+      setShowDragHint(false);
+      return;
+    }
+
+    setShowDragHint(true);
+    const hintTimeout = setTimeout(() => setShowDragHint(false), DRAG_HINT_DURATION);
+    return () => clearTimeout(hintTimeout);
+  }, [isDraggable, anchor]);
 
   const updateHandlePosition = useCallback(
     (targetAnchor: AnchorPosition, animated: boolean = true) => {
@@ -164,18 +184,19 @@ function TriggerButton({
   });
 
   const longPressGesture = Gesture.LongPress()
-    .minDuration(600)
+    .minDuration(DRAG_ACTIVATION_DURATION)
     .onStart(() => {
       if (isDraggable) {
         dragScale.value = withSpring(1.15);
         runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Heavy);
         runOnJS(onLongPress)();
+        runOnJS(setShowDragHint)(false);
       }
     });
 
   const panGesture = Gesture.Pan()
     .enabled(isDraggable && !isOpen)
-    .activateAfterLongPress(600)
+    .activateAfterLongPress(DRAG_ACTIVATION_DURATION)
     .onStart(() => {
       dragStartX.value = handleX.value;
       dragStartY.value = handleY.value;
@@ -192,21 +213,25 @@ function TriggerButton({
       const halfSize = skin.trigger.size / 2;
       const minX = insets.left + skin.layout.padding + halfSize;
       const maxX = SCREEN_WIDTH - insets.right - skin.layout.padding - halfSize;
-      const bottomY = SCREEN_HEIGHT - insets.bottom - skin.layout.padding - halfSize;
+      const minY = insets.top + skin.layout.padding + halfSize;
+      const maxY = SCREEN_HEIGHT - insets.bottom - skin.layout.padding - halfSize;
 
       let desiredX = dragStartX.value + event.translationX;
+      let desiredY = dragStartY.value + event.translationY;
       desiredX = Math.min(Math.max(desiredX, minX), maxX);
+      desiredY = Math.min(Math.max(desiredY, minY), maxY);
 
-      const candidate = findClosestSnapPoint(desiredX, bottomY, snapPoints);
-      const distance = Math.abs(desiredX - candidate.x);
-      const magneticRadius = skin.trigger.size * 1.2;
+      const candidate = findClosestSnapPoint(desiredX, desiredY, snapPoints);
+      const distance = Math.hypot(desiredX - candidate.x, desiredY - candidate.y);
+      const magneticRadius = skin.trigger.size * 1.4;
 
       if (distance <= magneticRadius) {
         desiredX = candidate.x;
+        desiredY = candidate.y;
       }
 
       handleX.value = desiredX;
-      handleY.value = bottomY;
+      handleY.value = desiredY;
     })
     .onEnd(() => {
       const snapPoints = getSnapPoints(
@@ -265,8 +290,23 @@ function TriggerButton({
         />
       </Animated.View>
 
+      {showDragHint && isDraggable && !isOpen && (
+        <View style={[styles.dragHint, { top: -(skin.trigger.size * 0.85) }]}>
+          <ThemedText style={styles.dragHintText}>Drag to move</ThemedText>
+        </View>
+      )}
+
       <GestureDetector gesture={composedGesture}>
         <AnimatedPressable
+          accessible
+          accessibilityRole="button"
+          accessibilityLabel={isOpen ? "Close launcher" : "Open launcher"}
+          accessibilityHint={
+            isDraggable
+              ? "Long press and drag to reposition the launcher handle"
+              : "Opens the ZEKE quick launcher"
+          }
+          accessibilityState={{ expanded: isOpen }}
           style={[
             styles.trigger,
             {
@@ -1055,6 +1095,18 @@ const styles = StyleSheet.create({
   triggerGlowGradient: {
     width: "100%",
     height: "100%",
+  },
+  dragHint: {
+    position: "absolute",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    backgroundColor: "rgba(0, 0, 0, 0.65)",
+    borderRadius: BorderRadius.md,
+  },
+  dragHintText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    letterSpacing: 0.2,
   },
   trigger: {
     overflow: "hidden",
