@@ -33,7 +33,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
-import { Spacing, BorderRadius, Colors } from "@/constants/theme";
+import { Spacing, BorderRadius, Colors, Gradients } from "@/constants/theme";
 import {
   AnchorPosition,
   calculateDiamondPositions,
@@ -183,6 +183,25 @@ function TriggerButton({
     return { opacity };
   });
 
+  const auraStyle = useAnimatedStyle(() => {
+    const scale = interpolate(pulseAnim.value, [0, 1], [0.94, 1.12]) * dragScale.value;
+    const opacity = interpolate(glowAnim.value, [0, 1], [0.25, 0.5]);
+    return {
+      opacity: isOpen ? 0.2 : opacity,
+      transform: [{ scale }],
+    };
+  });
+
+  const labelStyle = useAnimatedStyle(() => {
+    const translateY = interpolate(pulseAnim.value, [0, 1], [2, 0]);
+    const opacity = isOpen ? 0 : interpolate(glowAnim.value, [0, 1], [0.5, 1]);
+
+    return {
+      opacity,
+      transform: [{ translateY }],
+    };
+  });
+
   const longPressGesture = Gesture.LongPress()
     .minDuration(DRAG_ACTIVATION_DURATION)
     .onStart(() => {
@@ -269,6 +288,26 @@ function TriggerButton({
       ]}
     >
       <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.triggerAura,
+          {
+            width: skin.trigger.size * 1.5,
+            height: skin.trigger.size * 1.5,
+            borderRadius: skin.trigger.borderRadius * 1.5,
+          },
+          auraStyle,
+        ]}
+      >
+        <LinearGradient
+          colors={[skin.trigger.glowColors[0], "rgba(236, 72, 153, 0.45)", skin.trigger.glowColors[1]]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.triggerAuraGradient}
+        />
+      </Animated.View>
+
+      <Animated.View
         style={[
           styles.triggerGlow,
           {
@@ -344,6 +383,18 @@ function TriggerButton({
           </LinearGradient>
         </AnimatedPressable>
       </GestureDetector>
+
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.triggerLabel, labelStyle]}
+      >
+        <View style={styles.triggerLabelPill}>
+          <Feather name="sunrise" size={14} color="#FFFFFF" />
+          <ThemedText type="caption" style={styles.triggerLabelText} numberOfLines={1}>
+            Open menu
+          </ThemedText>
+        </View>
+      </Animated.View>
     </Animated.View>
   );
 }
@@ -959,6 +1010,27 @@ export function ZekeLauncher({ items, skinId = "default" }: ZekeLauncherProps) {
               menuContainerStyle,
             ]}
           >
+            <View pointerEvents="none" style={styles.menuChrome}>
+              <LinearGradient
+                colors={[Gradients.primary[0], "rgba(236, 72, 153, 0.25)", Gradients.primary[1]]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[styles.menuHalo, { borderRadius: skin.menu.borderRadius * 1.2 }]}
+              />
+              <View style={[styles.menuHeader, { padding: Spacing.md }]}>
+                <View style={styles.menuHeaderIcon}>
+                  <Feather name="aperture" size={18} color="#FFFFFF" />
+                </View>
+                <View style={styles.menuHeaderTextBlock}>
+                  <ThemedText type="small" style={styles.menuHeaderTitle}>
+                    ZEKE menu
+                  </ThemedText>
+                  <ThemedText type="caption" style={styles.menuHeaderSubtitle} numberOfLines={1}>
+                    {isEditMode ? "Drag icons to reorder" : "Tap to launch. Long-press to edit."}
+                  </ThemedText>
+                </View>
+              </View>
+            </View>
             {Platform.OS === "ios" ? (
               <BlurView
                 intensity={skin.menu.blurIntensity}
@@ -1089,6 +1161,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  triggerAura: {
+    position: "absolute",
+    zIndex: 999,
+    opacity: 0.6,
+  },
+  triggerAuraGradient: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 999,
+    opacity: 0.9,
+  },
   triggerGlow: {
     position: "absolute",
   },
@@ -1136,9 +1219,61 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  triggerLabel: {
+    position: "absolute",
+    bottom: -Spacing.xl,
+  },
+  triggerLabelPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    backgroundColor: "rgba(15, 23, 42, 0.85)",
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+  },
+  triggerLabelText: {
+    color: "#FFFFFF",
+    marginLeft: Spacing.xs,
+    letterSpacing: 0.3,
+  },
   menuContainer: {
     position: "absolute",
     zIndex: 999,
+  },
+  menuChrome: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "flex-start",
+  },
+  menuHalo: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.4,
+  },
+  menuHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    columnGap: Spacing.sm,
+  },
+  menuHeaderIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: BorderRadius.full,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  menuHeaderTextBlock: {
+    flex: 1,
+  },
+  menuHeaderTitle: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+    letterSpacing: 0.3,
+  },
+  menuHeaderSubtitle: {
+    color: "#E2E8F0",
+    opacity: 0.8,
   },
   semiCircleContainer: {
     flex: 1,
