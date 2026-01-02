@@ -9,6 +9,7 @@ import LocationScreen from "@/screens/LocationScreen";
 import MapScreen from "@/screens/MapScreen";
 import DeviceFeaturesScreen from "@/screens/DeviceFeaturesScreen";
 import ActivityHistoryScreen from "@/screens/ActivityHistoryScreen";
+import ToolRegistryScreen from "@/screens/ToolRegistryScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { ZekeHeaderTitle, ZekeHeaderButtons } from "@/components/ZekeHeader";
 import { createZekeSubHeader } from "@/components/ZekeSubHeader";
@@ -23,6 +24,7 @@ export type HomeStackParamList = {
   Map: undefined;
   DeviceFeatures: undefined;
   ActivityHistory: undefined;
+  ToolRegistry: undefined;
 };
 
 const Stack = createNativeStackNavigator<HomeStackParamList>();
@@ -98,6 +100,13 @@ export default function HomeStackNavigator() {
         component={ActivityHistoryScreen}
         options={{
           headerTitle: createZekeSubHeader("Activity History"),
+        }}
+      />
+      <Stack.Screen
+        name="ToolRegistry"
+        component={ToolRegistryScreen}
+        options={{
+          headerTitle: createZekeSubHeader("Tools & Actions"),
         }}
       />
     </Stack.Navigator>

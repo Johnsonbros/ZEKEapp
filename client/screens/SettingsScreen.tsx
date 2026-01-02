@@ -733,6 +733,16 @@ export default function SettingsScreen() {
           />
           <View style={[styles.divider, { backgroundColor: theme.border }]} />
           <SettingsRow
+            icon="tool"
+            label="Tools & Actions"
+            value="Live backend registry"
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              navigation.navigate("ToolRegistry");
+            }}
+          />
+          <View style={[styles.divider, { backgroundColor: theme.border }]} />
+          <SettingsRow
             icon="database"
             label="Data Retention"
             value={getRetentionLabel(dataRetentionDays)}
