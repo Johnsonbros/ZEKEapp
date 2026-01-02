@@ -29,7 +29,6 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppCard, AppCardData } from "@/components/AppCard";
-import { ZekeStatusBar } from "@/components/ZekeStatusBar";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
@@ -45,9 +44,6 @@ const SPRING_CONFIG = {
 
 interface ServicesShadeProps {
   apps: AppCardData[];
-  zekeCurrentAction?: string;
-  zekeIsActive?: boolean;
-  onZekeStatusPress?: () => void;
   onViewModeChange?: (mode: ViewMode) => void;
   onShadePositionChange?: (position: ShadePosition) => void;
 }
@@ -61,9 +57,6 @@ interface QuickAction {
 
 export function ServicesShade({
   apps,
-  zekeCurrentAction = "Standing by",
-  zekeIsActive = false,
-  onZekeStatusPress,
   onViewModeChange,
   onShadePositionChange,
 }: ServicesShadeProps) {
@@ -382,11 +375,6 @@ export function ServicesShade({
         </Animated.View>
       </GestureDetector>
 
-      <ZekeStatusBar
-        currentAction={zekeCurrentAction}
-        isActive={zekeIsActive}
-        onPress={onZekeStatusPress}
-      />
 
       <Modal
         visible={showQuickActions}

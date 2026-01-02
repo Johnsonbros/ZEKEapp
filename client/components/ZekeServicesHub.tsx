@@ -28,7 +28,6 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppCard, AppCardData } from "@/components/AppCard";
-import { ZekeStatusBar } from "@/components/ZekeStatusBar";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
@@ -39,9 +38,6 @@ type ViewMode = "grid" | "carousel";
 
 interface ZekeServicesHubProps {
   apps: AppCardData[];
-  zekeCurrentAction?: string;
-  zekeIsActive?: boolean;
-  onZekeStatusPress?: () => void;
   onViewModeChange?: (mode: ViewMode) => void;
 }
 
@@ -60,9 +56,6 @@ const SPRING_CONFIG = {
 
 export function ZekeServicesHub({
   apps,
-  zekeCurrentAction = "Standing by",
-  zekeIsActive = false,
-  onZekeStatusPress,
   onViewModeChange,
 }: ZekeServicesHubProps) {
   const { theme, isDark } = useTheme();
@@ -342,11 +335,6 @@ export function ZekeServicesHub({
         </View>
       )}
 
-      <ZekeStatusBar
-        currentAction={zekeCurrentAction}
-        isActive={zekeIsActive}
-        onPress={onZekeStatusPress}
-      />
 
       <Modal
         visible={showQuickActions}
