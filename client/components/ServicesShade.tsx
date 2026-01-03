@@ -677,7 +677,7 @@ export function ServicesShade({
                 Current Quick Buttons
               </ThemedText>
               {quickButtonApps.map((app, index) => (
-                <View key={app.id} style={[styles.editorItem, { backgroundColor: theme.backgroundElevated }]}>
+                <View key={app.id} style={[styles.editorItem, { backgroundColor: theme.backgroundSecondary }]}>
                   <View style={styles.editorItemLeft}>
                     <Feather name={app.icon} size={18} color={app.gradientColors[0]} />
                     <ThemedText type="body" style={{ color: theme.text, marginLeft: Spacing.sm }}>
@@ -721,7 +721,7 @@ export function ServicesShade({
                   disabled={quickButtonIds.length >= MAX_QUICK_BUTTONS}
                   style={[
                     styles.editorItem,
-                    { backgroundColor: theme.backgroundElevated },
+                    { backgroundColor: theme.backgroundSecondary },
                     quickButtonIds.length >= MAX_QUICK_BUTTONS && styles.editorItemDisabled,
                   ]}
                 >
