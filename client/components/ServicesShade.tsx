@@ -46,6 +46,9 @@ const SPRING_CONFIG = {
 const CAROUSEL_CARD_HEIGHT = 240;
 const HEADER_HEIGHT = 60;
 const HANDLE_HEIGHT = 24;
+const COLLAPSED_PEEK_HEIGHT = 72;
+const CLOSE_VELOCITY_THRESHOLD = 1200;
+const CLOSE_DISTANCE_THRESHOLD = 0.4;
 
 interface ServicesShadeProps {
   apps: AppCardData[];
@@ -70,7 +73,7 @@ export function ServicesShade({
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
-  const [shadePosition, setShadePosition] = useState<ShadePosition>("half");
+  const [shadePosition, setShadePosition] = useState<ShadePosition>("full");
   const [isScrollEnabled, setIsScrollEnabled] = useState(true);
   const [showQuickActions, setShowQuickActions] = useState(false);
   const [selectedApp, setSelectedApp] = useState<AppCardData | null>(null);
@@ -79,13 +82,11 @@ export function ServicesShade({
     const bottomSafeArea = insets.bottom;
     const topSafeArea = insets.top;
     
-    const collapsedHeight = HANDLE_HEIGHT + Spacing.lg + bottomSafeArea;
+    const collapsedHeight = COLLAPSED_PEEK_HEIGHT + bottomSafeArea;
     
     const carouselOptimalHeight = CAROUSEL_CARD_HEIGHT + HEADER_HEIGHT + HANDLE_HEIGHT + Spacing.xl * 2 + bottomSafeArea;
     
-    const halfHeight = viewMode === "carousel" 
-      ? carouselOptimalHeight
-      : screenHeight * 0.5;
+    const halfHeight = carouselOptimalHeight;
     
     const fullHeight = screenHeight - topSafeArea - Spacing.lg;
     
@@ -94,12 +95,12 @@ export function ServicesShade({
       half: halfHeight,
       full: fullHeight,
     };
-  }, [screenHeight, insets.bottom, insets.top, viewMode]);
+  }, [screenHeight, insets.bottom, insets.top]);
 
   const positions = getShadePositions();
-  const shadeHeight = useSharedValue(positions.half);
+  const shadeHeight = useSharedValue(positions.full);
   const backdropOpacity = useSharedValue(0);
-  const startHeight = useSharedValue(positions.half);
+  const startHeight = useSharedValue(positions.full);
 
   useEffect(() => {
     const newPositions = getShadePositions();
@@ -108,8 +109,9 @@ export function ServicesShade({
 
   useEffect(() => {
     const newPositions = getShadePositions();
-    if (shadePosition === "half") {
-      shadeHeight.value = withSpring(newPositions.half, SPRING_CONFIG);
+    if (shadePosition !== "collapsed") {
+      const targetHeight = viewMode === "carousel" ? newPositions.half : newPositions.full;
+      shadeHeight.value = withSpring(targetHeight, SPRING_CONFIG);
     }
   }, [viewMode, getShadePositions, shadeHeight, shadePosition]);
 
@@ -131,10 +133,16 @@ export function ServicesShade({
     setViewMode(newMode);
     onViewModeChange?.(newMode);
     
-    if (newMode === "carousel" && shadePosition === "full") {
-      const currentPositions = getShadePositions();
-      shadeHeight.value = withSpring(currentPositions.half, SPRING_CONFIG);
-      updateShadePosition("half");
+    const currentPositions = getShadePositions();
+    
+    if (shadePosition !== "collapsed") {
+      if (newMode === "carousel") {
+        shadeHeight.value = withSpring(currentPositions.half, SPRING_CONFIG);
+        updateShadePosition("half");
+      } else {
+        shadeHeight.value = withSpring(currentPositions.full, SPRING_CONFIG);
+        updateShadePosition("full");
+      }
     }
   }, [onViewModeChange, shadePosition, getShadePositions, shadeHeight, updateShadePosition]);
 
@@ -203,44 +211,24 @@ export function ServicesShade({
       const velocity = -event.velocityY;
       const currentHeight = shadeHeight.value;
       
-      const positionList = viewMode === "carousel"
-        ? [
-            { key: "collapsed" as ShadePosition, value: currentPositions.collapsed },
-            { key: "half" as ShadePosition, value: currentPositions.half },
-          ]
-        : [
-            { key: "collapsed" as ShadePosition, value: currentPositions.collapsed },
-            { key: "half" as ShadePosition, value: currentPositions.half },
-            { key: "full" as ShadePosition, value: currentPositions.full },
-          ];
+      const openHeight = viewMode === "carousel" ? currentPositions.half : currentPositions.full;
+      const openPosition: ShadePosition = viewMode === "carousel" ? "half" : "full";
       
-      let targetPosition: ShadePosition = "half";
+      let targetPosition: ShadePosition = openPosition;
       
-      if (Math.abs(velocity) > 500) {
-        if (velocity > 0) {
-          if (viewMode === "carousel") {
-            targetPosition = "half";
-          } else if (currentHeight < currentPositions.half) {
-            targetPosition = "half";
-          } else {
-            targetPosition = "full";
-          }
-        } else {
-          if (currentHeight > currentPositions.half) {
-            targetPosition = "half";
-          } else {
-            targetPosition = "collapsed";
-          }
-        }
+      const totalRange = openHeight - currentPositions.collapsed;
+      const distanceFromOpen = openHeight - currentHeight;
+      const closeProgress = distanceFromOpen / totalRange;
+      
+      const isClosingSwipe = velocity < -CLOSE_VELOCITY_THRESHOLD;
+      const isDraggedPastThreshold = closeProgress > CLOSE_DISTANCE_THRESHOLD;
+      
+      if (isClosingSwipe || isDraggedPastThreshold) {
+        targetPosition = "collapsed";
+      } else if (velocity > 500 || closeProgress < 0.15) {
+        targetPosition = openPosition;
       } else {
-        let minDist = Infinity;
-        for (const pos of positionList) {
-          const dist = Math.abs(currentHeight - pos.value);
-          if (dist < minDist) {
-            minDist = dist;
-            targetPosition = pos.key;
-          }
-        }
+        targetPosition = openPosition;
       }
       
       runOnJS(snapToPosition)(targetPosition);
@@ -251,13 +239,59 @@ export function ServicesShade({
     height: shadeHeight.value,
   }));
 
-  const handleIndicatorOpacity = useAnimatedStyle(() => {
+  const handleIndicatorStyle = useAnimatedStyle(() => {
+    const currentPositions = getShadePositions();
+    const openHeight = viewMode === "carousel" ? currentPositions.half : currentPositions.full;
+    return {
+      opacity: interpolate(
+        shadeHeight.value,
+        [currentPositions.collapsed, openHeight],
+        [1, 0.5],
+        Extrapolation.CLAMP
+      ),
+      transform: [
+        {
+          scaleX: interpolate(
+            shadeHeight.value,
+            [currentPositions.collapsed, openHeight],
+            [1.3, 1],
+            Extrapolation.CLAMP
+          ),
+        },
+      ],
+    };
+  });
+
+  const collapsedPeekStyle = useAnimatedStyle(() => {
+    const currentPositions = getShadePositions();
+    const openHeight = viewMode === "carousel" ? currentPositions.half : currentPositions.full;
+    return {
+      opacity: interpolate(
+        shadeHeight.value,
+        [currentPositions.collapsed, currentPositions.collapsed + 60],
+        [1, 0],
+        Extrapolation.CLAMP
+      ),
+      transform: [
+        {
+          translateY: interpolate(
+            shadeHeight.value,
+            [currentPositions.collapsed, openHeight],
+            [0, -20],
+            Extrapolation.CLAMP
+          ),
+        },
+      ],
+    };
+  });
+
+  const contentOpacityStyle = useAnimatedStyle(() => {
     const currentPositions = getShadePositions();
     return {
       opacity: interpolate(
         shadeHeight.value,
-        [currentPositions.collapsed, currentPositions.half],
-        [1, 0.6],
+        [currentPositions.collapsed, currentPositions.collapsed + 100],
+        [0, 1],
         Extrapolation.CLAMP
       ),
     };
@@ -329,90 +363,106 @@ export function ServicesShade({
             shadeAnimatedStyle
           ]}
         >
-          <Animated.View style={[styles.handleContainer, handleIndicatorOpacity]}>
-            <View style={[styles.handle, { backgroundColor: theme.border }]} />
+          <Animated.View style={[styles.handleContainer, handleIndicatorStyle]}>
+            <View style={[styles.handle, { backgroundColor: "#6366F1" }]} />
           </Animated.View>
 
-          {renderHeader()}
-
-          {viewMode === "grid" ? (
-            <ScrollView
-              style={styles.scrollView}
-              contentContainerStyle={[
-                styles.gridScrollContent,
-                {
-                  paddingBottom: insets.bottom + 80,
-                  paddingHorizontal: horizontalPadding,
-                },
-              ]}
-              showsVerticalScrollIndicator={false}
-              scrollEnabled={isScrollEnabled}
-            >
-              <View style={styles.grid}>
-                {apps.map((app) => (
-                  <View
-                    key={app.id}
-                    style={[styles.gridItem, { width: cardWidth }]}
-                  >
-                    <AppCard
-                      {...app}
-                      mode="grid"
-                      size="medium"
-                      onLongPress={() => handleAppLongPress(app)}
-                    />
-                  </View>
-                ))}
-              </View>
-
-              <View style={styles.gridFooter}>
-                <ThemedText type="caption" style={[styles.footerText, { color: theme.textSecondary }]}>
-                  Swipe to browse - Long-press for actions
-                </ThemedText>
-              </View>
-            </ScrollView>
-          ) : (
-            <View style={styles.carouselContainer}>
-              <FlatList
-                data={apps}
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                snapToInterval={screenWidth * 0.85}
-                decelerationRate="fast"
-                contentContainerStyle={[
-                  styles.carouselContent,
-                  { paddingBottom: insets.bottom + 80 },
-                ]}
-                scrollEnabled={isScrollEnabled}
-                renderItem={({ item, index }) => (
-                  <View
-                    style={[
-                      styles.carouselItem,
-                      {
-                        width: screenWidth * 0.85,
-                        marginLeft: index === 0 ? screenWidth * 0.075 : Spacing.md,
-                        marginRight: index === apps.length - 1 ? screenWidth * 0.075 : 0,
-                      },
-                    ]}
-                  >
-                    <AppCard
-                      {...item}
-                      mode="carousel"
-                      size="large"
-                      onLongPress={() => handleAppLongPress(item)}
-                    />
-                  </View>
-                )}
-                keyExtractor={(item) => item.id}
-              />
-
-              <View style={styles.carouselFooter}>
-                <ThemedText type="caption" style={[styles.footerText, { color: theme.textSecondary }]}>
-                  Swipe to browse - Long-press for actions
-                </ThemedText>
-              </View>
+          <Animated.View style={[styles.collapsedPeek, collapsedPeekStyle]} pointerEvents="none">
+            <View style={styles.collapsedPeekContent}>
+              <Feather name="grid" size={16} color="#6366F1" />
+              <ThemedText type="small" style={[styles.collapsedPeekText, { color: theme.text }]}>
+                Services
+              </ThemedText>
+              <View style={styles.collapsedPeekDot} />
+              <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+                {apps.length} apps
+              </ThemedText>
+              <Feather name="chevron-up" size={16} color={theme.textSecondary} style={styles.collapsedPeekChevron} />
             </View>
-          )}
+          </Animated.View>
+
+          <Animated.View style={[styles.mainContent, contentOpacityStyle]}>
+            {renderHeader()}
+
+            {viewMode === "grid" ? (
+              <ScrollView
+                style={styles.scrollView}
+                contentContainerStyle={[
+                  styles.gridScrollContent,
+                  {
+                    paddingBottom: insets.bottom + 80,
+                    paddingHorizontal: horizontalPadding,
+                  },
+                ]}
+                showsVerticalScrollIndicator={false}
+                scrollEnabled={isScrollEnabled}
+              >
+                <View style={styles.grid}>
+                  {apps.map((app) => (
+                    <View
+                      key={app.id}
+                      style={[styles.gridItem, { width: cardWidth }]}
+                    >
+                      <AppCard
+                        {...app}
+                        mode="grid"
+                        size="medium"
+                        onLongPress={() => handleAppLongPress(app)}
+                      />
+                    </View>
+                  ))}
+                </View>
+
+                <View style={styles.gridFooter}>
+                  <ThemedText type="caption" style={[styles.footerText, { color: theme.textSecondary }]}>
+                    Swipe to browse - Long-press for actions
+                  </ThemedText>
+                </View>
+              </ScrollView>
+            ) : (
+              <View style={styles.carouselContainer}>
+                <FlatList
+                  data={apps}
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={false}
+                  snapToInterval={screenWidth * 0.85}
+                  decelerationRate="fast"
+                  contentContainerStyle={[
+                    styles.carouselContent,
+                    { paddingBottom: insets.bottom + 80 },
+                  ]}
+                  scrollEnabled={isScrollEnabled}
+                  renderItem={({ item, index }) => (
+                    <View
+                      style={[
+                        styles.carouselItem,
+                        {
+                          width: screenWidth * 0.85,
+                          marginLeft: index === 0 ? screenWidth * 0.075 : Spacing.md,
+                          marginRight: index === apps.length - 1 ? screenWidth * 0.075 : 0,
+                        },
+                      ]}
+                    >
+                      <AppCard
+                        {...item}
+                        mode="carousel"
+                        size="large"
+                        onLongPress={() => handleAppLongPress(item)}
+                      />
+                    </View>
+                  )}
+                  keyExtractor={(item) => item.id}
+                />
+
+                <View style={styles.carouselFooter}>
+                  <ThemedText type="caption" style={[styles.footerText, { color: theme.textSecondary }]}>
+                    Swipe to browse - Long-press for actions
+                  </ThemedText>
+                </View>
+              </View>
+            )}
+          </Animated.View>
         </Animated.View>
       </GestureDetector>
 
@@ -626,5 +676,33 @@ const styles = StyleSheet.create({
   quickActionLabel: {
     flex: 1,
     fontWeight: "600",
+  },
+  collapsedPeek: {
+    position: "absolute",
+    top: HANDLE_HEIGHT + Spacing.sm,
+    left: 0,
+    right: 0,
+    paddingHorizontal: Spacing.lg,
+  },
+  collapsedPeekContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+  },
+  collapsedPeekText: {
+    fontWeight: "600",
+  },
+  collapsedPeekDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#6366F1",
+  },
+  collapsedPeekChevron: {
+    marginLeft: Spacing.xs,
+  },
+  mainContent: {
+    flex: 1,
   },
 });
