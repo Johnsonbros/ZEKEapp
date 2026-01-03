@@ -158,7 +158,7 @@ export function AppCard({
     };
   });
 
-  const cardHeight = mode === "carousel" ? (size === "small" ? 160 : 200) : size === "large" ? 200 : size === "small" ? 140 : 160;
+  const cardHeight = mode === "carousel" ? (size === "small" ? 160 : 170) : size === "large" ? 200 : size === "small" ? 140 : 160;
 
   return (
     <AnimatedPressable
