@@ -258,6 +258,18 @@ export function ServicesShade({
     ];
   }, [selectedApp, closeQuickActions, quickButtonIds, handleToggleQuickButton]);
 
+  const handleTapToExpand = useCallback(() => {
+    if (shadePosition === "collapsed") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      snapToPosition("expanded");
+    }
+  }, [shadePosition, snapToPosition]);
+
+  const tapGesture = Gesture.Tap()
+    .onEnd(() => {
+      runOnJS(handleTapToExpand)();
+    });
+
   const panGesture = Gesture.Pan()
     .onStart(() => {
       startHeight.value = shadeHeight.value;
@@ -292,6 +304,8 @@ export function ServicesShade({
       runOnJS(snapToPosition)(targetPosition);
       runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
     });
+
+  const composedGesture = Gesture.Exclusive(panGesture, tapGesture);
 
   const shadeAnimatedStyle = useAnimatedStyle(() => ({
     height: shadeHeight.value,
@@ -452,7 +466,7 @@ export function ServicesShade({
 
   return (
     <View style={styles.container}>
-      <GestureDetector gesture={panGesture}>
+      <GestureDetector gesture={composedGesture}>
         <Animated.View 
           style={[
             styles.shadeContainer, 
@@ -464,7 +478,12 @@ export function ServicesShade({
             <View style={[styles.handle, { backgroundColor: "#6366F1" }]} />
           </Animated.View>
 
-          <Animated.View style={[styles.collapsedPeek, collapsedPeekStyle]}>
+          <Animated.View 
+            style={[styles.collapsedPeek, collapsedPeekStyle]}
+            accessibilityRole="button"
+            accessibilityLabel="Expand services menu"
+            accessibilityHint="Tap to show all services"
+          >
             <View style={styles.collapsedPeekHeader}>
               <View style={styles.collapsedPeekTitleRow}>
                 <Feather name="layers" size={14} color="#6366F1" />
