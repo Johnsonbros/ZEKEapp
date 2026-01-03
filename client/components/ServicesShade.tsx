@@ -473,8 +473,8 @@ export function ServicesShade({
         animationType="none"
         onRequestClose={closeQuickActions}
       >
-        <View style={styles.modalContainer}>
-          <Animated.View style={[styles.modalBackdrop, backdropAnimatedStyle]}>
+        <Pressable style={styles.modalContainer} onPress={closeQuickActions}>
+          <Animated.View style={[styles.modalBackdrop, backdropAnimatedStyle]} pointerEvents="none">
             {Platform.OS === "ios" ? (
               <BlurView
                 intensity={isDark ? 40 : 30}
@@ -484,10 +484,12 @@ export function ServicesShade({
             ) : (
               <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0, 0, 0, 0.7)" }]} />
             )}
-            <Pressable style={StyleSheet.absoluteFill} onPress={closeQuickActions} />
           </Animated.View>
 
-          <View style={[styles.quickActionsContainer, { bottom: insets.bottom + 100 }]}>
+          <Pressable 
+            style={[styles.quickActionsContainer, { bottom: insets.bottom + 100 }]}
+            onPress={(e) => e.stopPropagation()}
+          >
             <View style={[styles.quickActionsHeader, { backgroundColor: theme.backgroundDefault }]}>
               <Feather name={selectedApp?.icon || "box"} size={20} color="#6366F1" />
               <ThemedText type="body" style={[styles.quickActionsTitle, { color: theme.text }]}>
@@ -514,8 +516,8 @@ export function ServicesShade({
                 <Feather name="chevron-right" size={16} color={theme.textSecondary} />
               </Pressable>
             ))}
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
     </View>
   );
