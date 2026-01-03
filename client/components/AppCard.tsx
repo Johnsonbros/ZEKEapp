@@ -40,7 +40,7 @@ export interface AppCardData {
 
 interface AppCardProps extends AppCardData {
   size?: "small" | "medium" | "large";
-  mode?: "grid" | "carousel";
+  mode?: "carousel";
 }
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -149,7 +149,7 @@ export function AppCard({
     };
   });
 
-  const cardHeight = mode === "carousel" ? 240 : size === "large" ? 200 : size === "small" ? 140 : 160;
+  const cardHeight = mode === "carousel" ? (size === "small" ? 130 : 160) : size === "large" ? 200 : size === "small" ? 140 : 160;
 
   return (
     <AnimatedPressable
@@ -261,25 +261,6 @@ export function AppCard({
             )}
           </View>
 
-          {mode === "grid" && (
-            <View style={styles.cardFooter}>
-              <View style={styles.statusIndicator}>
-                <View
-                  style={[
-                    styles.statusDot,
-                    {
-                      backgroundColor: isZekeActive
-                        ? "#10B981"
-                        : theme.border,
-                    },
-                  ]}
-                />
-                <ThemedText type="caption" style={styles.statusText}>
-                  {isZekeActive ? "Active" : "Ready"}
-                </ThemedText>
-              </View>
-            </View>
-          )}
         </LinearGradient>
       </Animated.View>
     </AnimatedPressable>
@@ -384,22 +365,5 @@ const styles = StyleSheet.create({
   secondaryData: {
     fontSize: 13,
     lineHeight: 18,
-  },
-  cardFooter: {
-    marginTop: Spacing.sm,
-  },
-  statusIndicator: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.xs,
-  },
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  statusText: {
-    fontSize: 11,
-    opacity: 0.7,
   },
 });

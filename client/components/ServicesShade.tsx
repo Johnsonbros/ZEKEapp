@@ -1,7 +1,6 @@
-import React, { useState, useCallback, useMemo, useEffect } from "react";
+import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import {
   View,
-  ScrollView,
   StyleSheet,
   Platform,
   Modal,
@@ -12,6 +11,7 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -33,8 +33,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
 
-type ViewMode = "grid" | "carousel";
-type ShadePosition = "collapsed" | "half" | "full";
+type ShadePosition = "collapsed" | "expanded";
 
 const SPRING_CONFIG = {
   damping: 26,
@@ -43,16 +42,18 @@ const SPRING_CONFIG = {
   overshootClamping: true,
 };
 
-const CAROUSEL_CARD_HEIGHT = 240;
-const HEADER_HEIGHT = 60;
+const CAROUSEL_CARD_HEIGHT = 140;
+const QUICK_BUTTONS_HEIGHT = 72;
+const HEADER_HEIGHT = 48;
 const HANDLE_HEIGHT = 24;
 const COLLAPSED_PEEK_HEIGHT = 72;
 const CLOSE_VELOCITY_THRESHOLD = 1200;
 const CLOSE_DISTANCE_THRESHOLD = 0.4;
+const QUICK_BUTTONS_STORAGE_KEY = "@zeke_quick_buttons";
+const MAX_QUICK_BUTTONS = 4;
 
 interface ServicesShadeProps {
   apps: AppCardData[];
-  onViewModeChange?: (mode: ViewMode) => void;
   onShadePositionChange?: (position: ShadePosition) => void;
 }
 
@@ -63,57 +64,98 @@ interface QuickAction {
   onPress: () => void;
 }
 
+interface QuickButtonConfig {
+  appId: string;
+  order: number;
+}
+
 export function ServicesShade({
   apps,
-  onViewModeChange,
   onShadePositionChange,
 }: ServicesShadeProps) {
   const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const flatListRef = useRef<FlatList>(null);
   
-  const [viewMode, setViewMode] = useState<ViewMode>("grid");
-  const [shadePosition, setShadePosition] = useState<ShadePosition>("full");
+  const [shadePosition, setShadePosition] = useState<ShadePosition>("expanded");
   const [isScrollEnabled, setIsScrollEnabled] = useState(true);
   const [showQuickActions, setShowQuickActions] = useState(false);
   const [selectedApp, setSelectedApp] = useState<AppCardData | null>(null);
+  const [showQuickButtonEditor, setShowQuickButtonEditor] = useState(false);
+  const [quickButtonIds, setQuickButtonIds] = useState<string[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  useEffect(() => {
+    loadQuickButtonConfig();
+  }, []);
+
+  useEffect(() => {
+    if (quickButtonIds.length === 0 && apps.length > 0) {
+      const defaultIds = apps.slice(0, MAX_QUICK_BUTTONS).map(app => app.id);
+      setQuickButtonIds(defaultIds);
+      saveQuickButtonConfig(defaultIds);
+    }
+  }, [apps, quickButtonIds.length]);
+
+  const loadQuickButtonConfig = async () => {
+    try {
+      const stored = await AsyncStorage.getItem(QUICK_BUTTONS_STORAGE_KEY);
+      if (stored) {
+        const config: QuickButtonConfig[] = JSON.parse(stored);
+        setQuickButtonIds(config.sort((a, b) => a.order - b.order).map(c => c.appId));
+      }
+    } catch (error) {
+      console.log("Failed to load quick button config:", error);
+    }
+  };
+
+  const saveQuickButtonConfig = async (ids: string[]) => {
+    try {
+      const config: QuickButtonConfig[] = ids.map((id, index) => ({
+        appId: id,
+        order: index,
+      }));
+      await AsyncStorage.setItem(QUICK_BUTTONS_STORAGE_KEY, JSON.stringify(config));
+    } catch (error) {
+      console.log("Failed to save quick button config:", error);
+    }
+  };
+
+  const quickButtonApps = useMemo(() => {
+    return quickButtonIds
+      .map(id => apps.find(app => app.id === id))
+      .filter((app): app is AppCardData => app !== undefined)
+      .slice(0, MAX_QUICK_BUTTONS);
+  }, [quickButtonIds, apps]);
+
+  const loopedApps = useMemo(() => {
+    if (apps.length <= 1) return apps;
+    return [...apps, ...apps, ...apps];
+  }, [apps]);
 
   const getShadePositions = useCallback(() => {
     const bottomSafeArea = insets.bottom;
     const topSafeArea = insets.top;
     
     const collapsedHeight = COLLAPSED_PEEK_HEIGHT + bottomSafeArea;
-    
-    const carouselOptimalHeight = CAROUSEL_CARD_HEIGHT + HEADER_HEIGHT + HANDLE_HEIGHT + Spacing.xl * 2 + bottomSafeArea;
-    
-    const halfHeight = carouselOptimalHeight;
-    
-    const fullHeight = screenHeight - topSafeArea - Spacing.lg;
+    const expandedHeight = QUICK_BUTTONS_HEIGHT + CAROUSEL_CARD_HEIGHT + HEADER_HEIGHT + HANDLE_HEIGHT + Spacing.xl * 2 + bottomSafeArea + 40;
     
     return {
       collapsed: collapsedHeight,
-      half: halfHeight,
-      full: fullHeight,
+      expanded: Math.min(expandedHeight, screenHeight - topSafeArea - 100),
     };
   }, [screenHeight, insets.bottom, insets.top]);
 
   const positions = getShadePositions();
-  const shadeHeight = useSharedValue(positions.full);
+  const shadeHeight = useSharedValue(positions.expanded);
   const backdropOpacity = useSharedValue(0);
-  const startHeight = useSharedValue(positions.full);
+  const startHeight = useSharedValue(positions.expanded);
 
   useEffect(() => {
     const newPositions = getShadePositions();
     shadeHeight.value = withSpring(newPositions[shadePosition], SPRING_CONFIG);
   }, [screenHeight, shadePosition, getShadePositions, shadeHeight]);
-
-  useEffect(() => {
-    const newPositions = getShadePositions();
-    if (shadePosition !== "collapsed") {
-      const targetHeight = viewMode === "carousel" ? newPositions.half : newPositions.full;
-      shadeHeight.value = withSpring(targetHeight, SPRING_CONFIG);
-    }
-  }, [viewMode, getShadePositions, shadeHeight, shadePosition]);
 
   const updateShadePosition = useCallback((position: ShadePosition) => {
     setShadePosition(position);
@@ -127,24 +169,6 @@ export function ServicesShade({
     shadeHeight.value = withSpring(targetHeight, SPRING_CONFIG);
     runOnJS(updateShadePosition)(targetPosition);
   }, [shadeHeight, updateShadePosition, getShadePositions]);
-
-  const handleViewModeSwitch = useCallback((newMode: ViewMode) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setViewMode(newMode);
-    onViewModeChange?.(newMode);
-    
-    const currentPositions = getShadePositions();
-    
-    if (shadePosition !== "collapsed") {
-      if (newMode === "carousel") {
-        shadeHeight.value = withSpring(currentPositions.half, SPRING_CONFIG);
-        updateShadePosition("half");
-      } else {
-        shadeHeight.value = withSpring(currentPositions.full, SPRING_CONFIG);
-        updateShadePosition("full");
-      }
-    }
-  }, [onViewModeChange, shadePosition, getShadePositions, shadeHeight, updateShadePosition]);
 
   const handleAppLongPress = useCallback((app: AppCardData) => {
     setSelectedApp(app);
@@ -160,37 +184,63 @@ export function ServicesShade({
     }, 200);
   }, [backdropOpacity]);
 
+  const handleToggleQuickButton = useCallback((appId: string) => {
+    setQuickButtonIds(prev => {
+      let newIds: string[];
+      if (prev.includes(appId)) {
+        newIds = prev.filter(id => id !== appId);
+      } else if (prev.length < MAX_QUICK_BUTTONS) {
+        newIds = [...prev, appId];
+      } else {
+        newIds = prev;
+      }
+      saveQuickButtonConfig(newIds);
+      return newIds;
+    });
+  }, []);
+
+  const handleMoveQuickButton = useCallback((appId: string, direction: "up" | "down") => {
+    setQuickButtonIds(prev => {
+      const index = prev.indexOf(appId);
+      if (index === -1) return prev;
+      
+      const newIndex = direction === "up" ? index - 1 : index + 1;
+      if (newIndex < 0 || newIndex >= prev.length) return prev;
+      
+      const newIds = [...prev];
+      [newIds[index], newIds[newIndex]] = [newIds[newIndex], newIds[index]];
+      saveQuickButtonConfig(newIds);
+      return newIds;
+    });
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, []);
+
   const quickActions: QuickAction[] = useMemo(() => {
     if (!selectedApp) return [];
 
+    const isQuickButton = quickButtonIds.includes(selectedApp.id);
+
     return [
       {
-        id: "ask-zeke",
-        icon: "message-circle",
-        label: `Ask ZEKE about ${selectedApp.title}`,
+        id: "toggle-quick",
+        icon: isQuickButton ? "minus-circle" : "plus-circle",
+        label: isQuickButton ? "Remove from Quick Buttons" : "Add to Quick Buttons",
         onPress: () => {
-          closeQuickActions();
-        },
-      },
-      {
-        id: "view-activity",
-        icon: "activity",
-        label: "View ZEKE's recent actions",
-        onPress: () => {
+          handleToggleQuickButton(selectedApp.id);
           closeQuickActions();
         },
       },
       {
         id: "configure",
         icon: "settings",
-        label: `Configure ${selectedApp.title}`,
+        label: `Open ${selectedApp.title}`,
         onPress: () => {
           closeQuickActions();
           selectedApp.onPress();
         },
       },
     ];
-  }, [selectedApp, closeQuickActions]);
+  }, [selectedApp, closeQuickActions, quickButtonIds, handleToggleQuickButton]);
 
   const panGesture = Gesture.Pan()
     .onStart(() => {
@@ -199,11 +249,10 @@ export function ServicesShade({
     .onUpdate((event) => {
       const currentPositions = getShadePositions();
       const newHeight = startHeight.value - event.translationY;
-      const maxHeight = viewMode === "carousel" ? currentPositions.half : currentPositions.full;
       shadeHeight.value = clamp(
         newHeight,
         currentPositions.collapsed,
-        maxHeight
+        currentPositions.expanded
       );
     })
     .onEnd((event) => {
@@ -211,13 +260,10 @@ export function ServicesShade({
       const velocity = -event.velocityY;
       const currentHeight = shadeHeight.value;
       
-      const openHeight = viewMode === "carousel" ? currentPositions.half : currentPositions.full;
-      const openPosition: ShadePosition = viewMode === "carousel" ? "half" : "full";
+      let targetPosition: ShadePosition = "expanded";
       
-      let targetPosition: ShadePosition = openPosition;
-      
-      const totalRange = openHeight - currentPositions.collapsed;
-      const distanceFromOpen = openHeight - currentHeight;
+      const totalRange = currentPositions.expanded - currentPositions.collapsed;
+      const distanceFromOpen = currentPositions.expanded - currentHeight;
       const closeProgress = distanceFromOpen / totalRange;
       
       const isClosingSwipe = velocity < -CLOSE_VELOCITY_THRESHOLD;
@@ -225,10 +271,6 @@ export function ServicesShade({
       
       if (isClosingSwipe || isDraggedPastThreshold) {
         targetPosition = "collapsed";
-      } else if (velocity > 500 || closeProgress < 0.15) {
-        targetPosition = openPosition;
-      } else {
-        targetPosition = openPosition;
       }
       
       runOnJS(snapToPosition)(targetPosition);
@@ -241,11 +283,10 @@ export function ServicesShade({
 
   const handleIndicatorStyle = useAnimatedStyle(() => {
     const currentPositions = getShadePositions();
-    const openHeight = viewMode === "carousel" ? currentPositions.half : currentPositions.full;
     return {
       opacity: interpolate(
         shadeHeight.value,
-        [currentPositions.collapsed, openHeight],
+        [currentPositions.collapsed, currentPositions.expanded],
         [1, 0.5],
         Extrapolation.CLAMP
       ),
@@ -253,7 +294,7 @@ export function ServicesShade({
         {
           scaleX: interpolate(
             shadeHeight.value,
-            [currentPositions.collapsed, openHeight],
+            [currentPositions.collapsed, currentPositions.expanded],
             [1.3, 1],
             Extrapolation.CLAMP
           ),
@@ -264,7 +305,6 @@ export function ServicesShade({
 
   const collapsedPeekStyle = useAnimatedStyle(() => {
     const currentPositions = getShadePositions();
-    const openHeight = viewMode === "carousel" ? currentPositions.half : currentPositions.full;
     return {
       opacity: interpolate(
         shadeHeight.value,
@@ -276,7 +316,7 @@ export function ServicesShade({
         {
           translateY: interpolate(
             shadeHeight.value,
-            [currentPositions.collapsed, openHeight],
+            [currentPositions.collapsed, currentPositions.expanded],
             [0, -20],
             Extrapolation.CLAMP
           ),
@@ -301,30 +341,75 @@ export function ServicesShade({
     opacity: backdropOpacity.value,
   }));
 
-  const numColumns = 2;
+  const cardWidth = screenWidth * 0.75;
   const cardSpacing = Spacing.md;
-  const horizontalPadding = Spacing.lg;
-  const cardWidth = (screenWidth - horizontalPadding * 2 - cardSpacing * (numColumns - 1)) / numColumns;
+
+  const handleScrollEnd = useCallback((event: any) => {
+    if (apps.length === 0) return;
+    
+    const offsetX = event.nativeEvent.contentOffset.x;
+    const index = Math.round(offsetX / (cardWidth + cardSpacing));
+    const realIndex = ((index % apps.length) + apps.length) % apps.length;
+    setCurrentIndex(realIndex);
+    
+    if (apps.length > 1) {
+      const middleStart = apps.length;
+      
+      if (index < apps.length * 0.5) {
+        flatListRef.current?.scrollToOffset({
+          offset: (middleStart + realIndex) * (cardWidth + cardSpacing),
+          animated: false,
+        });
+      } else if (index >= apps.length * 2.5) {
+        flatListRef.current?.scrollToOffset({
+          offset: (middleStart + realIndex) * (cardWidth + cardSpacing),
+          animated: false,
+        });
+      }
+    }
+  }, [apps.length, cardWidth, cardSpacing]);
+
+  useEffect(() => {
+    if (apps.length > 1 && flatListRef.current) {
+      const middleStart = apps.length;
+      setTimeout(() => {
+        flatListRef.current?.scrollToOffset({
+          offset: middleStart * (cardWidth + cardSpacing),
+          animated: false,
+        });
+      }, 100);
+    }
+  }, [apps.length, cardWidth, cardSpacing]);
+
+  const handleQuickButtonPress = useCallback((app: AppCardData) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    app.onPress();
+  }, []);
+
+  const renderQuickButton = (app: AppCardData, index: number) => (
+    <Pressable
+      key={app.id}
+      onPress={() => handleQuickButtonPress(app)}
+      onLongPress={() => handleAppLongPress(app)}
+      style={({ pressed }) => [
+        styles.quickButton,
+        {
+          backgroundColor: pressed ? `${app.gradientColors[0]}30` : `${app.gradientColors[0]}15`,
+          borderColor: `${app.gradientColors[0]}40`,
+        },
+      ]}
+    >
+      <View style={[styles.quickButtonIcon, { backgroundColor: `${app.gradientColors[0]}25` }]}>
+        <Feather name={app.icon} size={18} color={app.gradientColors[0]} />
+      </View>
+      <ThemedText type="caption" numberOfLines={1} style={[styles.quickButtonLabel, { color: theme.text }]}>
+        {app.title}
+      </ThemedText>
+    </Pressable>
+  );
 
   const renderHeader = () => (
     <View style={styles.header}>
-      <Pressable
-        onPress={() => handleViewModeSwitch("grid")}
-        style={[
-          styles.viewModeButton,
-          viewMode === "grid" && styles.viewModeButtonActive,
-        ]}
-        accessible
-        accessibilityRole="button"
-        accessibilityLabel="Grid view"
-      >
-        <Feather 
-          name="grid" 
-          size={20} 
-          color={viewMode === "grid" ? "#6366F1" : theme.textSecondary} 
-        />
-      </Pressable>
-
       <View style={styles.headerCenter}>
         <ThemedText type="h3" style={[styles.headerTitle, { color: theme.text }]}>
           Services
@@ -335,20 +420,13 @@ export function ServicesShade({
       </View>
 
       <Pressable
-        onPress={() => handleViewModeSwitch("carousel")}
-        style={[
-          styles.viewModeButton,
-          viewMode === "carousel" && styles.viewModeButtonActive,
-        ]}
+        onPress={() => setShowQuickButtonEditor(true)}
+        style={styles.editButton}
         accessible
         accessibilityRole="button"
-        accessibilityLabel="Stack view"
+        accessibilityLabel="Edit quick buttons"
       >
-        <Feather 
-          name="layers" 
-          size={20} 
-          color={viewMode === "carousel" ? "#6366F1" : theme.textSecondary} 
-        />
+        <Feather name="edit-2" size={16} color={theme.textSecondary} />
       </Pressable>
     </View>
   );
@@ -369,7 +447,7 @@ export function ServicesShade({
 
           <Animated.View style={[styles.collapsedPeek, collapsedPeekStyle]} pointerEvents="none">
             <View style={styles.collapsedPeekContent}>
-              <Feather name="grid" size={16} color="#6366F1" />
+              <Feather name="layers" size={16} color="#6366F1" />
               <ThemedText type="small" style={[styles.collapsedPeekText, { color: theme.text }]}>
                 Services
               </ThemedText>
@@ -384,88 +462,80 @@ export function ServicesShade({
           <Animated.View style={[styles.mainContent, contentOpacityStyle]}>
             {renderHeader()}
 
-            {viewMode === "grid" ? (
-              <ScrollView
-                style={styles.scrollView}
+            <View style={styles.quickButtonsContainer}>
+              {quickButtonApps.map((app, index) => renderQuickButton(app, index))}
+              {quickButtonApps.length < MAX_QUICK_BUTTONS ? (
+                <Pressable
+                  onPress={() => setShowQuickButtonEditor(true)}
+                  style={[styles.quickButton, styles.addQuickButton, { borderColor: theme.border }]}
+                >
+                  <Feather name="plus" size={20} color={theme.textSecondary} />
+                </Pressable>
+              ) : null}
+            </View>
+
+            <View style={styles.carouselContainer}>
+              <FlatList
+                ref={flatListRef}
+                data={loopedApps}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                snapToInterval={cardWidth + cardSpacing}
+                decelerationRate="fast"
+                onMomentumScrollEnd={handleScrollEnd}
                 contentContainerStyle={[
-                  styles.gridScrollContent,
-                  {
-                    paddingBottom: insets.bottom + 80,
-                    paddingHorizontal: horizontalPadding,
-                  },
+                  styles.carouselContent,
+                  { paddingHorizontal: (screenWidth - cardWidth) / 2 },
                 ]}
-                showsVerticalScrollIndicator={false}
                 scrollEnabled={isScrollEnabled}
-              >
-                <View style={styles.grid}>
-                  {apps.map((app) => (
-                    <View
-                      key={app.id}
-                      style={[styles.gridItem, { width: cardWidth }]}
-                    >
-                      <AppCard
-                        {...app}
-                        mode="grid"
-                        size="medium"
-                        onLongPress={() => handleAppLongPress(app)}
-                      />
-                    </View>
-                  ))}
-                </View>
+                getItemLayout={(_, index) => ({
+                  length: cardWidth + cardSpacing,
+                  offset: (cardWidth + cardSpacing) * index,
+                  index,
+                })}
+                renderItem={({ item, index }) => (
+                  <View
+                    style={[
+                      styles.carouselItem,
+                      {
+                        width: cardWidth,
+                        marginRight: cardSpacing,
+                      },
+                    ]}
+                  >
+                    <AppCard
+                      {...item}
+                      mode="carousel"
+                      size="small"
+                      onLongPress={() => handleAppLongPress(item)}
+                    />
+                  </View>
+                )}
+                keyExtractor={(item, index) => `${item.id}-${index}`}
+              />
 
-                <View style={styles.gridFooter}>
-                  <ThemedText type="caption" style={[styles.footerText, { color: theme.textSecondary }]}>
-                    Swipe to browse - Long-press for actions
-                  </ThemedText>
-                </View>
-              </ScrollView>
-            ) : (
-              <View style={styles.carouselContainer}>
-                <FlatList
-                  data={apps}
-                  horizontal
-                  pagingEnabled
-                  showsHorizontalScrollIndicator={false}
-                  snapToInterval={screenWidth * 0.85}
-                  decelerationRate="fast"
-                  contentContainerStyle={[
-                    styles.carouselContent,
-                    { paddingBottom: insets.bottom + 80 },
-                  ]}
-                  scrollEnabled={isScrollEnabled}
-                  renderItem={({ item, index }) => (
-                    <View
-                      style={[
-                        styles.carouselItem,
-                        {
-                          width: screenWidth * 0.85,
-                          marginLeft: index === 0 ? screenWidth * 0.075 : Spacing.md,
-                          marginRight: index === apps.length - 1 ? screenWidth * 0.075 : 0,
-                        },
-                      ]}
-                    >
-                      <AppCard
-                        {...item}
-                        mode="carousel"
-                        size="large"
-                        onLongPress={() => handleAppLongPress(item)}
-                      />
-                    </View>
-                  )}
-                  keyExtractor={(item) => item.id}
-                />
-
-                <View style={styles.carouselFooter}>
-                  <ThemedText type="caption" style={[styles.footerText, { color: theme.textSecondary }]}>
-                    Swipe to browse - Long-press for actions
-                  </ThemedText>
-                </View>
+              <View style={styles.carouselIndicators}>
+                {apps.map((_, index) => (
+                  <View
+                    key={index}
+                    style={[
+                      styles.indicator,
+                      {
+                        backgroundColor: index === currentIndex ? "#6366F1" : theme.border,
+                        width: index === currentIndex ? 16 : 6,
+                      },
+                    ]}
+                  />
+                ))}
               </View>
-            )}
+
+              <ThemedText type="caption" style={[styles.footerText, { color: theme.textSecondary }]}>
+                Swipe to browse - Long-press for actions
+              </ThemedText>
+            </View>
           </Animated.View>
         </Animated.View>
       </GestureDetector>
-
 
       <Modal
         visible={showQuickActions}
@@ -519,6 +589,98 @@ export function ServicesShade({
           </Pressable>
         </Pressable>
       </Modal>
+
+      <Modal
+        visible={showQuickButtonEditor}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowQuickButtonEditor(false)}
+      >
+        <View style={[styles.editorModal, { backgroundColor: "rgba(0,0,0,0.5)" }]}>
+          <View style={[styles.editorContainer, { backgroundColor: theme.backgroundDefault }]}>
+            <View style={styles.editorHeader}>
+              <ThemedText type="h3" style={{ color: theme.text }}>
+                Edit Quick Buttons
+              </ThemedText>
+              <Pressable onPress={() => setShowQuickButtonEditor(false)}>
+                <Feather name="x" size={24} color={theme.textSecondary} />
+              </Pressable>
+            </View>
+
+            <ThemedText type="caption" style={[styles.editorSubtitle, { color: theme.textSecondary }]}>
+              Select up to {MAX_QUICK_BUTTONS} services for quick access
+            </ThemedText>
+
+            <View style={styles.editorSection}>
+              <ThemedText type="small" style={[styles.editorSectionTitle, { color: theme.textSecondary }]}>
+                Current Quick Buttons
+              </ThemedText>
+              {quickButtonApps.map((app, index) => (
+                <View key={app.id} style={[styles.editorItem, { backgroundColor: theme.backgroundElevated }]}>
+                  <View style={styles.editorItemLeft}>
+                    <Feather name={app.icon} size={18} color={app.gradientColors[0]} />
+                    <ThemedText type="body" style={{ color: theme.text, marginLeft: Spacing.sm }}>
+                      {app.title}
+                    </ThemedText>
+                  </View>
+                  <View style={styles.editorItemActions}>
+                    <Pressable
+                      onPress={() => handleMoveQuickButton(app.id, "up")}
+                      disabled={index === 0}
+                      style={[styles.editorActionBtn, index === 0 && styles.editorActionBtnDisabled]}
+                    >
+                      <Feather name="chevron-up" size={18} color={index === 0 ? theme.border : theme.textSecondary} />
+                    </Pressable>
+                    <Pressable
+                      onPress={() => handleMoveQuickButton(app.id, "down")}
+                      disabled={index === quickButtonApps.length - 1}
+                      style={[styles.editorActionBtn, index === quickButtonApps.length - 1 && styles.editorActionBtnDisabled]}
+                    >
+                      <Feather name="chevron-down" size={18} color={index === quickButtonApps.length - 1 ? theme.border : theme.textSecondary} />
+                    </Pressable>
+                    <Pressable
+                      onPress={() => handleToggleQuickButton(app.id)}
+                      style={styles.editorActionBtn}
+                    >
+                      <Feather name="x" size={18} color="#EF4444" />
+                    </Pressable>
+                  </View>
+                </View>
+              ))}
+            </View>
+
+            <View style={styles.editorSection}>
+              <ThemedText type="small" style={[styles.editorSectionTitle, { color: theme.textSecondary }]}>
+                Available Services
+              </ThemedText>
+              {apps.filter(app => !quickButtonIds.includes(app.id)).map(app => (
+                <Pressable
+                  key={app.id}
+                  onPress={() => handleToggleQuickButton(app.id)}
+                  disabled={quickButtonIds.length >= MAX_QUICK_BUTTONS}
+                  style={[
+                    styles.editorItem,
+                    { backgroundColor: theme.backgroundElevated },
+                    quickButtonIds.length >= MAX_QUICK_BUTTONS && styles.editorItemDisabled,
+                  ]}
+                >
+                  <View style={styles.editorItemLeft}>
+                    <Feather name={app.icon} size={18} color={app.gradientColors[0]} />
+                    <ThemedText type="body" style={{ color: theme.text, marginLeft: Spacing.sm }}>
+                      {app.title}
+                    </ThemedText>
+                  </View>
+                  <Feather
+                    name="plus-circle"
+                    size={20}
+                    color={quickButtonIds.length >= MAX_QUICK_BUTTONS ? theme.border : "#10B981"}
+                  />
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -562,10 +724,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.md,
+    paddingBottom: Spacing.sm,
   },
   headerCenter: {
-    alignItems: "center",
+    flex: 1,
   },
   headerTitle: {
     fontWeight: "700",
@@ -573,51 +735,68 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     marginTop: 2,
   },
-  viewModeButton: {
-    width: 44,
-    height: 44,
+  editButton: {
+    width: 36,
+    height: 36,
     borderRadius: BorderRadius.md,
     backgroundColor: "rgba(255, 255, 255, 0.05)",
     alignItems: "center",
     justifyContent: "center",
   },
-  viewModeButtonActive: {
-    backgroundColor: "rgba(99, 102, 241, 0.15)",
-  },
-  scrollView: {
-    flex: 1,
-  },
-  gridScrollContent: {
-    flexGrow: 1,
-  },
-  grid: {
+  quickButtonsContainer: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
   },
-  gridItem: {
-    marginBottom: Spacing.xs,
-  },
-  gridFooter: {
-    marginTop: Spacing.xl,
+  quickButton: {
+    flex: 1,
+    height: 56,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
     alignItems: "center",
-    paddingBottom: Spacing.xl,
+    justifyContent: "center",
+    paddingHorizontal: Spacing.xs,
   },
-  footerText: {
+  addQuickButton: {
+    borderStyle: "dashed",
+    backgroundColor: "transparent",
+  },
+  quickButtonIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: BorderRadius.sm,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 2,
+  },
+  quickButtonLabel: {
+    fontSize: 10,
     textAlign: "center",
   },
   carouselContainer: {
     flex: 1,
   },
   carouselContent: {
-    paddingVertical: Spacing.lg,
+    paddingVertical: Spacing.sm,
   },
   carouselItem: {
-    height: 200,
+    height: CAROUSEL_CARD_HEIGHT,
   },
-  carouselFooter: {
+  carouselIndicators: {
+    flexDirection: "row",
+    justifyContent: "center",
     alignItems: "center",
-    paddingBottom: Spacing.lg,
+    gap: Spacing.xs,
+    marginTop: Spacing.sm,
+  },
+  indicator: {
+    height: 6,
+    borderRadius: 3,
+  },
+  footerText: {
+    textAlign: "center",
+    marginTop: Spacing.sm,
   },
   modalContainer: {
     flex: 1,
@@ -706,5 +885,60 @@ const styles = StyleSheet.create({
   },
   mainContent: {
     flex: 1,
+  },
+  editorModal: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  editorContainer: {
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    maxHeight: "80%",
+  },
+  editorHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.sm,
+  },
+  editorSubtitle: {
+    marginBottom: Spacing.lg,
+  },
+  editorSection: {
+    marginBottom: Spacing.lg,
+  },
+  editorSectionTitle: {
+    marginBottom: Spacing.sm,
+    fontWeight: "600",
+  },
+  editorItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.xs,
+  },
+  editorItemDisabled: {
+    opacity: 0.5,
+  },
+  editorItemLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  editorItemActions: {
+    flexDirection: "row",
+    gap: Spacing.xs,
+  },
+  editorActionBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: BorderRadius.sm,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  editorActionBtnDisabled: {
+    opacity: 0.3,
   },
 });
