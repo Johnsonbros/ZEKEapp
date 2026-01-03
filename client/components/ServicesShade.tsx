@@ -453,16 +453,6 @@ export function ServicesShade({
           {apps.length} available
         </ThemedText>
       </View>
-
-      <Pressable
-        onPress={() => setShowQuickButtonEditor(true)}
-        style={styles.editButton}
-        accessible
-        accessibilityRole="button"
-        accessibilityLabel="Edit quick buttons"
-      >
-        <Feather name="edit-2" size={16} color={theme.textSecondary} />
-      </Pressable>
     </View>
   );
 
@@ -797,14 +787,6 @@ const styles = StyleSheet.create({
   },
   headerSubtitle: {
     marginTop: 2,
-  },
-  editButton: {
-    width: 36,
-    height: 36,
-    borderRadius: BorderRadius.md,
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
-    alignItems: "center",
-    justifyContent: "center",
   },
   quickButtonsContainer: {
     flexDirection: "row",
