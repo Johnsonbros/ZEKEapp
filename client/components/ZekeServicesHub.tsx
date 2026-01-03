@@ -24,7 +24,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
 
-const CAROUSEL_CARD_HEIGHT = 140;
+const CAROUSEL_CARD_HEIGHT = 200;
 const MAX_QUICK_BUTTONS = 4;
 const QUICK_BUTTONS_STORAGE_KEY = "@zeke_quick_buttons";
 
@@ -422,7 +422,7 @@ export function ZekeServicesHub({ apps }: ZekeServicesHubProps) {
                 Current Quick Buttons
               </ThemedText>
               {quickButtonApps.map((app, index) => (
-                <View key={app.id} style={[styles.editorItem, { backgroundColor: theme.backgroundElevated }]}>
+                <View key={app.id} style={[styles.editorItem, { backgroundColor: theme.backgroundSecondary }]}>
                   <View style={styles.editorItemLeft}>
                     <Feather name={app.icon} size={18} color={app.gradientColors[0]} />
                     <ThemedText type="body" style={{ color: theme.text, marginLeft: Spacing.sm }}>
@@ -466,7 +466,7 @@ export function ZekeServicesHub({ apps }: ZekeServicesHubProps) {
                   disabled={quickButtonIds.length >= MAX_QUICK_BUTTONS}
                   style={[
                     styles.editorItem,
-                    { backgroundColor: theme.backgroundElevated },
+                    { backgroundColor: theme.backgroundSecondary },
                     quickButtonIds.length >= MAX_QUICK_BUTTONS && styles.editorItemDisabled,
                   ]}
                 >

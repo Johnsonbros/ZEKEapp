@@ -42,7 +42,7 @@ const SPRING_CONFIG = {
   overshootClamping: true,
 };
 
-const CAROUSEL_CARD_HEIGHT = 140;
+const CAROUSEL_CARD_HEIGHT = 200;
 const QUICK_BUTTONS_HEIGHT = 72;
 const HEADER_HEIGHT = 48;
 const HANDLE_HEIGHT = 24;
@@ -154,11 +154,13 @@ export function ServicesShade({
     const topSafeArea = insets.top;
     
     const collapsedHeight = COLLAPSED_PEEK_HEIGHT + bottomSafeArea;
-    const expandedHeight = QUICK_BUTTONS_HEIGHT + CAROUSEL_CARD_HEIGHT + HEADER_HEIGHT + HANDLE_HEIGHT + Spacing.xl * 2 + bottomSafeArea + 40;
+    const expandedHeight = QUICK_BUTTONS_HEIGHT + CAROUSEL_CARD_HEIGHT + HEADER_HEIGHT + HANDLE_HEIGHT + Spacing.xl * 2 + bottomSafeArea + 60;
+    
+    const maxExpandedHeight = screenHeight - topSafeArea - 40;
     
     return {
       collapsed: collapsedHeight,
-      expanded: Math.min(expandedHeight, screenHeight - topSafeArea - 100),
+      expanded: Math.min(expandedHeight, maxExpandedHeight),
     };
   }, [screenHeight, insets.bottom, insets.top]);
 
