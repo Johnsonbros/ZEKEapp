@@ -46,7 +46,7 @@ const CAROUSEL_CARD_HEIGHT = 140;
 const QUICK_BUTTONS_HEIGHT = 72;
 const HEADER_HEIGHT = 48;
 const HANDLE_HEIGHT = 24;
-const COLLAPSED_PEEK_HEIGHT = 72;
+const COLLAPSED_PEEK_HEIGHT = 96;
 const CLOSE_VELOCITY_THRESHOLD = 1200;
 const CLOSE_DISTANCE_THRESHOLD = 0.4;
 const QUICK_BUTTONS_STORAGE_KEY = "@zeke_quick_buttons";
@@ -85,16 +85,22 @@ export function ServicesShade({
   const [showQuickButtonEditor, setShowQuickButtonEditor] = useState(false);
   const [quickButtonIds, setQuickButtonIds] = useState<string[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     loadQuickButtonConfig();
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
   }, []);
 
   useEffect(() => {
     if (quickButtonIds.length === 0 && apps.length > 0) {
       const defaultIds = apps.slice(0, MAX_QUICK_BUTTONS).map(app => app.id);
       setQuickButtonIds(defaultIds);
-      saveQuickButtonConfig(defaultIds);
+      debouncedSaveQuickButtonConfig(defaultIds);
     }
   }, [apps, quickButtonIds.length]);
 
@@ -121,6 +127,15 @@ export function ServicesShade({
       console.log("Failed to save quick button config:", error);
     }
   };
+
+  const debouncedSaveQuickButtonConfig = useCallback((ids: string[]) => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    saveTimeoutRef.current = setTimeout(() => {
+      saveQuickButtonConfig(ids);
+    }, 500);
+  }, []);
 
   const quickButtonApps = useMemo(() => {
     return quickButtonIds
@@ -185,6 +200,7 @@ export function ServicesShade({
   }, [backdropOpacity]);
 
   const handleToggleQuickButton = useCallback((appId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setQuickButtonIds(prev => {
       let newIds: string[];
       if (prev.includes(appId)) {
@@ -194,12 +210,13 @@ export function ServicesShade({
       } else {
         newIds = prev;
       }
-      saveQuickButtonConfig(newIds);
+      debouncedSaveQuickButtonConfig(newIds);
       return newIds;
     });
-  }, []);
+  }, [debouncedSaveQuickButtonConfig]);
 
   const handleMoveQuickButton = useCallback((appId: string, direction: "up" | "down") => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setQuickButtonIds(prev => {
       const index = prev.indexOf(appId);
       if (index === -1) return prev;
@@ -209,11 +226,10 @@ export function ServicesShade({
       
       const newIds = [...prev];
       [newIds[index], newIds[newIndex]] = [newIds[newIndex], newIds[index]];
-      saveQuickButtonConfig(newIds);
+      debouncedSaveQuickButtonConfig(newIds);
       return newIds;
     });
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, []);
+  }, [debouncedSaveQuickButtonConfig]);
 
   const quickActions: QuickAction[] = useMemo(() => {
     if (!selectedApp) return [];
@@ -398,6 +414,9 @@ export function ServicesShade({
           borderColor: `${app.gradientColors[0]}40`,
         },
       ]}
+      accessibilityRole="button"
+      accessibilityLabel={`${app.title}`}
+      accessibilityHint="Tap to open, long press for more options"
     >
       <View style={[styles.quickButtonIcon, { backgroundColor: `${app.gradientColors[0]}25` }]}>
         <Feather name={app.icon} size={18} color={app.gradientColors[0]} />
@@ -445,17 +464,40 @@ export function ServicesShade({
             <View style={[styles.handle, { backgroundColor: "#6366F1" }]} />
           </Animated.View>
 
-          <Animated.View style={[styles.collapsedPeek, collapsedPeekStyle]} pointerEvents="none">
-            <View style={styles.collapsedPeekContent}>
-              <Feather name="layers" size={16} color="#6366F1" />
-              <ThemedText type="small" style={[styles.collapsedPeekText, { color: theme.text }]}>
-                Services
-              </ThemedText>
-              <View style={styles.collapsedPeekDot} />
-              <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                {apps.length} apps
-              </ThemedText>
-              <Feather name="chevron-up" size={16} color={theme.textSecondary} style={styles.collapsedPeekChevron} />
+          <Animated.View style={[styles.collapsedPeek, collapsedPeekStyle]}>
+            <View style={styles.collapsedPeekHeader}>
+              <View style={styles.collapsedPeekTitleRow}>
+                <Feather name="layers" size={14} color="#6366F1" />
+                <ThemedText type="caption" style={[styles.collapsedPeekText, { color: theme.text }]}>
+                  Services
+                </ThemedText>
+                <View style={styles.collapsedPeekDot} />
+                <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+                  {apps.length}
+                </ThemedText>
+              </View>
+              <Feather name="chevron-up" size={14} color={theme.textSecondary} />
+            </View>
+            <View style={styles.collapsedQuickButtons}>
+              {quickButtonApps.slice(0, 4).map((app) => (
+                <Pressable
+                  key={app.id}
+                  onPress={() => handleQuickButtonPress(app)}
+                  style={({ pressed }) => [
+                    styles.collapsedQuickButton,
+                    {
+                      backgroundColor: pressed ? `${app.gradientColors[0]}30` : `${app.gradientColors[0]}15`,
+                      borderColor: `${app.gradientColors[0]}30`,
+                    },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open ${app.title}`}
+                  accessibilityHint={`Quickly access ${app.title} service`}
+                  hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                >
+                  <Feather name={app.icon} size={18} color={app.gradientColors[0]} />
+                </Pressable>
+              ))}
             </View>
           </Animated.View>
 
@@ -860,28 +902,46 @@ const styles = StyleSheet.create({
   },
   collapsedPeek: {
     position: "absolute",
-    top: HANDLE_HEIGHT + Spacing.sm,
+    top: HANDLE_HEIGHT,
     left: 0,
     right: 0,
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: Spacing.md,
   },
-  collapsedPeekContent: {
+  collapsedPeekHeader: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.sm,
+    justifyContent: "space-between",
+    marginBottom: Spacing.xs,
+  },
+  collapsedPeekTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
   },
   collapsedPeekText: {
     fontWeight: "600",
+    fontSize: 12,
   },
   collapsedPeekDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
     backgroundColor: "#6366F1",
+    marginLeft: 2,
   },
-  collapsedPeekChevron: {
-    marginLeft: Spacing.xs,
+  collapsedQuickButtons: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: Spacing.sm,
+  },
+  collapsedQuickButton: {
+    flex: 1,
+    height: 48,
+    minWidth: 48,
+    borderRadius: BorderRadius.md,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
   },
   mainContent: {
     flex: 1,
