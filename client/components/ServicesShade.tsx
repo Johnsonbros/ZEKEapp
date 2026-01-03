@@ -130,7 +130,13 @@ export function ServicesShade({
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setViewMode(newMode);
     onViewModeChange?.(newMode);
-  }, [onViewModeChange]);
+    
+    if (newMode === "carousel" && shadePosition === "full") {
+      const currentPositions = getShadePositions();
+      shadeHeight.value = withSpring(currentPositions.half, SPRING_CONFIG);
+      updateShadePosition("half");
+    }
+  }, [onViewModeChange, shadePosition, getShadePositions, shadeHeight, updateShadePosition]);
 
   const handleAppLongPress = useCallback((app: AppCardData) => {
     setSelectedApp(app);
@@ -185,10 +191,11 @@ export function ServicesShade({
     .onUpdate((event) => {
       const currentPositions = getShadePositions();
       const newHeight = startHeight.value - event.translationY;
+      const maxHeight = viewMode === "carousel" ? currentPositions.half : currentPositions.full;
       shadeHeight.value = clamp(
         newHeight,
         currentPositions.collapsed,
-        currentPositions.full
+        maxHeight
       );
     })
     .onEnd((event) => {
@@ -196,17 +203,24 @@ export function ServicesShade({
       const velocity = -event.velocityY;
       const currentHeight = shadeHeight.value;
       
-      const positionList = [
-        { key: "collapsed" as ShadePosition, value: currentPositions.collapsed },
-        { key: "half" as ShadePosition, value: currentPositions.half },
-        { key: "full" as ShadePosition, value: currentPositions.full },
-      ];
+      const positionList = viewMode === "carousel"
+        ? [
+            { key: "collapsed" as ShadePosition, value: currentPositions.collapsed },
+            { key: "half" as ShadePosition, value: currentPositions.half },
+          ]
+        : [
+            { key: "collapsed" as ShadePosition, value: currentPositions.collapsed },
+            { key: "half" as ShadePosition, value: currentPositions.half },
+            { key: "full" as ShadePosition, value: currentPositions.full },
+          ];
       
       let targetPosition: ShadePosition = "half";
       
       if (Math.abs(velocity) > 500) {
         if (velocity > 0) {
-          if (currentHeight < currentPositions.half) {
+          if (viewMode === "carousel") {
+            targetPosition = "half";
+          } else if (currentHeight < currentPositions.half) {
             targetPosition = "half";
           } else {
             targetPosition = "full";
