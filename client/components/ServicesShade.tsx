@@ -42,7 +42,7 @@ const SPRING_CONFIG = {
   overshootClamping: true,
 };
 
-const CAROUSEL_CARD_HEIGHT = 200;
+const CAROUSEL_CARD_HEIGHT = 170;
 const QUICK_BUTTONS_HEIGHT = 72;
 const HEADER_HEIGHT = 48;
 const HANDLE_HEIGHT = 24;

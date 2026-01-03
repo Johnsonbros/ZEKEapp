@@ -24,7 +24,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
 
-const CAROUSEL_CARD_HEIGHT = 200;
+const CAROUSEL_CARD_HEIGHT = 170;
 const MAX_QUICK_BUTTONS = 4;
 const QUICK_BUTTONS_STORAGE_KEY = "@zeke_quick_buttons";
 
