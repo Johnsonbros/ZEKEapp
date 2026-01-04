@@ -393,7 +393,7 @@ const styles = StyleSheet.create({
   },
   cardContent: {
     flex: 1,
-    justifyContent: "center",
+    justifyContent: "flex-start",
   },
   cardTitle: {
     fontWeight: "700",
