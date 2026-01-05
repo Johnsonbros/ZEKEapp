@@ -71,7 +71,39 @@ Bidirectional contact sync between the mobile app and ZEKE backend:
 
 ### Communication Services
 - **Twilio**: For SMS and Voice calling, integrated via Replit connector through a server-side service layer.
+  - **TwiML App Integration**: VoIP calling uses TwiML App SID (`TWILIO_TWIML_APP_SID`) for outbound calls
+  - **Voice URL**: `https://zekeapp.replit.app/api/twilio/twiml/voice`
+  - **Status Callback**: `https://zekeapp.replit.app/api/twilio/webhook/voice-status`
+  - **Call Log Sync**: Completed calls are broadcast via WebSocket and synced to ZEKE backend via `POST /api/call-logs`
 - **Google Calendar**: For real-time calendar sync and CRUD operations, integrated via Replit connector through a server-side service layer.
+
+### Call Log Sync (January 2025)
+When a call completes, the companion app:
+1. Broadcasts call data via WebSocket for real-time mobile updates
+2. Attempts to sync to ZEKE backend via HMAC-signed proxy request
+
+**ZEKE Backend Requirement:**
+The ZEKE backend needs an endpoint to receive call logs:
+- `POST /api/call-logs` - Accept call log from companion app
+- Must accept proxy HMAC signature headers (X-Zeke-Proxy-Id, X-ZEKE-Signature, etc.)
+- Should accept `X-Zeke-Service-Source: twilio-webhook` header
+
+**Payload format:**
+```json
+{
+  "content": "Voice call placed to +1234567890. Duration: 2 minutes 30 seconds.",
+  "callSid": "CA...",
+  "from": "+1987654321",
+  "to": "+1234567890",
+  "direction": "outbound-api",
+  "duration": 150,
+  "status": "completed",
+  "startTime": null,
+  "endTime": "2025-01-05T02:30:00.000Z",
+  "source": "zeke-companion-app",
+  "tags": ["voice-call", "communication", "twilio"]
+}
+```
 
 ### Third-Party Services
 - **Expo Services**: Splash screen, haptics, image handling, web browser, blur effects, audio recording.
