@@ -85,7 +85,17 @@ export function ServicesShade({
   const [showQuickButtonEditor, setShowQuickButtonEditor] = useState(false);
   const [quickButtonIds, setQuickButtonIds] = useState<string[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [isComponentReady, setIsComponentReady] = useState(false);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Defer gesture handler initialization until after first render
+  // This prevents crashes when transitioning from PairingScreen to main app
+  useEffect(() => {
+    const timer = requestAnimationFrame(() => {
+      setIsComponentReady(true);
+    });
+    return () => cancelAnimationFrame(timer);
+  }, []);
 
   useEffect(() => {
     loadQuickButtonConfig();
@@ -455,6 +465,28 @@ export function ServicesShade({
       </View>
     </View>
   );
+
+  // Show a simple placeholder while component initializes
+  // This prevents gesture handler crashes during rapid screen transitions
+  if (!isComponentReady) {
+    return (
+      <View style={styles.container}>
+        <View 
+          style={[
+            styles.shadeContainer, 
+            { backgroundColor: theme.backgroundDefault, height: getShadePositions().expanded }
+          ]}
+        >
+          <View style={styles.handleContainer}>
+            <View style={[styles.handle, { backgroundColor: "#6366F1" }]} />
+          </View>
+          <View style={styles.mainContent}>
+            {renderHeader()}
+          </View>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>

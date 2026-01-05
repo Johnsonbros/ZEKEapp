@@ -44,6 +44,9 @@ const DarkTheme = {
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [showMainApp, setShowMainApp] = useState(false);
+  const wasAuthenticated = useRef(false);
 
   useEffect(() => {
     if (!isLoading) {
@@ -51,17 +54,55 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     }
   }, [isLoading]);
 
-  if (isLoading) {
+  // Handle transition from unauthenticated to authenticated
+  // Add a brief delay to allow proper cleanup of PairingScreen before mounting main app
+  useEffect(() => {
+    if (isAuthenticated && !wasAuthenticated.current && !isLoading) {
+      // User just authenticated - add transition delay
+      console.log("[AuthGate] Authentication successful, transitioning to main app...");
+      setIsTransitioning(true);
+      wasAuthenticated.current = true;
+      
+      // Brief delay allows React Native to properly unmount PairingScreen
+      // and prepare for the complex MainTabNavigator with gesture handlers
+      const timer = setTimeout(() => {
+        setShowMainApp(true);
+        setIsTransitioning(false);
+      }, 300);
+      
+      return () => clearTimeout(timer);
+    } else if (isAuthenticated && wasAuthenticated.current) {
+      // Already authenticated (app restart or refresh)
+      setShowMainApp(true);
+    } else if (!isAuthenticated) {
+      // Not authenticated or logged out
+      wasAuthenticated.current = false;
+      setShowMainApp(false);
+    }
+  }, [isAuthenticated, isLoading]);
+
+  if (isLoading || isTransitioning) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={Colors.dark.text} />
-        <ThemedText style={styles.loadingText}>Preparing your session...</ThemedText>
+        <ThemedText style={styles.loadingText}>
+          {isTransitioning ? "Launching ZEKE..." : "Preparing your session..."}
+        </ThemedText>
       </View>
     );
   }
 
   if (!isAuthenticated) {
     return <PairingScreen />;
+  }
+
+  if (!showMainApp) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={Colors.dark.text} />
+        <ThemedText style={styles.loadingText}>Launching ZEKE...</ThemedText>
+      </View>
+    );
   }
 
   return <>{children}</>;
